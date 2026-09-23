@@ -117,6 +117,9 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+
+    // Truecaller 1-Tap OAuth SDK
+    implementation("com.truecaller.android.sdk:truecaller-sdk:3.3.0")
 }
 
 project.ext.vectoricons = [
