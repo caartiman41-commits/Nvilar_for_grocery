@@ -11,12 +11,19 @@ import { OrdersScreen } from '../features/orders/OrdersScreen';
 import { SellerOnboardingScreen } from '../features/seller/SellerOnboardingScreen';
 import { SellerStudioScreen } from '../features/seller/studio/SellerStudioScreen';
 
+import { useAuthStore } from '../features/auth/authStore';
+
 const Stack = createNativeStackNavigator();
 
 export const AppNavigator = () => {
+  const { isAuthenticated } = useAuthStore();
+
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator
+        initialRouteName={isAuthenticated ? 'MainTabs' : 'Auth'}
+        screenOptions={{ headerShown: false }}
+      >
         <Stack.Screen name="MainTabs" component={TabNavigator} />
         <Stack.Screen
           name="ProductDetails"

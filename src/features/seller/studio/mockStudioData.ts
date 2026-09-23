@@ -168,8 +168,8 @@ export const INITIAL_STUDIO_ORDERS: StudioOrderItem[] = [
 export const INITIAL_CONVERSATIONS: StudioConversation[] = [
   {
     id: 'conv_1',
-    customerId: 'cust_ashraf',
-    customerName: 'ashraf',
+    customerId: 'cust_vikram',
+    customerName: 'Vikram Sharma',
     customerAvatarBg: '#0F172A',
     isOnline: true,
     productInquiryTitle: 'Handcrafted Chikankari Silk Kurta',
@@ -189,7 +189,7 @@ export const INITIAL_CONVERSATIONS: StudioConversation[] = [
       {
         id: 'msg_2',
         sender: 'seller',
-        text: 'Hello Ashraf! It is 100% pure Mulberry silk, handcrafted with authentic Lucknowi embroidery.',
+        text: 'Hello Vikram! It is 100% pure Mulberry silk, handcrafted with authentic Lucknowi embroidery.',
         timestamp: '08:16 pm',
       },
       {

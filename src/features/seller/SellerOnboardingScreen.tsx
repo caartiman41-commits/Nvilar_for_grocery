@@ -21,6 +21,7 @@ import { Step4PayoutDetails } from './components/Step4PayoutDetails';
 import { Step5ReviewPayment } from './components/Step5ReviewPayment';
 import { SellerApplicationStatusView } from './components/SellerApplicationStatusView';
 import { useSellerStore } from './sellerStore';
+import { useAuthStore } from '../auth/authStore';
 import {
   SellerApplicationData,
   BusinessDetailsData,
@@ -39,7 +40,7 @@ const INITIAL_FORM_DATA: SellerApplicationData = {
   },
   identity: {
     legalName: '',
-    phone: '9864975438',
+    phone: '',
     email: '',
     aadharNumber: '',
     aadharCardUri: '',
@@ -80,13 +81,23 @@ const INITIAL_FORM_DATA: SellerApplicationData = {
 export const SellerOnboardingScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
+  const { user } = useAuthStore();
   const { hasSubmittedApplication, applicationStatus, resetApplication } = useSellerStore();
+
+  const isSeller = Boolean(user?.isSeller || user?.role === 'seller' || applicationStatus === 'approved');
 
   const [currentStep, setCurrentStep] = useState(1);
   const [submitTrigger, setSubmitTrigger] = useState(0);
 
-  // Application State
-  const [formData, setFormData] = useState<SellerApplicationData>(INITIAL_FORM_DATA);
+  // Application State - dynamically pre-fill phone and name from verified auth
+  const [formData, setFormData] = useState<SellerApplicationData>(() => ({
+    ...INITIAL_FORM_DATA,
+    identity: {
+      ...INITIAL_FORM_DATA.identity,
+      phone: user?.phoneNumber ? user.phoneNumber.replace(/\D/g, '').slice(-10) : '',
+      legalName: user?.displayName && user.displayName !== 'Privilege Guest' ? user.displayName : '',
+    },
+  }));
 
   const updateBusiness = useCallback((update: Partial<BusinessDetailsData>) => {
     setFormData((prev) => ({ ...prev, business: { ...prev.business, ...update } }));
@@ -335,6 +346,50 @@ export const SellerOnboardingScreen = () => {
     setSubmitTrigger((prev) => prev + 1);
   };
 
+  // If user is already registered as an active seller or approved
+  if (isSeller) {
+    return (
+      <View
+        style={[
+          styles.container,
+          {
+            paddingTop: insets.top,
+            justifyContent: 'center',
+            alignItems: 'center',
+            paddingHorizontal: 24,
+          },
+        ]}
+      >
+        <View style={styles.alreadyRegisteredCard}>
+          <View style={styles.alreadyRegisteredIcon}>
+            <Icon name="check-decagram" size={48} color="#059669" />
+          </View>
+          <Text style={styles.alreadyRegisteredTitle}>Already Registered!</Text>
+          <Text style={styles.alreadyRegisteredSubtitle}>
+            Your mobile number is already registered as an active Grezto Boutique Seller. You have full access to your Boutique Studio dashboard.
+          </Text>
+          <TouchableOpacity
+            style={styles.openStudioButton}
+            onPress={() => navigation.replace('SellerStudio')}
+            activeOpacity={0.88}
+          >
+            <Icon name="storefront-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+            <Text style={styles.openStudioButtonText}>Open Seller Studio</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.backToHomeButton}
+            onPress={() =>
+              navigation.canGoBack() ? navigation.goBack() : navigation.navigate('MainTabs')
+            }
+          >
+            <Text style={styles.backToHomeText}>← Return to Marketplace</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   // If application is submitted and under review, show the Live Verification Tracker screen
   if (hasSubmittedApplication && applicationStatus === 'under_review') {
     return (
@@ -531,5 +586,71 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  alreadyRegisteredCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 28,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+    width: '100%',
+  },
+  alreadyRegisteredIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#ECFDF5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  alreadyRegisteredTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  alreadyRegisteredSubtitle: {
+    fontSize: 13.5,
+    lineHeight: 20,
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  openStudioButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#059669',
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    width: '100%',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  openStudioButtonText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  backToHomeButton: {
+    marginTop: 16,
+    paddingVertical: 8,
+  },
+  backToHomeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
   },
 });

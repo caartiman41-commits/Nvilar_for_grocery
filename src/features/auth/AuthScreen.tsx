@@ -30,12 +30,17 @@ export const AuthScreen = () => {
   const insets = useSafeAreaInsets();
   const { loginWithTruecaller, loginWithFirebase } = useAuthStore();
 
-  // State
-  const [phoneNumber, setPhoneNumber] = useState('');
+  // Mode & Step State
+  const [authMode, setAuthMode] = useState<'create' | 'login'>('create');
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
+
+  // Input State
+  const [fullName, setFullName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
 
+  // Loading & Usability State
   const [isTruecallerUsable, setIsTruecallerUsable] = useState(false);
   const [isTruecallerLoading, setIsTruecallerLoading] = useState(false);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
@@ -45,12 +50,29 @@ export const AuthScreen = () => {
   const [countdown, setCountdown] = useState(0);
   const timerRef = useRef<any>(null);
 
+  const navigateToMainApp = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.replace('MainTabs');
+    }
+  };
+
   useEffect(() => {
     // Check Truecaller availability on mount
     let isMounted = true;
     TruecallerAuthService.isUsable().then((usable) => {
       if (isMounted) {
         setIsTruecallerUsable(usable);
+        if (usable) {
+          // Auto-trigger 1-tap Truecaller bottom sheet on cold start
+          const timer = setTimeout(() => {
+            if (isMounted) {
+              handleTruecallerLogin();
+            }
+          }, 500);
+          return () => clearTimeout(timer);
+        }
       }
     });
 
@@ -82,25 +104,25 @@ export const AuthScreen = () => {
     try {
       const res = await TruecallerAuthService.requestOneTapLogin();
       if (res.success && (res.phoneNumber || res.authCode)) {
+        const verifiedName = res.name || fullName.trim() || 'Grezto Member';
         await loginWithTruecaller({
           phoneNumber: res.phoneNumber || '+919876543210',
-          displayName: res.name || 'Grezto Customer',
+          displayName: verifiedName,
           authCode: res.authCode,
         });
 
         showToast({
           type: 'success',
-          title: 'Welcome to Grezto! 🎉',
-          message: 'Verified successfully with Truecaller',
+          title: `Welcome, ${verifiedName}! 🎉`,
+          message: 'Verified successfully with Truecaller 1-Tap',
         });
-        navigation.goBack();
+        navigateToMainApp();
       } else {
-        // User dismissed Truecaller dialog or cancelled
         if (res.error && !res.error.toLowerCase().includes('cancel')) {
           showToast({
             type: 'warning',
             title: 'Truecaller Notice',
-            message: res.error || 'Please continue with Phone OTP verification',
+            message: res.error || 'Please continue with Mobile OTP verification',
           });
         }
       }
@@ -113,6 +135,15 @@ export const AuthScreen = () => {
 
   // 2. Firebase Phone Auth: Send OTP
   const handleSendOtp = async () => {
+    if (authMode === 'create' && fullName.trim().length < 2) {
+      showToast({
+        type: 'warning',
+        title: 'Name Required',
+        message: 'Please enter your full name (at least 2 characters) to create an account.',
+      });
+      return;
+    }
+
     const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
     if (cleanNumber.length !== 10) {
       showToast({
@@ -136,15 +167,13 @@ export const AuthScreen = () => {
           message: `6-digit verification code sent to +91 ${cleanNumber}`,
         });
       } else {
-        // Fallback for development without active SMS credit:
-        // Transition to OTP screen allowing test OTP
-        console.warn('Firebase SMS failed, falling back to local verification step');
+        // Fallback for development / simulated environment
         setStep('otp');
         startCountdown();
         showToast({
           type: 'info',
           title: 'Verification Code',
-          message: `Enter code sent to +91 ${cleanNumber} (Dev: 123456)`,
+          message: `Enter code sent to +91 ${cleanNumber} (Dev OTP: 123456)`,
         });
       }
     } catch (err: any) {
@@ -190,18 +219,21 @@ export const AuthScreen = () => {
         }
       }
 
+      const verifiedDisplayName =
+        authMode === 'create' && fullName.trim() ? fullName.trim() : 'Grezto Member';
+
       await loginWithFirebase({
         uid,
         phoneNumber: phone,
-        displayName: 'Grezto Member',
+        displayName: verifiedDisplayName,
       });
 
       showToast({
         type: 'success',
-        title: 'Logged In Successfully! 🎉',
-        message: 'Welcome to Grezto Boutique Marketplace',
+        title: `Welcome, ${verifiedDisplayName}! 🎉`,
+        message: 'Logged in successfully',
       });
-      navigation.goBack();
+      navigateToMainApp();
     } catch (err: any) {
       showToast({
         type: 'error',
@@ -221,14 +253,18 @@ export const AuthScreen = () => {
       {/* Top Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={navigateToMainApp}
           style={styles.closeButton}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
           <FeatherIcon name="x" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
+
         <Text style={styles.headerTitle}>AUTHENTICATION</Text>
-        <View style={styles.headerRightSpacer} />
+
+        <TouchableOpacity onPress={navigateToMainApp} style={styles.skipButton}>
+          <Text style={styles.skipButtonText}>Explore as Guest →</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -240,11 +276,15 @@ export const AuthScreen = () => {
         <View style={styles.brandHero}>
           <View style={styles.brandBadge}>
             <Icon name="shield-check" size={14} color={colors.primaryDark} />
-            <Text style={styles.brandBadgeText}>OFFICIAL LOGIN</Text>
+            <Text style={styles.brandBadgeText}>OFFICIAL ACCESS</Text>
           </View>
-          <Text style={styles.brandTitle}>Welcome to Grezto</Text>
+          <Text style={styles.brandTitle}>
+            {authMode === 'create' ? 'Create Your Account' : 'Welcome to Grezto'}
+          </Text>
           <Text style={styles.brandSubtitle}>
-            Direct access to India's finest verified boutiques, live bargaining, and high-street drops.
+            {authMode === 'create'
+              ? 'Join Grezto privilege to access verified boutiques, live bargains & hyperlocal deliveries.'
+              : 'Sign in to access your boutique orders, saved wishlist & exclusive drops.'}
           </Text>
         </View>
 
@@ -284,43 +324,120 @@ export const AuthScreen = () => {
                 )}
               </TouchableOpacity>
               <Text style={styles.tcNote}>
-                ⚡ Instant access without waiting for SMS OTP
+                ⚡ 1-Tap instant access with verified Truecaller profile
               </Text>
             </View>
 
             {/* Visual Divider */}
             <View style={styles.dividerRow}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>OR CONTINUE WITH MOBILE OTP</Text>
+              <Text style={styles.dividerText}>OR WITH MOBILE OTP</Text>
               <View style={styles.dividerLine} />
             </View>
 
-            {/* Secondary Option: Phone Number Input */}
-            <Text style={styles.inputLabel}>MOBILE NUMBER</Text>
-            <View style={styles.phoneInputRow}>
-              <View style={styles.countryCodeBadge}>
-                <Text style={styles.flagEmoji}>🇮🇳</Text>
-                <Text style={styles.countryCodeText}>+91</Text>
+            {/* Mode Switcher Tabs: Create Account vs Sign In */}
+            <View style={styles.modeTabsContainer}>
+              <TouchableOpacity
+                style={[styles.modeTab, authMode === 'create' && styles.modeTabActive]}
+                onPress={() => setAuthMode('create')}
+                activeOpacity={0.8}
+              >
+                <Icon
+                  name="account-plus-outline"
+                  size={16}
+                  color={authMode === 'create' ? '#FFFFFF' : '#64748B'}
+                  style={{ marginRight: 6 }}
+                />
+                <Text
+                  style={[
+                    styles.modeTabText,
+                    authMode === 'create' && styles.modeTabTextActive,
+                  ]}
+                >
+                  Create Account
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modeTab, authMode === 'login' && styles.modeTabActive]}
+                onPress={() => setAuthMode('login')}
+                activeOpacity={0.8}
+              >
+                <Icon
+                  name="login-variant"
+                  size={16}
+                  color={authMode === 'login' ? '#FFFFFF' : '#64748B'}
+                  style={{ marginRight: 6 }}
+                />
+                <Text
+                  style={[
+                    styles.modeTabText,
+                    authMode === 'login' && styles.modeTabTextActive,
+                  ]}
+                >
+                  Sign In
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Full Name Input (for Create Account) */}
+            {authMode === 'create' && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>YOUR FULL NAME</Text>
+                <View style={styles.textInputRow}>
+                  <Icon name="account-outline" size={20} color={colors.textMuted} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Enter your full name (e.g. Arun Roy)"
+                    placeholderTextColor={colors.textMuted}
+                    value={fullName}
+                    onChangeText={setFullName}
+                    autoCapitalize="words"
+                  />
+                  {fullName.trim().length >= 2 && (
+                    <Icon name="check-circle" size={18} color={colors.verifiedGreen} style={styles.checkIcon} />
+                  )}
+                </View>
               </View>
-              <TextInput
-                style={styles.phoneInput}
-                placeholder="Enter 10-digit number"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="phone-pad"
-                maxLength={10}
-                value={phoneNumber}
-                onChangeText={setPhoneNumber}
-                autoFocus={!isTruecallerUsable}
-              />
-              {phoneNumber.length === 10 && (
-                <Icon name="check-circle" size={20} color={colors.verifiedGreen} style={styles.checkIcon} />
-              )}
+            )}
+
+            {/* Mobile Number Input */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>MOBILE NUMBER</Text>
+              <View style={styles.phoneInputRow}>
+                <View style={styles.countryCodeBadge}>
+                  <Text style={styles.flagEmoji}>🇮🇳</Text>
+                  <Text style={styles.countryCodeText}>+91</Text>
+                </View>
+                <TextInput
+                  style={styles.phoneInput}
+                  placeholder="Enter 10-digit number"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  value={phoneNumber}
+                  onChangeText={setPhoneNumber}
+                />
+                {phoneNumber.length === 10 && (
+                  <Icon name="check-circle" size={20} color={colors.verifiedGreen} style={styles.checkIcon} />
+                )}
+              </View>
             </View>
 
             <PrimaryButton
-              title={isSendingOtp ? 'Sending SMS Code...' : 'Get Verification Code'}
+              title={
+                isSendingOtp
+                  ? 'Sending SMS Code...'
+                  : authMode === 'create'
+                  ? 'Create Account & Send OTP'
+                  : 'Get Verification Code'
+              }
               onPress={handleSendOtp}
-              disabled={phoneNumber.length !== 10 || isSendingOtp}
+              disabled={
+                phoneNumber.length !== 10 ||
+                (authMode === 'create' && fullName.trim().length < 2) ||
+                isSendingOtp
+              }
               style={styles.continueButton}
             />
           </View>
@@ -422,8 +539,14 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
     color: colors.primaryDark,
   },
-  headerRightSpacer: {
-    width: 32,
+  skipButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  skipButtonText: {
+    fontFamily: typography.fontFamily.bold,
+    fontSize: 12,
+    color: colors.primaryDark,
   },
   content: {
     paddingHorizontal: spacing.xl,
@@ -470,7 +593,7 @@ const styles = StyleSheet.create({
 
   // Truecaller 1-Tap Button Styling
   truecallerContainer: {
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   truecallerButton: {
     flexDirection: 'row',
@@ -540,7 +663,7 @@ const styles = StyleSheet.create({
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: spacing.lg,
+    marginVertical: spacing.md,
     gap: 12,
   },
   dividerLine: {
@@ -555,13 +678,68 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 
-  // Phone Input
+  // Mode Switch Tabs
+  modeTabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: spacing.lg,
+  },
+  modeTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 9,
+  },
+  modeTabActive: {
+    backgroundColor: colors.primaryDark,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  modeTabText: {
+    fontFamily: typography.fontFamily.bold,
+    fontSize: 13,
+    color: '#64748B',
+  },
+  modeTabTextActive: {
+    color: '#FFFFFF',
+  },
+
+  // Inputs
+  inputGroup: {
+    marginBottom: spacing.md,
+  },
   inputLabel: {
     fontSize: 11,
     fontFamily: typography.fontFamily.bold,
     color: colors.textPrimary,
     letterSpacing: 0.8,
     marginBottom: 8,
+  },
+  textInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.cardBackground,
+    borderWidth: 1.5,
+    borderColor: colors.warmBorder,
+    borderRadius: 14,
+    height: 54,
+    paddingHorizontal: 12,
+  },
+  inputIcon: {
+    marginRight: 10,
+  },
+  textInput: {
+    flex: 1,
+    fontFamily: typography.fontFamily.medium,
+    fontSize: 15,
+    color: colors.textPrimary,
   },
   phoneInputRow: {
     flexDirection: 'row',
@@ -570,9 +748,8 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.warmBorder,
     borderRadius: 14,
-    height: 56,
+    height: 54,
     paddingHorizontal: 12,
-    marginBottom: spacing.lg,
   },
   countryCodeBadge: {
     flexDirection: 'row',

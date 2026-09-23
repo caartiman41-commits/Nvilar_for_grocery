@@ -35,17 +35,31 @@ interface SettingRowItem {
 export const ProfileScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const { user, logout } = useAuthStore();
+  const { user, isAuthenticated, logout } = useAuthStore();
   const { hasSubmittedApplication, applicationStatus, applicationId } = useSellerStore();
-  const isUnderReview = hasSubmittedApplication && applicationStatus === 'under_review';
 
-  const displayName = user?.displayName || 'Ashraf';
-  const displayPhone = user?.phoneNumber || '+91 98649 75438';
+  const isSeller = Boolean(user?.isSeller || user?.role === 'seller' || applicationStatus === 'approved');
+  const isUnderReview = !isSeller && Boolean(hasSubmittedApplication && applicationStatus === 'under_review');
+
+  const displayName = user?.displayName || 'Privilege Guest';
+  const displayPhone = user?.phoneNumber || '';
+
+  const getInitials = (name: string) => {
+    if (!name || name === 'Privilege Guest') return 'GZ';
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
 
   const handleInvite = async () => {
     try {
+      const code = user?.displayName
+        ? user.displayName.toUpperCase().replace(/\s+/g, '').substring(0, 6) + '500'
+        : 'GREZTO500';
       await Share.share({
-        message: 'Join Mitreno Boutique Marketplace! Use code ASHRAF500 to get ₹500 in your Mitreno Vault.',
+        message: `Join Grezto Boutique Marketplace! Use code ${code} to get ₹500 in your Grezto Vault on referrals.`,
       });
     } catch {
       // Ignore
@@ -53,13 +67,21 @@ export const ProfileScreen = () => {
   };
 
   const handleBecomeSeller = () => {
-    navigation.navigate('SellerOnboarding');
+    if (isSeller) {
+      navigation.navigate('SellerStudio');
+    } else {
+      navigation.navigate('SellerOnboarding');
+    }
   };
 
   const handleEditProfile = () => {
+    if (!isAuthenticated) {
+      navigation.navigate('Auth');
+      return;
+    }
     Alert.alert(
       'Edit Profile',
-      `Member Name: ${displayName}\nContact: ${displayPhone}\nStatus: Verified Mitreno Privilege Member.`,
+      `Member Name: ${displayName}\nContact: ${displayPhone}\nStatus: Verified Grezto Privilege Member.`,
       [{ text: 'Close', style: 'cancel' }]
     );
   };
@@ -99,20 +121,35 @@ export const ProfileScreen = () => {
       iconName: 'map-marker-radius-outline',
       iconColor: '#2563EB',
       iconBg: '#EFF6FF',
-      onPress: () => Alert.alert('Delivery Address', 'Default shipping address: Ashraf, Guwahati, Assam 781036.'),
+      onPress: () => {
+        if (isAuthenticated) {
+          Alert.alert('Delivery Address', `Registered shipping address for ${displayName}: Guwahati, Assam.`);
+        } else {
+          Alert.alert('Login Required', 'Please log in to manage your saved delivery addresses.', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Login', onPress: () => navigation.navigate('Auth') },
+          ]);
+        }
+      },
     },
     {
       id: 'seller',
-      title: isUnderReview ? 'Application Status' : 'Become Mitreno Seller',
-      subtitle: isUnderReview
+      title: isSeller
+        ? 'Boutique Studio (Seller)'
+        : isUnderReview
+        ? 'Application Status'
+        : 'Become Grezto Seller',
+      subtitle: isSeller
+        ? 'Manage live boutique inventory, orders & discounts'
+        : isUnderReview
         ? 'Auditing KYC & identity verification'
         : 'Sell boutique collections & reach verified buyers',
-      iconName: isUnderReview ? 'clock-check-outline' : 'storefront-outline',
-      iconColor: isUnderReview ? '#D97706' : '#4F46E5',
-      iconBg: isUnderReview ? '#FEF3C7' : '#EEF2FF',
-      badge: isUnderReview ? 'IN PROGRESS' : 'PARTNER',
-      badgeBg: isUnderReview ? '#FEF3C7' : '#EEF2FF',
-      badgeColor: isUnderReview ? '#B45309' : '#4F46E5',
+      iconName: isSeller ? 'store-check-outline' : isUnderReview ? 'clock-check-outline' : 'storefront-outline',
+      iconColor: isSeller ? '#059669' : isUnderReview ? '#D97706' : '#4F46E5',
+      iconBg: isSeller ? '#ECFDF5' : isUnderReview ? '#FEF3C7' : '#EEF2FF',
+      badge: isSeller ? 'ACTIVE SELLER' : isUnderReview ? 'IN PROGRESS' : 'PARTNER',
+      badgeBg: isSeller ? '#ECFDF5' : isUnderReview ? '#FEF3C7' : '#EEF2FF',
+      badgeColor: isSeller ? '#059669' : isUnderReview ? '#B45309' : '#4F46E5',
       onPress: handleBecomeSeller,
     },
     {
@@ -126,12 +163,12 @@ export const ProfileScreen = () => {
     },
     {
       id: 'about',
-      title: 'About Mitreno Studio',
+      title: 'About Grezto Studio',
       subtitle: 'Curated boutique vision, craft heritage & story',
       iconName: 'compass-outline',
       iconColor: '#475569',
       iconBg: '#F1F5F9',
-      onPress: () => Alert.alert('About Mitreno', 'Curated Boutique Marketplace connecting indie designers directly with discerning buyers.'),
+      onPress: () => Alert.alert('About Grezto', 'Curated Boutique Marketplace connecting indie designers directly with discerning buyers.'),
     },
     {
       id: 'privacy',
@@ -163,18 +200,22 @@ export const ProfileScreen = () => {
       chevronColor: '#334155',
       onPress: () => Alert.alert('Admin Dashboard', 'Authorized boutique merchant access only.'),
     },
-    {
-      id: 'logout',
-      title: 'Log Out Session',
-      subtitle: 'Exit secure member dashboard safely',
-      iconName: 'logout-variant',
-      iconColor: '#DC2626',
-      iconBg: '#FEF2F2',
-      titleColor: '#DC2626',
-      subtitleColor: '#F87171',
-      chevronColor: '#DC2626',
-      onPress: handleLogout,
-    },
+    ...(isAuthenticated
+      ? [
+          {
+            id: 'logout',
+            title: 'Log Out Session',
+            subtitle: 'Exit secure member dashboard safely',
+            iconName: 'logout-variant',
+            iconColor: '#DC2626',
+            iconBg: '#FEF2F2',
+            titleColor: '#DC2626',
+            subtitleColor: '#F87171',
+            chevronColor: '#DC2626',
+            onPress: handleLogout,
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -196,27 +237,55 @@ export const ProfileScreen = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Profile Card: Initials Avatar + Name + Member Badge + Phone + Edit */}
-        <View style={styles.profileCard}>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarInitials}>AS</Text>
-          </View>
-
-          <View style={styles.profileDetailsCol}>
-            <View style={styles.nameRow}>
-              <Text style={styles.userName}>{displayName}</Text>
+        {/* Profile Card: Guest vs Authenticated */}
+        {!isAuthenticated ? (
+          <View style={styles.profileCard}>
+            <View style={[styles.avatarCircle, { backgroundColor: '#F1F5F9', borderColor: '#CBD5E1' }]}>
+              <Icon name="account-outline" size={28} color="#475569" />
             </View>
-            <View style={styles.phoneRow}>
-              <Icon name="phone-outline" size={13} color="#64748B" style={{ marginRight: 4 }} />
-              <Text style={styles.phoneNumber}>{displayPhone}</Text>
-            </View>
-          </View>
 
-          <TouchableOpacity style={styles.editBtn} onPress={handleEditProfile} activeOpacity={0.8}>
-            <Icon name="pencil-outline" size={14} color="#0F172A" style={{ marginRight: 4 }} />
-            <Text style={styles.editBtnText}>Edit</Text>
-          </TouchableOpacity>
-        </View>
+            <View style={styles.profileDetailsCol}>
+              <View style={styles.nameRow}>
+                <Text style={styles.userName}>Welcome to Grezto</Text>
+              </View>
+              <Text style={styles.guestSubtitle} numberOfLines={1}>
+                Login or create account to access profile
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.guestLoginBtn}
+              onPress={() => navigation.navigate('Auth')}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.guestLoginBtnText}>Login / Sign Up</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.profileCard}>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarInitials}>{getInitials(displayName)}</Text>
+            </View>
+
+            <View style={styles.profileDetailsCol}>
+              <View style={styles.nameRow}>
+                <Text style={styles.userName}>{displayName}</Text>
+                <View style={styles.memberBadge}>
+                  <Text style={styles.memberBadgeText}>PRIVILEGE</Text>
+                </View>
+              </View>
+              <View style={styles.phoneRow}>
+                <Icon name="phone-outline" size={13} color="#64748B" style={{ marginRight: 4 }} />
+                <Text style={styles.phoneNumber}>{displayPhone || 'Phone verified'}</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity style={styles.editBtn} onPress={handleEditProfile} activeOpacity={0.8}>
+              <Icon name="pencil-outline" size={14} color="#0F172A" style={{ marginRight: 4 }} />
+              <Text style={styles.editBtnText}>Edit</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* 2-Column Quick Action Cards (My Orders + Wishlist) */}
         <View style={styles.dualCardsRow}>
@@ -251,7 +320,7 @@ export const ProfileScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* "Become Mitreno Seller" / "Application Status" Premium Spotlight Hero Box */}
+        {/* Seller Spotlight Hero Box */}
         <TouchableOpacity
           style={styles.sellerHeroCard}
           onPress={handleBecomeSeller}
@@ -259,7 +328,9 @@ export const ProfileScreen = () => {
         >
           <LinearGradient
             colors={
-              isUnderReview
+              isSeller
+                ? ['#064E3B', '#059669', '#10B981']
+                : isUnderReview
                 ? ['#78350F', '#B45309', '#D97706']
                 : ['#1E3A8A', '#1D4ED8', '#2563EB']
             }
@@ -270,11 +341,11 @@ export const ProfileScreen = () => {
             <View
               style={[
                 styles.sellerIconCircle,
-                isUnderReview && { backgroundColor: 'rgba(255, 255, 255, 0.25)' },
+                (isSeller || isUnderReview) && { backgroundColor: 'rgba(255, 255, 255, 0.25)' },
               ]}
             >
               <Icon
-                name={isUnderReview ? 'clock-outline' : 'storefront-outline'}
+                name={isSeller ? 'store-check' : isUnderReview ? 'clock-outline' : 'storefront-outline'}
                 size={22}
                 color="#FFFFFF"
               />
@@ -283,14 +354,24 @@ export const ProfileScreen = () => {
             <View style={styles.sellerHeroTextCol}>
               <View style={styles.sellerTagRow}>
                 <Text style={styles.sellerTagText}>
-                  {isUnderReview ? 'COMPLIANCE AUDIT' : 'BOUTIQUE ONBOARDING'}
+                  {isSeller
+                    ? 'BOUTIQUE PARTNER'
+                    : isUnderReview
+                    ? 'COMPLIANCE AUDIT'
+                    : 'BOUTIQUE ONBOARDING'}
                 </Text>
               </View>
               <Text style={styles.sellerHeroTitle}>
-                {isUnderReview ? 'Application Under Review' : 'Become Mitreno Seller'}
+                {isSeller
+                  ? 'Already Registered • Active Seller'
+                  : isUnderReview
+                  ? 'Application Under Review'
+                  : 'Become Mitreno Seller'}
               </Text>
               <Text style={styles.sellerHeroSubtitle} numberOfLines={1}>
-                {isUnderReview
+                {isSeller
+                  ? 'Manage your boutique store, orders & live inventory'
+                  : isUnderReview
                   ? `Auditing KYC & identity legitimacy (${applicationId || 'sa_...'})`
                   : 'Launch your boutique store & reach 50k+ buyers'}
               </Text>
@@ -299,16 +380,20 @@ export const ProfileScreen = () => {
             <View
               style={[
                 styles.sellerHeroActionBtn,
-                isUnderReview && { backgroundColor: '#FFFFFF' },
+                (isSeller || isUnderReview) && { backgroundColor: '#FFFFFF' },
               ]}
             >
               <Text
                 style={[
                   styles.sellerHeroActionText,
-                  isUnderReview && { color: '#B45309' },
+                  isSeller
+                    ? { color: '#059669' }
+                    : isUnderReview
+                    ? { color: '#B45309' }
+                    : {},
                 ]}
               >
-                {isUnderReview ? 'Status →' : 'Apply →'}
+                {isSeller ? 'Studio →' : isUnderReview ? 'Status →' : 'Apply →'}
               </Text>
             </View>
           </LinearGradient>
@@ -505,6 +590,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#0F172A',
+  },
+  guestSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  guestLoginBtn: {
+    backgroundColor: '#0F172A',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  guestLoginBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   dualCardsRow: {
     flexDirection: 'row',

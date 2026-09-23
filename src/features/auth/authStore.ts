@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Keychain from 'react-native-keychain';
 import { apiClient } from '../../api/client';
+import { useSellerStore } from '../seller/sellerStore';
 
 export interface User {
   uid: string;
@@ -10,6 +11,8 @@ export interface User {
   displayName?: string | null;
   email?: string | null;
   role?: string;
+  sellerStatus?: 'none' | 'under_review' | 'pending_review' | 'approved' | 'rejected';
+  isSeller?: boolean;
 }
 
 interface AuthState {
@@ -63,26 +66,45 @@ export const useAuthStore = create<AuthState>()(
           });
 
           if (res.data?.user) {
+            const isSellerAccount = res.data.is_seller || res.data.user.role === 'seller';
+            const sellerStat = res.data.seller_status || (isSellerAccount ? 'approved' : 'none');
+
             const synced: User = {
-              uid: res.data.user.id || res.data.user.firebase_uid || uid,
+              uid: res.data.user.id || res.data.user_id || uid,
               phoneNumber: res.data.user.phone || phone,
               displayName: res.data.user.full_name || name,
               email: res.data.user.email || null,
-              role: res.data.user.role || 'customer',
+              role: res.data.user.role || (isSellerAccount ? 'seller' : 'customer'),
+              sellerStatus: sellerStat,
+              isSeller: isSellerAccount,
             };
             set({ user: synced, isAuthenticated: true });
+
+            // Automatically sync seller store
+            try {
+              if (isSellerAccount || sellerStat === 'approved') {
+                useSellerStore.getState().approveApplication();
+              } else if (sellerStat === 'pending_review' || sellerStat === 'under_review') {
+                useSellerStore.setState({
+                  applicationStatus: 'under_review',
+                  hasSubmittedApplication: true,
+                });
+              }
+            } catch {}
+
             return synced;
           }
         } catch (err) {
           console.warn('[AUTH SYNC] Go backend offline or error, using local verified session:', err);
         }
 
-        // Fallback local persistence if backend is offline
         const localUser: User = {
           uid,
           phoneNumber: phone,
           displayName: name,
           role: 'customer',
+          isSeller: false,
+          sellerStatus: 'none',
         };
         set({ user: localUser, isAuthenticated: true });
         return localUser;
