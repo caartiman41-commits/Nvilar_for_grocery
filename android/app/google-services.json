@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "123456789012",
-    "project_id": "dummy-grezto-app",
-    "storage_bucket": "dummy-grezto-app.appspot.com"
+    "project_number": "312007272810",
+    "project_id": "mitreno",
+    "storage_bucket": "mitreno.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:123456789012:android:abcdef1234567890",
+        "mobilesdk_app_id": "1:312007272810:android:57dc5d5596f76119fadd13",
         "android_client_info": {
           "package_name": "com.greztoapp"
         }
@@ -15,7 +15,26 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "dummy-api-key-so-that-build-does-not-fail"
+          "current_key": "AIzaSyBDNPhFL1BjlZ-DGGSiOgDBIYCrbkYW3tY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:312007272810:android:a222734cd6dfcd30fadd13",
+        "android_client_info": {
+          "package_name": "com.mitreno.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBDNPhFL1BjlZ-DGGSiOgDBIYCrbkYW3tY"
         }
       ],
       "services": {
