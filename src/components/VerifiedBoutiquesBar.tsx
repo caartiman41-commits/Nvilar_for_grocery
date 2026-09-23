@@ -4,6 +4,8 @@ import FastImage from 'react-native-fast-image';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { colors } from '../theme/colors';
 
+import { ProductService } from '../services/ProductService';
+
 export interface BoutiqueItem {
   id: string;
   name: string;
@@ -45,14 +47,43 @@ const BOUTIQUES: BoutiqueItem[] = [
 ];
 
 export interface VerifiedBoutiquesBarProps {
+  boutiques?: BoutiqueItem[];
   onSelectBoutique?: (id: string) => void;
   selectedBoutiqueId?: string | null;
 }
 
 export const VerifiedBoutiquesBar: React.FC<VerifiedBoutiquesBarProps> = memo(({
+  boutiques: propBoutiques,
   onSelectBoutique,
   selectedBoutiqueId,
 }) => {
+  const [liveBoutiques, setLiveBoutiques] = React.useState<BoutiqueItem[]>(BOUTIQUES);
+
+  React.useEffect(() => {
+    if (propBoutiques && propBoutiques.length > 0) {
+      setLiveBoutiques(propBoutiques);
+      return;
+    }
+    let isMounted = true;
+    ProductService.getShops({ verified_only: true }).then((shops) => {
+      if (isMounted && shops && shops.length > 0) {
+        const mapped: BoutiqueItem[] = shops.map((s) => ({
+          id: s.id,
+          name: s.name,
+          avatar: s.logo_url || s.cover_image || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
+          rating: s.rating ? Number(s.rating) : 4.8,
+        }));
+        setLiveBoutiques(mapped);
+      }
+    }).catch(() => {
+      // Keep fallback
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [propBoutiques]);
+
+  const displayBoutiques = liveBoutiques.length > 0 ? liveBoutiques : BOUTIQUES;
   return (
     <View style={styles.container}>
       {/* Title Header with Shield Icon */}
@@ -67,7 +98,7 @@ export const VerifiedBoutiquesBar: React.FC<VerifiedBoutiquesBarProps> = memo(({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollList}
       >
-        {BOUTIQUES.map((boutique) => {
+        {displayBoutiques.map((boutique) => {
           const isSelected = selectedBoutiqueId === boutique.id;
           return (
             <TouchableOpacity

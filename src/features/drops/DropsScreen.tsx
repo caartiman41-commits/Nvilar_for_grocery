@@ -20,6 +20,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useCartStore } from '../cart/cartStore';
 import { typography } from '../../theme/typography';
 import { formatINR } from '../../utils/formatters';
+import { ReelsService } from '../../services/ReelsService';
 
 interface ReelItem {
   id: string;
@@ -93,10 +94,44 @@ export const DropsScreen = () => {
     'Already copped the oversized hoodie, looks amazing!',
   ]);
 
+  // Load live discovery reels from Go backend
+  React.useEffect(() => {
+    let isMounted = true;
+    ReelsService.getReelsFeed()
+      .then((liveReels) => {
+        if (isMounted && liveReels && liveReels.length > 0) {
+          const mapped: ReelItem[] = liveReels.map((r) => ({
+            id: r.id,
+            boutiqueName: r.shop?.name || 'Verified Boutique',
+            boutiqueHandle: `@${(r.shop?.name || 'boutique').toLowerCase().replace(/\s+/g, '')}`,
+            caption: r.caption || 'Live Drop Collection',
+            videoImage:
+              r.thumbnail_url ||
+              r.video_url ||
+              'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=900&auto=format&fit=crop&q=80',
+            productTitle: r.tagged_product?.name || 'Featured Apparel',
+            productPrice: r.tagged_product?.base_price || 2499,
+            productImage:
+              r.tagged_product?.thumbnail ||
+              'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=500&auto=format&fit=crop&q=80',
+            likes: r.likes_count || 1200,
+            comments: 48,
+            isLiked: r.is_liked || false,
+          }));
+          setReels(mapped);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Tab bar height compensation so reel fills the visible area
   const reelHeight = height - (Platform.OS === 'ios' ? 84 : 64);
 
   const toggleLike = (id: string) => {
+    ReelsService.likeReel(id).catch(() => {});
     setReels((prev) =>
       prev.map((r) => {
         if (r.id === id) {

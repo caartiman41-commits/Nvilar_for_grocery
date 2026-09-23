@@ -20,6 +20,7 @@ import { FloatingCartSummary } from '../../components/FloatingCartSummary';
 import { BannerCarousel } from '../../components/BannerCarousel';
 import { useCartStore } from '../cart/cartStore';
 import { colors } from '../../theme/colors';
+import { ProductService } from '../../services/ProductService';
 
 export interface BoutiqueProductItem {
   id: string;
@@ -311,6 +312,39 @@ export const HomeScreen = () => {
   const [shuffleKey, setShuffleKey] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
+  // Live products fetch from Go backend (resilient fallback to BOUTIQUE_PRODUCTS)
+  const fetchLiveProducts = useCallback(async () => {
+    try {
+      const res = await ProductService.getProducts({
+        category: selectedCategory !== 'all' ? selectedCategory : undefined,
+      });
+      if (res.products && res.products.length > 0) {
+        const mapped: BoutiqueProductItem[] = res.products.map((p) => {
+          const orig = p.original_price || p.base_price;
+          const disc = p.discount_percent || (orig > p.base_price ? Math.round(((orig - p.base_price) / orig) * 100) : 0);
+          return {
+            id: p.id,
+            name: p.name,
+            price: p.base_price,
+            originalPrice: orig,
+            image: p.thumbnail,
+            boutiqueName: p.shop?.name || 'Verified Boutique',
+            rating: p.shop?.rating ? Number(p.shop.rating) : 4.8,
+            discountBadge: disc > 0 ? `${disc}% OFF` : 'DEAL',
+            filterGroup: p.base_price <= 1999 ? 'under_1999' : disc >= 50 ? 'min_50' : 'all',
+          };
+        });
+        setShuffledProducts(smartShuffle(mapped));
+      }
+    } catch {
+      // Offline fallback
+    }
+  }, [selectedCategory, smartShuffle]);
+
+  useEffect(() => {
+    fetchLiveProducts();
+  }, [fetchLiveProducts]);
+
   const filteredProducts = shuffledProducts.filter((item) => {
     // 1. Filter by Visual Category (if specific category selected)
     if (selectedCategory === 'men' && (item.id === 'p17' || item.id === 'p8')) return false;
@@ -342,9 +376,9 @@ export const HomeScreen = () => {
       toValue: 0,
       duration: 180,
       useNativeDriver: true,
-    }).start(() => {
-      // 2. Shuffle products
-      setShuffledProducts(smartShuffle(BOUTIQUE_PRODUCTS));
+    }).start(async () => {
+      // 2. Fetch live products & shuffle
+      await fetchLiveProducts();
       setShuffleKey(prev => prev + 1);
 
       // 3. Fade in with fresh products
@@ -356,7 +390,7 @@ export const HomeScreen = () => {
         setIsRefreshing(false);
       });
     });
-  }, [fadeAnim, smartShuffle]);
+  }, [fadeAnim, fetchLiveProducts]);
 
   const handleBargain = (product: BoutiqueProductItem) => {
     Alert.alert(

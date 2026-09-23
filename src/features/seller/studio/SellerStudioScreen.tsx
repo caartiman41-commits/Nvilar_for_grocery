@@ -26,7 +26,11 @@ export const SellerStudioScreen: React.FC = memo(() => {
   const navigation = useNavigation<any>();
   const [activeTab, setActiveTab] = useState<StudioTabKey>('studio');
 
-  const { orders, products, conversations, exitStudioMode } = useSellerStore();
+  const { orders, products, conversations, exitStudioMode, fetchSellerStudioDataFromBackend } = useSellerStore();
+
+  React.useEffect(() => {
+    fetchSellerStudioDataFromBackend();
+  }, [fetchSellerStudioDataFromBackend]);
 
   const handleSwitchToBuyerApp = useCallback(() => {
     exitStudioMode();

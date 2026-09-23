@@ -17,6 +17,7 @@ import FastImage from 'react-native-fast-image';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
+import { BargainChatService } from '../../services/BargainChatService';
 
 interface StoryBoutique {
   id: string;
@@ -142,9 +143,36 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
   const [selectedChat, setSelectedChat] = useState<ChatMessage | null>(null);
   const [dmMessages, setDmMessages] = useState<string[]>([
     'Boutique owner opened Live Bargain Window.',
-    'Your offer of ₹1,999 submitted for Oversized Streetwear Hoodie.',
   ]);
   const [newMsgText, setNewMsgText] = useState('');
+
+  // Load live customer negotiations & chats from Go backend
+  useEffect(() => {
+    let isMounted = true;
+    BargainChatService.getCustomerChats()
+      .then((liveChats) => {
+        if (isMounted && liveChats && liveChats.length > 0) {
+          const mapped: ChatMessage[] = liveChats.map((lc) => ({
+            id: lc.id,
+            boutiqueName: lc.shop?.name || 'Boutique',
+            avatar:
+              lc.shop?.logo_url ||
+              'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=150&auto=format&fit=crop&q=80',
+            verified: lc.shop?.is_verified ?? true,
+            isOnline: true,
+            lastMessage: lc.messages?.[lc.messages.length - 1]?.message_text || 'Active Bargain Negotiation',
+            time: 'Recently',
+            status: lc.status === 'accepted' ? 'deal_done' : 'deal_pending',
+            statusLabel: lc.status === 'accepted' ? 'Deal Accepted' : 'Deal Pending',
+          }));
+          setChats(mapped);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Handle product passed from PDP (e.g. when user taps 'Send Message for make offer 🎉')
   const attachedProduct =

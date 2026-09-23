@@ -35,7 +35,11 @@ export const SellerApplicationStatusView: React.FC<SellerApplicationStatusViewPr
 }) => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const { applicationId, cancelApplication } = useSellerStore();
+  const { applicationId, cancelApplication, syncSellerStatusFromBackend } = useSellerStore();
+
+  useEffect(() => {
+    syncSellerStatusFromBackend();
+  }, [syncSellerStatusFromBackend]);
 
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
   const [selectedReason, setSelectedReason] = useState<string>(CANCELLATION_REASONS[0]);

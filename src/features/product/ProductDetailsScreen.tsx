@@ -19,6 +19,7 @@ import { InteractionManager } from '../../utils/InteractionManager';
 import { useCartStore } from '../cart/cartStore';
 import { getProductDetailById } from './productData';
 import { ProductDetailItem } from './types';
+import { ProductService, BackendProduct } from '../../services/ProductService';
 
 import { ProductTopSearchBar } from './components/ProductTopSearchBar';
 import { ProductImageGallery } from './components/ProductImageGallery';
@@ -39,7 +40,7 @@ export const ProductDetailsScreen: React.FC = memo(() => {
   const passedProduct = route.params?.product;
   const productId = route.params?.productId || passedProduct?.id || 'p1';
 
-  const productData: ProductDetailItem = useMemo(() => {
+  const fallbackProduct: ProductDetailItem = useMemo(() => {
     if (
       passedProduct &&
       passedProduct.seller &&
@@ -58,6 +59,67 @@ export const ProductDetailsScreen: React.FC = memo(() => {
       passedProduct?.boutiqueName || passedProduct?.boutiqueTag
     );
   }, [productId, passedProduct]);
+
+  const [liveBackendProduct, setLiveBackendProduct] = useState<BackendProduct | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    ProductService.getProductById(productId)
+      .then((bp) => {
+        if (isMounted && bp) {
+          setLiveBackendProduct(bp);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [productId]);
+
+  const productData: ProductDetailItem = useMemo(() => {
+    if (!liveBackendProduct) return fallbackProduct;
+    const bp = liveBackendProduct;
+    const orig = bp.original_price || bp.base_price;
+    const disc = bp.discount_percent || (orig > bp.base_price ? Math.round(((orig - bp.base_price) / orig) * 100) : 0);
+    return {
+      ...fallbackProduct,
+      id: bp.id,
+      name: bp.name,
+      price: bp.base_price,
+      originalPrice: orig,
+      discountPercent: disc,
+      images: bp.gallery_images && bp.gallery_images.length > 0 ? bp.gallery_images : [bp.thumbnail, ...fallbackProduct.images.slice(1)],
+      seller: bp.shop
+        ? {
+            name: bp.shop.name,
+            handle: `@${bp.shop.name.toLowerCase().replace(/\s+/g, '')}`,
+            rating: bp.shop.rating ? Number(bp.shop.rating) : 4.8,
+            verified: bp.shop.is_verified ?? true,
+            avatar: bp.shop.logo_url || bp.shop.cover_image || fallbackProduct.seller.avatar,
+            dispatchesIn: fallbackProduct.seller.dispatchesIn,
+          }
+        : fallbackProduct.seller,
+      specifications: [
+        {
+          key: 'fabric',
+          label: 'FABRIC & MATERIAL',
+          value: bp.fabric || (fallbackProduct.specifications?.find((s) => s.key === 'fabric')?.value || '100% Cotton'),
+        },
+        {
+          key: 'density',
+          label: 'FABRIC DENSITY',
+          value: bp.gsm ? `${bp.gsm} GSM` : (fallbackProduct.specifications?.find((s) => s.key === 'density')?.value || '180 GSM Heavyweight'),
+        },
+        {
+          key: 'fit',
+          label: 'FIT SILHOUETTE',
+          value: bp.fit || (fallbackProduct.specifications?.find((s) => s.key === 'fit')?.value || 'Oversized Fit'),
+        },
+        ...(fallbackProduct.specifications || []).filter((s) => !['fabric', 'density', 'fit'].includes(s.key)),
+      ],
+      sizes: bp.variants && bp.variants.length > 0 ? bp.variants.map((v) => ({ size: v.size, stock: v.stock })) : fallbackProduct.sizes,
+    };
+  }, [fallbackProduct, liveBackendProduct]);
 
   // Screen State
   const [selectedSize, setSelectedSize] = useState<string>(

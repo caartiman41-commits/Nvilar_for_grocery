@@ -15,6 +15,7 @@ import {
   INITIAL_CONVERSATIONS,
   INITIAL_BOUTIQUE_PROFILE,
 } from './studio/mockStudioData';
+import { SellerService } from '../../services/SellerService';
 
 export type SellerApplicationStatus = 'none' | 'under_review' | 'approved' | 'rejected' | 'cancelled';
 
@@ -59,6 +60,10 @@ export interface SellerState {
 
   // Profile Actions
   updateProfile: (updated: Partial<BoutiqueProfile>) => void;
+
+  // Backend Sync Actions
+  syncSellerStatusFromBackend: () => Promise<void>;
+  fetchSellerStudioDataFromBackend: () => Promise<void>;
 }
 
 export const useSellerStore = create<SellerState>()(
@@ -90,6 +95,15 @@ export const useSellerStore = create<SellerState>()(
           cancellationReason: undefined,
           applicationData: data,
         });
+
+        // Asynchronously sync application submission to Go Backend
+        SellerService.registerSeller(data)
+          .then((res) => {
+            if (res.success && res.applicationId) {
+              set({ applicationId: res.applicationId });
+            }
+          })
+          .catch(() => {});
       },
 
       approveApplication: () => {
@@ -132,11 +146,89 @@ export const useSellerStore = create<SellerState>()(
       },
 
       toggleStockStatus: (productId: string) => {
+        let nextInStock = false;
         set((state) => ({
-          products: state.products.map((p) =>
-            p.id === productId ? { ...p, inStock: !p.inStock } : p
-          ),
+          products: state.products.map((p) => {
+            if (p.id === productId) {
+              nextInStock = !p.inStock;
+              return { ...p, inStock: nextInStock };
+            }
+            return p;
+          }),
         }));
+        // Sync with Go Backend
+        SellerService.toggleProductStock(productId, nextInStock).catch(() => {});
+      },
+
+      syncSellerStatusFromBackend: async () => {
+        try {
+          const res = await SellerService.getSellerStatus();
+          if (res) {
+            if (res.status === 'approved') {
+              set({ applicationStatus: 'approved', isStudioModeActive: true });
+            } else if (res.status === 'rejected') {
+              set({ applicationStatus: 'rejected' });
+            } else if (res.status === 'pending_review' || res.status === 'under_review') {
+              set({ applicationStatus: 'under_review', hasSubmittedApplication: true });
+            }
+          }
+        } catch {
+          // Keep offline state
+        }
+      },
+
+      fetchSellerStudioDataFromBackend: async () => {
+        try {
+          const [backendProducts, backendOrders] = await Promise.all([
+            SellerService.getSellerProducts(),
+            SellerService.getSellerOrders(),
+          ]);
+          if (backendProducts && backendProducts.length > 0) {
+            const mappedProds: StudioProduct[] = backendProducts.map((bp: any) => ({
+              id: bp.id,
+              title: bp.name || 'Garment',
+              category: bp.category || 'Fashion',
+              price: bp.base_price || 0,
+              originalPrice: bp.original_price || bp.base_price || 0,
+              discountPercent: bp.discount_percent || 0,
+              imageUri: bp.thumbnail || 'https://via.placeholder.com/300',
+              inStock: bp.is_active ?? true,
+              totalSold: 12,
+              fabric: bp.fabric || 'Cotton Blend',
+              gsm: bp.gsm ? `${bp.gsm} GSM` : '220 GSM',
+              fit: bp.fit || 'Regular Fit',
+              sizes: (bp.variants || []).map((v: any) => ({
+                size: (v.size || 'M') as 'S' | 'M' | 'L' | 'XL' | 'XXL',
+                stock: v.stock || 5,
+              })),
+              isBoosted: false,
+              isFlashDrop: false,
+            }));
+            set({ products: mappedProds });
+          }
+          if (backendOrders && backendOrders.length > 0) {
+            const mappedOrders: StudioOrderItem[] = backendOrders.map((bo: any) => ({
+              id: bo.id,
+              orderNumber: bo.order_number || `#ORD-${bo.id?.substring(0, 6) || '8291'}`,
+              placedAt: 'Today',
+              customerName: bo.customer?.name || bo.shipping_address?.fullName || 'Customer',
+              customerCity: bo.shipping_address?.city || 'Local',
+              fulfillmentType: 'hyperlocal',
+              status: (bo.seller_status || bo.order_status || 'new') as OrderStatus,
+              productTitle: bo.items?.[0]?.name || 'Fashion Garment',
+              productImage: bo.items?.[0]?.thumbnail || 'https://via.placeholder.com/150',
+              size: bo.items?.[0]?.size || 'M',
+              qty: bo.items?.[0]?.quantity || 1,
+              fabric: 'Cotton Blend',
+              price: bo.total_paid || bo.total_mrp || 0,
+              totalSettlement: Math.round((bo.total_paid || bo.total_mrp || 0) * 0.95),
+              discount: bo.total_savings || 0,
+            }));
+            set({ orders: mappedOrders });
+          }
+        } catch {
+          // Keep offline mock data
+        }
       },
 
       toggleBoostProduct: (productId: string) => {
