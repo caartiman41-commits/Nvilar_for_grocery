@@ -36,13 +36,18 @@ class TruecallerAuthModule(private val reactContext: ReactApplicationContext) :
         try {
             val tcSdkOptions = TcSdkOptions.Builder(reactContext, this)
                 .build()
-            TcSdk.init(tcSdkOptions)
+            TcSdk.initAsync(tcSdkOptions)
             isInitialized = true
-            Log.d("TruecallerAuth", "TcSdk initialized successfully")
+            Log.d("TruecallerAuth", "TcSdk initAsync called successfully")
         } catch (e: Exception) {
             Log.w("TruecallerAuth", "Failed to initialize Truecaller SDK: ${e.message}")
             isInitialized = false
         }
+    }
+
+    override fun onSdkReady() {
+        isInitialized = true
+        Log.d("TruecallerAuth", "TcSdk onSdkReady callback received")
     }
 
     @ReactMethod
@@ -64,9 +69,15 @@ class TruecallerAuthModule(private val reactContext: ReactApplicationContext) :
 
     @ReactMethod
     fun requestOneTapLogin(promise: Promise) {
-        val currentActivity = currentActivity
-        if (currentActivity == null) {
+        val activity = reactApplicationContext.currentActivity
+        if (activity == null) {
             promise.reject("ACTIVITY_NOT_FOUND", "Current activity is null")
+            return
+        }
+
+        val mainActivity = activity as? MainActivity
+        if (mainActivity == null) {
+            promise.reject("ACTIVITY_INVALID", "Current activity is not MainActivity")
             return
         }
 
@@ -86,7 +97,7 @@ class TruecallerAuthModule(private val reactContext: ReactApplicationContext) :
 
             TcSdk.getInstance().setOAuthState(state)
             TcSdk.getInstance().setOAuthScopes(arrayOf("profile", "phone", "openid"))
-            TcSdk.getInstance().getAuthorizationCode(currentActivity)
+            TcSdk.getInstance().getAuthorizationCode(mainActivity, mainActivity.truecallerLauncher)
         } catch (e: Exception) {
             pendingPromise = null
             promise.reject("TRUECALLER_TRIGGER_ERROR", e.message ?: "Failed to trigger Truecaller dialog")
@@ -103,9 +114,7 @@ class TruecallerAuthModule(private val reactContext: ReactApplicationContext) :
             result.putString("authCode", tcOAuthData.authorizationCode)
             result.putString("state", tcOAuthData.state)
 
-            // Extract profile if exposed by current SDK version
             try {
-                // TcOAuthData might carry profile or granted scopes
                 val scopes = tcOAuthData.scopesGranted
                 if (scopes != null) {
                     val scopesArray = Arguments.createArray()
@@ -149,17 +158,16 @@ class TruecallerAuthModule(private val reactContext: ReactApplicationContext) :
         promise.reject("VERIFICATION_REQUIRED", "Fallback to OTP required", null, result)
     }
 
-    override fun onActivityResult(activity: Activity?, requestCode: Int, resultCode: Int, data: Intent?) {
+    override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
         try {
-            if (activity != null) {
-                TcSdk.getInstance().onActivityResultObtained(activity, requestCode, resultCode, data)
-            }
+            TcSdk.getInstance().onActivityResultObtained(activity, resultCode, data ?: Intent())
         } catch (e: Exception) {
             Log.w("TruecallerAuth", "onActivityResultObtained exception: ${e.message}")
         }
     }
 
-    override fun onNewIntent(intent: Intent?) {
+    override fun onNewIntent(intent: Intent) {
         // No-op
     }
 }
+
