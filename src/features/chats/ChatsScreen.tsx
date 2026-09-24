@@ -195,6 +195,26 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
 
   const handleOpenChat = useCallback((chat: ChatMessage) => {
     setSelectedChat(chat);
+    // If real backend negotiation ID, load thread messages from Go backend PostgreSQL!
+    if (chat.id && !chat.id.startsWith('chat_')) {
+      BargainChatService.getChatThread(chat.id)
+        .then((res) => {
+          if (res.messages && res.messages.length > 0) {
+            const mappedBackendMessages: ChatThreadMessage[] = res.messages.map((m: any) => ({
+              id: m.id,
+              sender: m.sender_id === 'seller' ? 'seller' : 'buyer',
+              text: m.message_text || m.text,
+              timestamp: new Date(m.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              status: m.seen_at ? 'read' : 'sent',
+              offerPrice: m.offered_price,
+            }));
+            setThreadMessages(mappedBackendMessages);
+            return;
+          }
+        })
+        .catch(() => {});
+    }
+
     setThreadMessages([
       {
         id: `msg_init_1`,
@@ -292,6 +312,32 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
         },
       ]);
 
+      // Connect to Go backend to initialize or fetch live negotiation row from PostgreSQL!
+      BargainChatService.getChatThread({
+        productId: attachedProduct.id,
+        shopId: attachedProduct.seller?.shopId || attachedProduct.shop_id || attachedProduct.shopId,
+      })
+        .then((res) => {
+          if (res.negotiation?.id) {
+            setSelectedChat((prev) => (prev ? { ...prev, id: res.negotiation.id } : null));
+            if (res.messages && res.messages.length > 0) {
+              const mapped: ChatThreadMessage[] = res.messages.map((m: any) => ({
+                id: m.id,
+                sender: m.sender_id === 'seller' ? 'seller' : 'buyer',
+                text: m.message_text || m.text,
+                timestamp: new Date(m.created_at || Date.now()).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }),
+                status: m.seen_at ? 'read' : 'sent',
+                offerPrice: m.offered_price,
+              }));
+              setThreadMessages(mapped);
+            }
+          }
+        })
+        .catch(() => {});
+
       setChats((prev) => {
         const exists = prev.some((c) => c.boutiqueName.toLowerCase() === sellerName.toLowerCase());
         if (exists) {
@@ -352,7 +398,38 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 60);
 
-      // 1. Direct Sync with Seller Studio Store
+      // 1. Direct REST API Call to Go Backend -> Writes to PostgreSQL database!
+      if (selectedChat?.id && !selectedChat.id.startsWith('chat_')) {
+        BargainChatService.postChatMessage(
+          selectedChat.id,
+          textToSend,
+          !!customOfferPrice,
+          customOfferPrice
+        ).catch((err) => {
+          console.warn('[ChatsScreen] Go backend postChatMessage error:', err);
+        });
+      } else if (attachedProduct) {
+        // Fallback: Start live negotiation in Go backend
+        BargainChatService.startNegotiation(
+          attachedProduct.id,
+          attachedProduct.seller?.shopId || attachedProduct.shop_id || 'shop_mitreno',
+          customOfferPrice || attachedProduct.price || 1999
+        )
+          .then((res) => {
+            if (res.negotiation?.id) {
+              setSelectedChat((prev) => (prev ? { ...prev, id: res.negotiation!.id } : null));
+              BargainChatService.postChatMessage(
+                res.negotiation.id,
+                textToSend,
+                !!customOfferPrice,
+                customOfferPrice
+              );
+            }
+          })
+          .catch(() => {});
+      }
+
+      // 2. Direct Sync with Seller Studio Store (for seamless instant local preview)
       try {
         useSellerStore.getState().receiveCustomerMessage(
           'Customer (You)',
@@ -362,11 +439,6 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
           customOfferPrice
         );
       } catch {}
-
-      // 2. Direct Sync with Go Backend Bargain Negotiation if negotiationId exists
-      if (selectedChat?.id && !selectedChat.id.startsWith('chat_')) {
-        BargainChatService.postChatMessage(selectedChat.id, textToSend).catch(() => {});
-      }
 
       // 3. Realistic Boutique Seller Response after 1.2s
       setTimeout(() => {

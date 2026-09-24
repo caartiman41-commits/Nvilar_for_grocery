@@ -82,28 +82,47 @@ export const BargainChatService = {
     }
   },
 
-  // 6. Fetch Chat Thread messages
-  getChatThread: async (negotiationId: string): Promise<any[]> => {
+  // 6. Fetch Chat Thread messages & auto-initialize negotiation in PostgreSQL
+  getChatThread: async (params: {
+    negotiationId?: string;
+    productId?: string;
+    shopId?: string;
+    buyerId?: string;
+  } | string): Promise<{ negotiation?: any; messages: any[] }> => {
     try {
+      const queryParams = typeof params === 'string'
+        ? { negotiation_id: params }
+        : {
+            negotiation_id: params.negotiationId,
+            product_id: params.productId,
+            shop_id: params.shopId,
+            buyer_id: params.buyerId,
+          };
       const res = await apiClient.get('/customer/chats/thread', {
-        params: { negotiation_id: negotiationId },
+        params: queryParams,
       });
-      return res.data?.messages || [];
+      return {
+        negotiation: res.data?.negotiation || null,
+        messages: res.data?.messages || [],
+      };
     } catch {
-      return [];
+      return { messages: [] };
     }
   },
 
-  // 7. Post Chat Message
+  // 7. Post Chat Message (Persists to PostgreSQL chat_messages table)
   postChatMessage: async (
     negotiationId: string,
     messageText: string,
     isCounter: boolean = false,
-    offeredPrice?: number
+    offeredPrice?: number,
+    senderId?: string
   ): Promise<any | null> => {
     try {
       const res = await apiClient.post(`/customer/chats/${negotiationId}/messages`, {
+        text: messageText,
         message_text: messageText,
+        sender_id: senderId || 'buyer',
         is_counter_offer: isCounter,
         offered_price: offeredPrice,
       });
