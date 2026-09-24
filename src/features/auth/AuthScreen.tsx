@@ -62,22 +62,32 @@ export const AuthScreen = () => {
   };
 
   useEffect(() => {
-    // 1. Check Truecaller availability on mount
     let isMounted = true;
-    TruecallerAuthService.isUsable().then((usable) => {
+
+    const checkAndTrigger = async () => {
+      if (Platform.OS !== 'android') return;
+
+      // Small delay for React Native mount & Android window focus
+      await new Promise<void>((resolve) => setTimeout(() => resolve(), 450));
+      if (!isMounted) return;
+
+      let usable = await TruecallerAuthService.isUsable();
+      if (!usable) {
+        // Retry once after SDK completes async handshake
+        await new Promise<void>((resolve) => setTimeout(() => resolve(), 400));
+        if (!isMounted) return;
+        usable = await TruecallerAuthService.isUsable();
+      }
+
       if (isMounted) {
         setIsTruecallerUsable(usable);
         if (usable) {
-          // Auto-trigger 1-tap Truecaller native bottom sheet dialog (Screenshot 2)
-          const timer = setTimeout(() => {
-            if (isMounted) {
-              handleTruecallerLogin(true);
-            }
-          }, 400);
-          return () => clearTimeout(timer);
+          handleTruecallerLogin(true);
         }
       }
-    });
+    };
+
+    checkAndTrigger();
 
     return () => {
       isMounted = false;
@@ -121,17 +131,56 @@ export const AuthScreen = () => {
         });
         navigateToMainApp();
       } else {
-        // If user tapped "USE ANOTHER METHOD" or canceled, silently remain on Screenshot 3
-        if (!isAutoTrigger && res.error && !res.error.toLowerCase().includes('cancel')) {
+        const errLower = (res.error || '').toLowerCase();
+        const isUserCancel =
+          errLower.includes('cancel') ||
+          errLower.includes('press') ||
+          errLower.includes('closed') ||
+          errLower.includes('denied');
+
+        if (isUserCancel) {
+          // User deliberately pressed "USE ANOTHER METHOD" or closed Truecaller dialog
+          if (!isAutoTrigger) {
+            showToast({
+              type: 'info',
+              title: 'Phone Authentication',
+              message: 'Please enter your mobile number below to receive an OTP',
+            });
+          }
+        } else if (res.errorCode === 3 || errLower.includes('partner') || errLower.includes('unauthorized')) {
           showToast({
-            type: 'info',
-            title: 'Phone Authentication',
-            message: 'Please enter your mobile number below to receive an OTP',
+            type: 'warning',
+            title: 'Truecaller Console Notice',
+            message: 'Package (com.greztoapp) or SHA-1 not yet active in Truecaller Console. Please use SMS OTP below.',
+            duration: 5000,
+          });
+        } else if (res.errorCode === 5 || errLower.includes('not installed') || errLower.includes('not logged')) {
+          if (!isAutoTrigger) {
+            showToast({
+              type: 'info',
+              title: 'Truecaller Inactive',
+              message: 'Please ensure Truecaller app is active and logged in on this phone, or use SMS OTP below.',
+              duration: 4500,
+            });
+          }
+        } else if (!isAutoTrigger && res.error) {
+          showToast({
+            type: 'warning',
+            title: 'Truecaller Notice',
+            message: res.error || 'Please enter mobile number below for SMS verification.',
+            duration: 4500,
           });
         }
       }
     } catch (err: any) {
-      console.warn('[Truecaller Trigger]:', err?.message);
+      console.warn('[Truecaller Trigger Error]:', err?.message);
+      if (!isAutoTrigger) {
+        showToast({
+          type: 'warning',
+          title: 'Authentication Notice',
+          message: 'Please enter your phone number below for verification.',
+        });
+      }
     } finally {
       setIsTruecallerLoading(false);
     }
@@ -421,7 +470,7 @@ export const AuthScreen = () => {
               </TouchableOpacity>
 
               {/* TRUECALLER 1-TAP QUICK RETRIGGER OPTION */}
-              {isTruecallerUsable && (
+              {Platform.OS === 'android' && (
                 <TouchableOpacity
                   style={styles.truecallerSubBtn}
                   onPress={() => handleTruecallerLogin(false)}

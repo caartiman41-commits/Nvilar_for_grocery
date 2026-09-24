@@ -8,6 +8,19 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
+    <!-- Android 11+ Package Visibility for Truecaller App Detection & Content Providers -->
+    <queries>
+        <package android:name="com.truecaller" />
+        <package android:name="com.truecaller.messenger" />
+        <intent>
+            <action android:name="com.truecaller.android.sdk.intent.action.v1.oAuth" />
+        </intent>
+        <intent>
+            <action android:name="com.truecaller.android.sdk.intent.action.v2.oAuth" />
+        </intent>
+        <provider android:authorities="com.truecaller.TcInfoContentProvider" />
+    </queries>
+
     <application
       android:name=".MainApplication"
       android:label="@string/app_name"

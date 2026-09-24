@@ -2,6 +2,7 @@ package com.greztoapp
 
 import android.app.Activity
 import android.content.Intent
+import android.graphics.Color
 import android.util.Log
 import com.facebook.react.bridge.ActivityEventListener
 import com.facebook.react.bridge.Arguments
@@ -16,6 +17,7 @@ import com.truecaller.android.sdk.oAuth.TcOAuthData
 import com.truecaller.android.sdk.oAuth.TcOAuthError
 import com.truecaller.android.sdk.oAuth.TcSdk
 import com.truecaller.android.sdk.oAuth.TcSdkOptions
+import com.truecaller.android.sdk.oAuth.UtilsV2
 import java.math.BigInteger
 import java.security.SecureRandom
 
@@ -37,10 +39,17 @@ class TruecallerAuthModule(private val reactContext: ReactApplicationContext) :
     private fun initializeSdkIfPossible() {
         try {
             val tcSdkOptions = TcSdkOptions.Builder(reactContext, this)
+                .consentMode(TcSdkOptions.CONSENT_MODE_BOTTOMSHEET)
+                .footerType(TcSdkOptions.FOOTER_TYPE_ANOTHER_METHOD)
+                .sdkOptions(TcSdkOptions.OPTION_VERIFY_ONLY_TC_USERS)
+                .buttonShapeOptions(TcSdkOptions.BUTTON_SHAPE_ROUNDED)
+                .buttonColor(Color.parseColor("#000000"))
+                .buttonTextColor(Color.parseColor("#FFFFFF"))
+                .ctaText(TcSdkOptions.CTA_TEXT_CONTINUE)
+                .consentHeadingOption(TcSdkOptions.SDK_CONSENT_HEADING_LOG_IN_TO)
                 .build()
             TcSdk.initAsync(tcSdkOptions)
-            isInitialized = true
-            Log.d("TruecallerAuth", "TcSdk initAsync called successfully")
+            Log.d("TruecallerAuth", "TcSdk initAsync called successfully with BottomSheet config")
         } catch (e: Exception) {
             Log.w("TruecallerAuth", "Failed to initialize Truecaller SDK: ${e.message}")
             isInitialized = false
@@ -49,7 +58,16 @@ class TruecallerAuthModule(private val reactContext: ReactApplicationContext) :
 
     override fun onSdkReady() {
         isInitialized = true
-        Log.d("TruecallerAuth", "TcSdk onSdkReady callback received")
+        Log.d("TruecallerAuth", "TcSdk onSdkReady callback received - SDK initialized & ready")
+    }
+
+    private fun isTruecallerInstalled(): Boolean {
+        return try {
+            reactContext.packageManager.getPackageInfo("com.truecaller", 0)
+            true
+        } catch (_: Exception) {
+            false
+        }
     }
 
     @ReactMethod
@@ -58,14 +76,49 @@ class TruecallerAuthModule(private val reactContext: ReactApplicationContext) :
             if (!isInitialized) {
                 initializeSdkIfPossible()
             }
-            val isUsable = try {
+            val installed = isTruecallerInstalled()
+            val usable = try {
                 TcSdk.getInstance().isOAuthFlowUsable
             } catch (e: Exception) {
                 false
             }
-            promise.resolve(isUsable)
+            val map = Arguments.createMap()
+            map.putBoolean("isUsable", usable)
+            map.putBoolean("isInstalled", installed)
+            promise.resolve(map)
         } catch (e: Exception) {
-            promise.resolve(false)
+            val map = Arguments.createMap()
+            map.putBoolean("isUsable", false)
+            map.putBoolean("isInstalled", isTruecallerInstalled())
+            promise.resolve(map)
+        }
+    }
+
+    @ReactMethod
+    fun getDiagnostics(promise: Promise) {
+        try {
+            val map = Arguments.createMap()
+            map.putString("packageName", reactContext.packageName)
+            val sha1 = try {
+                UtilsV2.getApplicationSignature(reactContext) ?: "UNKNOWN"
+            } catch (e: Exception) {
+                e.message ?: "ERROR"
+            }
+            map.putString("appSha1", sha1)
+            val appInfo = reactContext.packageManager.getApplicationInfo(reactContext.packageName, android.content.pm.PackageManager.GET_META_DATA)
+            val clientId = appInfo.metaData?.getString("com.truecaller.android.sdk.ClientId") ?: "NOT_FOUND"
+            map.putString("clientId", clientId)
+            map.putBoolean("isInstalled", isTruecallerInstalled())
+            val isUsable = try {
+                TcSdk.getInstance().isOAuthFlowUsable
+            } catch (_: Exception) {
+                false
+            }
+            map.putBoolean("isOAuthUsable", isUsable)
+            map.putBoolean("isInitialized", isInitialized)
+            promise.resolve(map)
+        } catch (e: Exception) {
+            promise.reject("DIAGNOSTICS_ERROR", e.message)
         }
     }
 
@@ -83,36 +136,58 @@ class TruecallerAuthModule(private val reactContext: ReactApplicationContext) :
             return
         }
 
-        try {
-            if (!isInitialized) {
-                initializeSdkIfPossible()
-            }
+        mainActivity.runOnUiThread {
+            try {
+                if (!isInitialized) {
+                    initializeSdkIfPossible()
+                }
 
-            if (!TcSdk.getInstance().isOAuthFlowUsable) {
-                promise.reject("NOT_USABLE", "Truecaller 1-Tap is not usable on this device")
-                return
-            }
+                val installed = isTruecallerInstalled()
+                if (!installed) {
+                    promise.reject("NOT_INSTALLED", "Truecaller app is not installed on this device")
+                    return@runOnUiThread
+                }
 
-            pendingPromise = promise
-            val state = BigInteger(130, SecureRandom()).toString(32)
-            currentState = state
+                val usable = try {
+                    TcSdk.getInstance().isOAuthFlowUsable
+                } catch (e: Exception) {
+                    false
+                }
 
-            val codeVerifier = CodeVerifierUtil.generateRandomCodeVerifier()
-            val codeChallenge = CodeVerifierUtil.getCodeChallenge(codeVerifier)
-            if (codeChallenge.isNullOrEmpty()) {
+                Log.d("TruecallerAuth", "requestOneTapLogin: usable=$usable, isTruecallerInstalled=$installed")
+
+                if (!usable) {
+                    promise.reject(
+                        "NOT_LOGGED_IN",
+                        "Truecaller is installed, but no active logged-in profile was detected in Truecaller app."
+                    )
+                    return@runOnUiThread
+                }
+
+                pendingPromise = promise
+                val state = BigInteger(130, SecureRandom()).toString(32)
+                currentState = state
+
+                val codeVerifier = CodeVerifierUtil.generateRandomCodeVerifier()
+                val codeChallenge = CodeVerifierUtil.getCodeChallenge(codeVerifier)
+                if (codeChallenge.isNullOrEmpty()) {
+                    pendingPromise = null
+                    promise.reject("CODE_CHALLENGE_ERROR", "Failed to generate code challenge")
+                    return@runOnUiThread
+                }
+                currentCodeVerifier = codeVerifier
+
+                TcSdk.getInstance().setOAuthState(state)
+                TcSdk.getInstance().setOAuthScopes(arrayOf("profile", "phone", "openid"))
+                TcSdk.getInstance().setCodeChallenge(codeChallenge)
+
+                Log.d("TruecallerAuth", "Triggering Truecaller SDK getAuthorizationCode on UI Thread...")
+                TcSdk.getInstance().getAuthorizationCode(mainActivity, mainActivity.truecallerLauncher)
+            } catch (e: Exception) {
                 pendingPromise = null
-                promise.reject("CODE_CHALLENGE_ERROR", "Failed to generate code challenge")
-                return
+                Log.e("TruecallerAuth", "Error launching Truecaller: ${e.message}", e)
+                promise.reject("TRUECALLER_TRIGGER_ERROR", e.message ?: "Failed to trigger Truecaller dialog")
             }
-            currentCodeVerifier = codeVerifier
-
-            TcSdk.getInstance().setOAuthState(state)
-            TcSdk.getInstance().setOAuthScopes(arrayOf("profile", "phone", "openid"))
-            TcSdk.getInstance().setCodeChallenge(codeChallenge)
-            TcSdk.getInstance().getAuthorizationCode(mainActivity, mainActivity.truecallerLauncher)
-        } catch (e: Exception) {
-            pendingPromise = null
-            promise.reject("TRUECALLER_TRIGGER_ERROR", e.message ?: "Failed to trigger Truecaller dialog")
         }
     }
 
@@ -153,6 +228,7 @@ class TruecallerAuthModule(private val reactContext: ReactApplicationContext) :
         result.putInt("errorCode", tcOAuthError.errorCode)
         result.putString("errorMessage", tcOAuthError.errorMessage)
 
+        Log.w("TruecallerAuth", "Truecaller onFailure: code=${tcOAuthError.errorCode}, message=${tcOAuthError.errorMessage}")
         promise.reject("TRUECALLER_ERROR_${tcOAuthError.errorCode}", tcOAuthError.errorMessage, null, result)
     }
 
@@ -168,7 +244,8 @@ class TruecallerAuthModule(private val reactContext: ReactApplicationContext) :
             result.putString("errorMessage", tcOAuthError.errorMessage)
         }
 
-        promise.reject("VERIFICATION_REQUIRED", "Fallback to OTP required", null, result)
+        Log.w("TruecallerAuth", "Truecaller onVerificationRequired: ${tcOAuthError?.errorMessage}")
+        promise.reject("VERIFICATION_REQUIRED", tcOAuthError?.errorMessage ?: "Fallback to OTP required", null, result)
     }
 
     override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
@@ -183,4 +260,3 @@ class TruecallerAuthModule(private val reactContext: ReactApplicationContext) :
         // No-op
     }
 }
-
