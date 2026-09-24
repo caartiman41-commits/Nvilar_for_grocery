@@ -119,7 +119,7 @@ export const ProductCard: React.FC<ProductCardProps> = memo(({
             onPress={onBargain || onAdd}
             activeOpacity={0.85}
           >
-            <Icon name="message-text-outline" size={13} color="#0F172A" style={{ marginRight: 4 }} />
+            <Icon name="message-text-outline" size={11} color="#0F172A" style={{ marginRight: 3.5 }} />
             <Text style={styles.bargainBtnText}>BARGAIN</Text>
           </TouchableOpacity>
 
@@ -211,16 +211,17 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   boutiqueName: {
-    fontSize: 11,
-    color: '#735C52',
-    fontWeight: '600',
+    fontSize: 11.5,
+    color: '#64748B',
+    fontWeight: '500',
+    letterSpacing: 0.1,
     flex: 1,
   },
   productTitle: {
-    fontFamily: typography.fontFamily.serifBold,
     fontSize: 13,
-    color: colors.burgundy,
-    letterSpacing: -0.2,
+    fontWeight: '600',
+    color: '#0F172A',
+    letterSpacing: -0.1,
     marginBottom: 4,
   },
   priceRow: {
@@ -254,40 +255,40 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   bargainBtn: {
-    flex: 1.2,
+    flex: 1.15,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#D8CDC0',
-    paddingVertical: 7,
-    paddingHorizontal: 6,
+    borderColor: '#E2E8F0',
+    paddingVertical: 6.5,
+    paddingHorizontal: 5,
     borderRadius: 16,
   },
   bargainBtnText: {
     color: '#0F172A',
-    fontSize: 10,
-    fontWeight: '800',
+    fontSize: 9.5,
+    fontWeight: '700',
     letterSpacing: 0.3,
   },
   buyBtn: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#7A1A2E', // Rich, vibrant royal wine burgundy (visible from afar, not overly dark)
-    paddingVertical: 7,
+    backgroundColor: '#D97706', // Rich Dark Amber Gold / Royal Warm Saffron
+    paddingVertical: 6.5,
     paddingHorizontal: 6,
     borderRadius: 16,
-    shadowColor: '#7A1A2E',
+    shadowColor: '#D97706',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
+    shadowOpacity: 0.28,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
   },
   buyBtnText: {
     color: '#FFFFFF',
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: '900',
     letterSpacing: 0.5,
   },
