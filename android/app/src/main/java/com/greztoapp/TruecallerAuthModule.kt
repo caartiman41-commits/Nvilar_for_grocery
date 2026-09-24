@@ -10,6 +10,7 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.WritableMap
+import com.truecaller.android.sdk.oAuth.CodeVerifierUtil
 import com.truecaller.android.sdk.oAuth.TcOAuthCallback
 import com.truecaller.android.sdk.oAuth.TcOAuthData
 import com.truecaller.android.sdk.oAuth.TcOAuthError
@@ -23,6 +24,7 @@ class TruecallerAuthModule(private val reactContext: ReactApplicationContext) :
 
     private var pendingPromise: Promise? = null
     private var currentState: String? = null
+    private var currentCodeVerifier: String? = null
     private var isInitialized = false
 
     init {
@@ -95,8 +97,18 @@ class TruecallerAuthModule(private val reactContext: ReactApplicationContext) :
             val state = BigInteger(130, SecureRandom()).toString(32)
             currentState = state
 
+            val codeVerifier = CodeVerifierUtil.generateRandomCodeVerifier()
+            val codeChallenge = CodeVerifierUtil.getCodeChallenge(codeVerifier)
+            if (codeChallenge.isNullOrEmpty()) {
+                pendingPromise = null
+                promise.reject("CODE_CHALLENGE_ERROR", "Failed to generate code challenge")
+                return
+            }
+            currentCodeVerifier = codeVerifier
+
             TcSdk.getInstance().setOAuthState(state)
             TcSdk.getInstance().setOAuthScopes(arrayOf("profile", "phone", "openid"))
+            TcSdk.getInstance().setCodeChallenge(codeChallenge)
             TcSdk.getInstance().getAuthorizationCode(mainActivity, mainActivity.truecallerLauncher)
         } catch (e: Exception) {
             pendingPromise = null
@@ -113,6 +125,7 @@ class TruecallerAuthModule(private val reactContext: ReactApplicationContext) :
             result.putBoolean("success", true)
             result.putString("authCode", tcOAuthData.authorizationCode)
             result.putString("state", tcOAuthData.state)
+            result.putString("codeVerifier", currentCodeVerifier)
 
             try {
                 val scopes = tcOAuthData.scopesGranted
