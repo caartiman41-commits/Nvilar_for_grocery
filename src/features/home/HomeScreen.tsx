@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import FastImage from 'react-native-fast-image';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { MitrenoHeader } from '../../components/MitrenoHeader';
@@ -475,13 +476,9 @@ export const HomeScreen = () => {
 
         {/* Curated Feed Section Header */}
         <View style={styles.feedHeaderRow}>
-          <View>
+          <View style={styles.feedHeaderTitleRow}>
+            <Icon name="star-four-points" size={15} color="#0F172A" style={styles.headerIcon} />
             <Text style={styles.feedHeaderSub}>EXPLORE COLLECTIONS</Text>
-            <Text style={styles.feedHeaderTitle}>Curated Boutique Drops</Text>
-          </View>
-          <View style={styles.itemCountPill}>
-            <View style={styles.liveDot} />
-            <Text style={styles.itemCountText}>{filteredProducts.length} Pieces</Text>
           </View>
         </View>
 
@@ -556,47 +553,23 @@ const styles = StyleSheet.create({
   feedHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    marginTop: 8,
-    marginBottom: 6,
+    paddingHorizontal: 14,
+    marginTop: 12,
+    marginBottom: 8,
     backgroundColor: '#FFFFFF',
   },
-  feedHeaderSub: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: '#8B5E3C',
-    letterSpacing: 1,
-    marginBottom: 1,
-  },
-  feedHeaderTitle: {
-    fontFamily: typography.fontFamily.serifBold,
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#1E0B12',
-    letterSpacing: -0.3,
-  },
-  itemCountPill: {
+  feedHeaderTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 12,
   },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-    marginRight: 5,
+  headerIcon: {
+    marginRight: 6,
   },
-  itemCountText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#475569',
+  feedHeaderSub: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: 1.2,
   },
   gridContainer: {
     flexDirection: 'row',
