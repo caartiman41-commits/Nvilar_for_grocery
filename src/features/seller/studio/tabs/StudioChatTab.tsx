@@ -350,12 +350,13 @@ export const StudioChatTab: React.FC<StudioChatTabProps> = memo(({ onSelectConve
       <Modal
         visible={Boolean(activeConversation)}
         animationType="slide"
+        statusBarTranslucent={true}
         onRequestClose={handleCloseConversation}
       >
         {activeConversation && (
           <KeyboardAvoidingView
             style={styles.modalContainer}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           >
             {/* Modal Header */}
             <View style={[styles.modalHeader, { paddingTop: Math.max(insets.top, 10) }]}>

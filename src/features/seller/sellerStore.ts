@@ -6,6 +6,7 @@ import {
   StudioProduct,
   StudioOrderItem,
   StudioConversation,
+  StudioChatMessage,
   BoutiqueProfile,
   OrderStatus,
 } from './studio/studioTypes';
@@ -57,6 +58,13 @@ export interface SellerState {
   // Chat Actions
   sendChatMessage: (convId: string, text: string) => void;
   acceptDealOffer: (convId: string, msgId: string) => void;
+  receiveCustomerMessage: (
+    customerName: string,
+    productTitle: string,
+    text: string,
+    productImage?: string,
+    offerPrice?: number
+  ) => void;
 
   // Profile Actions
   updateProfile: (updated: Partial<BoutiqueProfile>) => void;
@@ -320,6 +328,70 @@ export const useSellerStore = create<SellerState>()(
             };
           }),
         }));
+      },
+
+      receiveCustomerMessage: (
+        customerName: string,
+        productTitle: string,
+        text: string,
+        productImage?: string,
+        offerPrice?: number
+      ) => {
+        set((state) => {
+          const existing = state.conversations.find(
+            (c) => c.customerName.toLowerCase() === customerName.toLowerCase()
+          );
+          const newMsg: StudioChatMessage = {
+            id: `msg_${Date.now()}`,
+            sender: 'customer',
+            text,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            offer: offerPrice
+              ? {
+                  originalPrice: offerPrice + 300,
+                  offeredPrice: offerPrice,
+                  discountAmount: 300,
+                  garmentTitle: productTitle,
+                  status: 'pending',
+                }
+              : undefined,
+          };
+          if (existing) {
+            return {
+              conversations: state.conversations.map((c) =>
+                c.id === existing.id
+                  ? {
+                      ...c,
+                      lastMessage: text,
+                      lastMessageTime: 'Just now',
+                      hasBargainOffer: !!offerPrice || c.hasBargainOffer,
+                      messages: [...c.messages, newMsg],
+                    }
+                  : c
+              ),
+            };
+          }
+          const newConv: StudioConversation = {
+            id: `conv_${Date.now()}`,
+            customerId: `cust_${Date.now()}`,
+            customerName,
+            customerAvatarBg: '#2563EB',
+            isOnline: true,
+            productInquiryTitle: productTitle,
+            productInquiryImage:
+              productImage ||
+              'https://images.unsplash.com/photo-1558769132-cb1aea458c5e?w=150&auto=format&fit=crop&q=80',
+            lastMessage: text,
+            lastMessageTime: 'Just now',
+            unreadCount: 1,
+            hasBargainOffer: !!offerPrice,
+            dealStatus: 'pending',
+            messages: [newMsg],
+          };
+          return {
+            conversations: [newConv, ...state.conversations],
+          };
+        });
       },
 
       updateProfile: (updated: Partial<BoutiqueProfile>) => {

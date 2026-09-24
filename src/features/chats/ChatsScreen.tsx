@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   FlatList,
+  Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute } from '@react-navigation/native';
@@ -18,6 +19,25 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { BargainChatService } from '../../services/BargainChatService';
+import { ChatHeader } from './components/ChatHeader';
+import { ChatInfoModal, ChatThemeMode } from './components/ChatInfoModal';
+import { QuickInquiryChips } from './components/QuickInquiryChips';
+import { useSellerStore } from '../seller/sellerStore';
+
+export interface ChatThreadMessage {
+  id: string;
+  sender: 'buyer' | 'seller';
+  text: string;
+  timestamp: string;
+  status: 'sent' | 'delivered' | 'read';
+  offerPrice?: number;
+}
+
+const THEME_BACKGROUNDS: Record<ChatThemeMode, string> = {
+  white: '#FFFFFF',
+  dusk: '#F1F5F9',
+  ivory: '#FAF7F2',
+};
 
 interface StoryBoutique {
   id: string;
@@ -140,11 +160,58 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
   const [activeFilter, setActiveFilter] = useState<'all' | 'deal_done' | 'deal_pending'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [chats, setChats] = useState<ChatMessage[]>(CHATS_LIST);
+  const flatListRef = useRef<FlatList>(null);
   const [selectedChat, setSelectedChat] = useState<ChatMessage | null>(null);
-  const [dmMessages, setDmMessages] = useState<string[]>([
-    'Boutique owner opened Live Bargain Window.',
+  const [chatInfoVisible, setChatInfoVisible] = useState(false);
+  const [isSellerBlocked, setIsSellerBlocked] = useState(false);
+  const [chatTheme, setChatTheme] = useState<ChatThemeMode>('ivory');
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [threadMessages, setThreadMessages] = useState<ChatThreadMessage[]>([
+    {
+      id: 'msg_welcome',
+      sender: 'seller',
+      text: 'Namaste! Welcome to our boutique live bargain window. Feel free to make a custom offer or ask about real photos & sizing.',
+      timestamp: '10:30 AM',
+      status: 'read',
+    },
   ]);
   const [newMsgText, setNewMsgText] = useState('');
+
+  // Keyboard visibility tracking for floating input bar
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setIsKeyboardVisible(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setIsKeyboardVisible(false)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const handleOpenChat = useCallback((chat: ChatMessage) => {
+    setSelectedChat(chat);
+    setThreadMessages([
+      {
+        id: `msg_init_1`,
+        sender: 'seller',
+        text: `Namaste! Welcome to ${chat.boutiqueName}. How can we assist you with our designer pieces today?`,
+        timestamp: '10:15 AM',
+        status: 'read',
+      },
+      {
+        id: `msg_init_2`,
+        sender: 'buyer',
+        text: chat.lastMessage.startsWith('✓') ? chat.lastMessage.substring(2).trim() : chat.lastMessage,
+        timestamp: chat.time || '10:24 AM',
+        status: 'read',
+      },
+    ]);
+  }, []);
 
   // Load live customer negotiations & chats from Go backend
   useEffect(() => {
@@ -207,10 +274,24 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
       };
 
       setSelectedChat(activeChat);
-      setDmMessages((prev) => {
-        if (prev.includes(bargainMsg)) return prev;
-        return [...prev, bargainMsg];
-      });
+      setThreadMessages([
+        {
+          id: 'msg_seller_welcome',
+          sender: 'seller',
+          text: `Namaste! Welcome to ${sellerName}. We are online and happy to negotiate on ${attachedProduct.name}.`,
+          timestamp: 'Just now',
+          status: 'read',
+        },
+        {
+          id: `msg_buyer_inquiry_${Date.now()}`,
+          sender: 'buyer',
+          text: bargainMsg,
+          timestamp: 'Just now',
+          status: 'sent',
+          offerPrice: attachedProduct.price,
+        },
+      ]);
+
       setChats((prev) => {
         const exists = prev.some((c) => c.boutiqueName.toLowerCase() === sellerName.toLowerCase());
         if (exists) {
@@ -235,11 +316,101 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
     return true;
   });
 
-  const sendDM = () => {
-    if (newMsgText.trim().length === 0) return;
-    setDmMessages([...dmMessages, newMsgText.trim()]);
-    setNewMsgText('');
-  };
+  const handleSendMessage = useCallback(
+    (overrideText?: string, customOfferPrice?: number) => {
+      const textToSend = (overrideText || newMsgText).trim();
+      if (!textToSend || isSellerBlocked) return;
+
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      const buyerMessage: ChatThreadMessage = {
+        id: `msg_buyer_${Date.now()}`,
+        sender: 'buyer',
+        text: textToSend,
+        timestamp: timeStr,
+        status: 'sent',
+        offerPrice: customOfferPrice,
+      };
+
+      setThreadMessages((prev) => [...prev, buyerMessage]);
+      setNewMsgText('');
+
+      // Update parent chat list last message preview
+      if (selectedChat) {
+        setChats((prev) =>
+          prev.map((c) =>
+            c.id === selectedChat.id
+              ? { ...c, lastMessage: textToSend, time: 'Just now' }
+              : c
+          )
+        );
+      }
+
+      // Auto-scroll immediately
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 60);
+
+      // 1. Direct Sync with Seller Studio Store
+      try {
+        useSellerStore.getState().receiveCustomerMessage(
+          'Customer (You)',
+          attachedProduct?.name || selectedChat?.boutiqueName || 'Designer Garment',
+          textToSend,
+          attachedProduct?.images?.[0] || selectedChat?.avatar,
+          customOfferPrice
+        );
+      } catch {}
+
+      // 2. Direct Sync with Go Backend Bargain Negotiation if negotiationId exists
+      if (selectedChat?.id && !selectedChat.id.startsWith('chat_')) {
+        BargainChatService.postChatMessage(selectedChat.id, textToSend).catch(() => {});
+      }
+
+      // 3. Realistic Boutique Seller Response after 1.2s
+      setTimeout(() => {
+        const replyTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        let replyText = 'Thanks for reaching out! We have reserved this item for you. Dispatches in 24 hours via express courier.';
+
+        const lower = textToSend.toLowerCase();
+        if (
+          customOfferPrice ||
+          lower.includes('discount') ||
+          lower.includes('combo') ||
+          lower.includes('₹') ||
+          lower.includes('offer')
+        ) {
+          replyText = `Great offer! We can accept ₹${
+            customOfferPrice || Math.max(100, (attachedProduct?.price || 2000) - 200)
+          } for quick checkout. Unlocked instant dispatch! 🎉`;
+        } else if (lower.includes('available')) {
+          replyText = 'Yes, this piece is 100% in stock and ready for immediate packing and dispatch!';
+        } else if (lower.includes('photo') || lower.includes('fit') || lower.includes('check')) {
+          replyText =
+            'Real daylight photos and video fit check sent! It has a relaxed premium silhouette with high GSM weave.';
+        } else if (lower.includes('dispatch') || lower.includes('today')) {
+          replyText =
+            'Yes! Intra-city express riders are available. If you order now, dispatch happens within 30-45 minutes.';
+        }
+
+        const sellerReplyMsg: ChatThreadMessage = {
+          id: `msg_seller_${Date.now()}`,
+          sender: 'seller',
+          text: replyText,
+          timestamp: replyTime,
+          status: 'read',
+        };
+
+        setThreadMessages((prev) => [...prev, sellerReplyMsg]);
+
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }, 1200);
+    },
+    [newMsgText, selectedChat, isSellerBlocked, attachedProduct]
+  );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -351,7 +522,7 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
             <TouchableOpacity
               key={chat.id}
               style={styles.chatRow}
-              onPress={() => setSelectedChat(chat)}
+              onPress={() => handleOpenChat(chat)}
               activeOpacity={0.7}
             >
               {/* Avatar with optional story gradient ring */}
@@ -386,53 +557,177 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
       </ScrollView>
 
       {/* Live Negotiation Chat Modal */}
-      <Modal visible={!!selectedChat} animationType="slide" onRequestClose={() => setSelectedChat(null)}>
+      <Modal
+        visible={!!selectedChat}
+        animationType="slide"
+        statusBarTranslucent={true}
+        onRequestClose={() => setSelectedChat(null)}
+      >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.dmContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={[styles.dmContainer, { backgroundColor: THEME_BACKGROUNDS[chatTheme] }]}
+          keyboardVerticalOffset={0}
         >
-          {/* DM Header */}
-          <View style={[styles.dmHeader, { paddingTop: insets.top + 8 }]}>
-            <TouchableOpacity onPress={() => setSelectedChat(null)}>
-              <Icon name="arrow-left" size={24} color="#0F172A" />
-            </TouchableOpacity>
-            <View style={styles.dmHeaderInfo}>
-              <Text style={styles.dmBoutiqueName}>{selectedChat?.boutiqueName}</Text>
-              <Text style={styles.dmStatusText}>Verified Boutique • Deals Protected</Text>
-            </View>
-            <TouchableOpacity>
-              <Icon name="information-outline" size={24} color="#64748B" />
-            </TouchableOpacity>
+          {/* 1. REVAMPED TOP CHAT HEADER (Screenshot 2) */}
+          <View style={{ paddingTop: insets.top }}>
+            <ChatHeader
+              sellerName={selectedChat?.boutiqueName || 'Street Drops'}
+              sellerAvatar={selectedChat?.avatar}
+              isVerified={selectedChat?.verified ?? true}
+              isOnline={selectedChat?.isOnline ?? true}
+              lastSeenTime={
+                selectedChat?.time?.includes(':')
+                  ? `Today at ${selectedChat.time}`
+                  : '10:45 AM'
+              }
+              onBack={() => setSelectedChat(null)}
+              onInfoPress={() => setChatInfoVisible(true)}
+              headerBgColor={THEME_BACKGROUNDS[chatTheme]}
+            />
           </View>
 
-          {/* DM Messages List */}
-          <FlatList
-            data={dmMessages}
-            keyExtractor={(_, i) => i.toString()}
-            contentContainerStyle={styles.dmList}
-            renderItem={({ item, index }) => (
-              <View style={[styles.dmBubble, index % 2 === 0 ? styles.dmBubbleIn : styles.dmBubbleOut]}>
-                <Text style={[styles.dmBubbleText, index % 2 === 1 && styles.dmBubbleTextOut]}>
-                  {item}
+          {/* Blocked Seller Banner (if blocked) */}
+          {isSellerBlocked && (
+            <View style={styles.blockedBanner}>
+              <Icon name="block-helper" size={16} color="#DC2626" style={{ marginRight: 6 }} />
+              <Text style={styles.blockedBannerText}>
+                You have blocked this boutique. You will not receive new messages.
+              </Text>
+            </View>
+          )}
+
+          {/* Attached Pinned Garment Card (When routed from PDP) */}
+          {attachedProduct && (
+            <View style={styles.pinnedProductCard}>
+              <FastImage
+                source={{
+                  uri:
+                    (Array.isArray(attachedProduct.images) && attachedProduct.images[0]) ||
+                    attachedProduct.image ||
+                    'https://images.unsplash.com/photo-1558769132-cb1aea458c5e?w=150&auto=format&fit=crop&q=80',
+                }}
+                style={styles.pinnedProductImage}
+                resizeMode={FastImage.resizeMode.cover}
+              />
+              <View style={styles.pinnedProductDetails}>
+                <View style={styles.pinnedTagRow}>
+                  <Text style={styles.pinnedBadge}>🏷️ INQUIRED GARMENT</Text>
+                  <Text style={styles.pinnedActiveTag}>🔥 Live Bargain Active</Text>
+                </View>
+                <Text style={styles.pinnedTitle} numberOfLines={1}>
+                  {attachedProduct.name || 'Boutique Designer Garment'}
                 </Text>
+                <View style={styles.pinnedPriceRow}>
+                  <Text style={styles.pinnedPrice}>₹{attachedProduct.price}</Text>
+                  {attachedProduct.originalPrice ? (
+                    <Text style={styles.pinnedOriginalPrice}>₹{attachedProduct.originalPrice}</Text>
+                  ) : null}
+                  {attachedProduct.discountPercent ? (
+                    <Text style={styles.pinnedDiscount}>({attachedProduct.discountPercent}% OFF)</Text>
+                  ) : null}
+                </View>
               </View>
-            )}
+            </View>
+          )}
+
+          {/* 2. CHAT MESSAGES THREAD (FlatList with Auto-Scroll & Status Ticks) */}
+          <FlatList
+            ref={flatListRef}
+            data={threadMessages}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.dmList}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+            onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+            renderItem={({ item }) => {
+              const isBuyer = item.sender === 'buyer';
+              return (
+                <View style={[styles.dmBubble, isBuyer ? styles.dmBubbleOut : styles.dmBubbleIn]}>
+                  <Text style={[styles.dmBubbleText, isBuyer && styles.dmBubbleTextOut]}>
+                    {item.text}
+                  </Text>
+                  {item.offerPrice ? (
+                    <View style={styles.bubbleOfferTag}>
+                      <Icon name="check-decagram" size={12} color="#10B981" style={{ marginRight: 3 }} />
+                      <Text style={styles.bubbleOfferText}>Proposed Offer: ₹{item.offerPrice}</Text>
+                    </View>
+                  ) : null}
+                  <View style={styles.bubbleMetaRow}>
+                    <Text style={[styles.bubbleTimeText, isBuyer && styles.bubbleTimeTextOut]}>
+                      {item.timestamp}
+                    </Text>
+                    {isBuyer ? (
+                      <Icon
+                        name="check-all"
+                        size={14}
+                        color={item.status === 'read' ? '#38BDF8' : '#94A3B8'}
+                        style={{ marginLeft: 4 }}
+                      />
+                    ) : null}
+                  </View>
+                </View>
+              );
+            }}
           />
 
-          {/* Bargain Offer Input Bar */}
-          <View style={[styles.dmInputBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          {/* 3. QUICK INQUIRY PILL CHIPS ROW (Screenshot 2) */}
+          {!isSellerBlocked && (
+            <QuickInquiryChips onSelectInquiry={(text) => handleSendMessage(text)} />
+          )}
+
+          {/* 4. FLOATING INPUT BAR (Docked right above keyboard) */}
+          <View
+            style={[
+              styles.dmInputBar,
+              {
+                paddingBottom: isKeyboardVisible
+                  ? Platform.OS === 'android' ? 8 : 10
+                  : Math.max(insets.bottom, 12),
+              },
+            ]}
+          >
             <TextInput
               style={styles.dmInput}
-              placeholder="Send counter-offer or chat..."
+              placeholder={`Message ${selectedChat?.boutiqueName || 'Street Drops'}...`}
               placeholderTextColor="#94A3B8"
               value={newMsgText}
               onChangeText={setNewMsgText}
+              editable={!isSellerBlocked}
+              returnKeyType="send"
+              onSubmitEditing={() => handleSendMessage()}
+              blurOnSubmit={false}
             />
-            <TouchableOpacity style={styles.dmSendBtn} onPress={sendDM}>
+            <TouchableOpacity
+              style={[
+                styles.dmSendBtn,
+                (newMsgText.trim().length === 0 || isSellerBlocked) && styles.dmSendBtnDisabled,
+              ]}
+              onPress={() => handleSendMessage()}
+              disabled={newMsgText.trim().length === 0 || isSellerBlocked}
+              activeOpacity={0.8}
+            >
               <Icon name="send" size={18} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+
+        {/* 5. CHAT INFO BOTTOM SHEET MODAL */}
+        <ChatInfoModal
+          visible={chatInfoVisible}
+          onClose={() => setChatInfoVisible(false)}
+          sellerName={selectedChat?.boutiqueName || 'Street Drops'}
+          sellerAvatar={selectedChat?.avatar}
+          isVerified={selectedChat?.verified ?? true}
+          isBlocked={isSellerBlocked}
+          activeTheme={chatTheme}
+          onToggleBlock={() => setIsSellerBlocked((prev) => !prev)}
+          onDeleteChat={() => setThreadMessages([])}
+          onSelectTheme={(theme) => setChatTheme(theme)}
+          onReportSeller={(reason) => {
+            console.log('Reported seller for:', reason);
+          }}
+        />
       </Modal>
     </View>
   );
@@ -849,5 +1144,121 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
+  },
+  dmSendBtnDisabled: {
+    opacity: 0.45,
+  },
+  blockedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#FCA5A5',
+  },
+  blockedBannerText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#DC2626',
+    flex: 1,
+  },
+  pinnedProductCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 4,
+    padding: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  pinnedProductImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
+  pinnedProductDetails: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  pinnedTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  pinnedBadge: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+    marginRight: 6,
+  },
+  pinnedActiveTag: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#D97706',
+  },
+  pinnedTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  pinnedPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pinnedPrice: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  pinnedOriginalPrice: {
+    fontSize: 11,
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+  pinnedDiscount: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  bubbleOfferTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  bubbleOfferText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  bubbleMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+  },
+  bubbleTimeText: {
+    fontSize: 10,
+    color: '#64748B',
+  },
+  bubbleTimeTextOut: {
+    color: '#94A3B8',
   },
 });
