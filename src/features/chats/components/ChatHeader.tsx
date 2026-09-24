@@ -9,6 +9,7 @@ export interface ChatHeaderProps {
   isVerified?: boolean;
   isOnline?: boolean;
   lastSeenTime?: string;
+  isTyping?: boolean;
   onBack: () => void;
   onInfoPress: () => void;
   headerBgColor?: string;
@@ -20,6 +21,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = memo(({
   isVerified = true,
   isOnline = true,
   lastSeenTime = '10:45 AM',
+  isTyping = false,
   onBack,
   onInfoPress,
   headerBgColor = '#FFFFFF',
@@ -77,7 +79,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = memo(({
 
         {/* Subtitle Status */}
         <View style={styles.statusRow}>
-          {isOnline ? (
+          {isTyping ? (
+            <Text style={styles.typingText}>typing...</Text>
+          ) : isOnline ? (
             <Text style={styles.onlineText}>
               <Text style={styles.emeraldDot}>● </Text>Online
             </Text>
@@ -192,6 +196,13 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: '500',
     color: '#64748B',
+  },
+  typingText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#059669',
+    fontStyle: 'italic',
+    letterSpacing: 0.2,
   },
   infoBtn: {
     padding: 6,

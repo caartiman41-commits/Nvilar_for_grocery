@@ -33,6 +33,7 @@ export interface StudioChatTabProps {
 export const StudioChatTab: React.FC<StudioChatTabProps> = memo(({ onSelectConversation, initialConversationId }) => {
   const insets = useSafeAreaInsets();
   const {
+    profile,
     conversations,
     setConversations,
     sendChatMessage,
@@ -45,11 +46,13 @@ export const StudioChatTab: React.FC<StudioChatTabProps> = memo(({ onSelectConve
   const [activeFilter, setActiveFilter] = useState<ChatFilterType>('all');
   const [selectedConvId, setSelectedConvId] = useState<string | null>(initialConversationId || null);
   const [replyText, setReplyText] = useState('');
+  const [isCustomerTyping, setIsCustomerTyping] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [customerActionModalVisible, setCustomerActionModalVisible] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
   const spinValue = useRef(new Animated.Value(0)).current;
+  const sellerTypingTimeoutRef = useRef<any>(null);
 
   // Compute live unread total
   const totalUnreadCount = useMemo(() => {
@@ -227,22 +230,150 @@ export const StudioChatTab: React.FC<StudioChatTabProps> = memo(({ onSelectConve
   );
 
   const handleCloseConversation = useCallback(() => {
+    if (sellerTypingTimeoutRef.current) {
+      clearTimeout(sellerTypingTimeoutRef.current);
+      sellerTypingTimeoutRef.current = null;
+    }
+    if (selectedConvId) {
+      BargainChatService.sendTyping(
+        selectedConvId,
+        false,
+        'seller',
+        profile.storeId || 'seller'
+      );
+    }
     setSelectedConvId(null);
     setReplyText('');
+    setIsCustomerTyping(false);
     setCustomerActionModalVisible(false);
-  }, []);
+  }, [selectedConvId, profile.storeId]);
+
+  // Send seller typing indicator with 2-second debounce
+  const handleReplyChange = useCallback(
+    (text: string) => {
+      setReplyText(text);
+
+      if (selectedConvId) {
+        BargainChatService.sendTyping(
+          selectedConvId,
+          true,
+          'seller',
+          profile.storeId || 'seller'
+        );
+
+        if (sellerTypingTimeoutRef.current) {
+          clearTimeout(sellerTypingTimeoutRef.current);
+        }
+        sellerTypingTimeoutRef.current = setTimeout(() => {
+          if (selectedConvId) {
+            BargainChatService.sendTyping(
+              selectedConvId,
+              false,
+              'seller',
+              profile.storeId || 'seller'
+            );
+          }
+        }, 2000);
+      }
+    },
+    [selectedConvId, profile.storeId]
+  );
 
   // Send seller reply
   const handleSendReply = useCallback(() => {
     if (!selectedConvId || replyText.trim().length === 0) return;
     const text = replyText.trim();
+    if (sellerTypingTimeoutRef.current) {
+      clearTimeout(sellerTypingTimeoutRef.current);
+      sellerTypingTimeoutRef.current = null;
+    }
+    BargainChatService.sendTyping(
+      selectedConvId,
+      false,
+      'seller',
+      profile.storeId || 'seller'
+    );
+    BargainChatService.sendWebSocketMessage(
+      selectedConvId,
+      text,
+      profile.storeId || 'seller',
+      'seller'
+    );
     sendChatMessage(selectedConvId, text);
     BargainChatService.postSellerChatMessage(selectedConvId, text).catch(() => {});
     setReplyText('');
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
     }, 120);
-  }, [selectedConvId, replyText, sendChatMessage]);
+  }, [selectedConvId, replyText, sendChatMessage, profile.storeId]);
+
+  // Connect WebSocket & Listen for Real-Time Customer Typing & Messages
+  useEffect(() => {
+    if (!selectedConvId) {
+      setIsCustomerTyping(false);
+      return;
+    }
+
+    const sellerId = profile.storeId || 'seller';
+    BargainChatService.connectWebSocket({
+      negotiationId: selectedConvId,
+      userId: sellerId,
+      role: 'seller',
+      shopId: profile.name,
+    });
+
+    let safetyTimer: any = null;
+    const unsubTyping = BargainChatService.addTypingListener((data) => {
+      if (
+        data.role === 'customer' ||
+        data.role === 'buyer' ||
+        (data.userId && data.userId !== sellerId)
+      ) {
+        setIsCustomerTyping(data.isTyping);
+        if (data.isTyping) {
+          if (safetyTimer) clearTimeout(safetyTimer);
+          safetyTimer = setTimeout(() => {
+            setIsCustomerTyping(false);
+          }, 3500);
+        } else {
+          if (safetyTimer) clearTimeout(safetyTimer);
+        }
+      }
+    });
+
+    const unsubMessage = BargainChatService.addMessageListener((msg) => {
+      if (
+        (msg.role === 'customer' || msg.role === 'buyer') &&
+        (msg.message_text || msg.text)
+      ) {
+        const text = msg.message_text || msg.text;
+        useSellerStore.getState().receiveCustomerMessage(
+          activeConversation?.customerName || 'Customer',
+          activeConversation?.productInquiryTitle || 'Designer Garment',
+          text,
+          activeConversation?.productInquiryImage,
+          msg.offered_price
+        );
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 80);
+      }
+    });
+
+    return () => {
+      unsubTyping();
+      unsubMessage();
+      if (safetyTimer) clearTimeout(safetyTimer);
+      BargainChatService.disconnectWebSocket();
+    };
+  }, [
+    selectedConvId,
+    profile.storeId,
+    profile.name,
+    activeConversation?.customerName,
+    activeConversation?.productInquiryTitle,
+    activeConversation?.productInquiryImage,
+  ]);
 
   // Quick reply chips
   const handleQuickReply = useCallback(
@@ -662,14 +793,20 @@ export const StudioChatTab: React.FC<StudioChatTabProps> = memo(({ onSelectConve
                   <Text style={styles.modalCustomerName} numberOfLines={1}>
                     {activeConversation.customerName}
                   </Text>
-                  {activeConversation.isOnline ? (
+                  {isCustomerTyping ? (
+                    <Text style={styles.modalCustomerTyping}>
+                      typing...
+                    </Text>
+                  ) : activeConversation.isOnline ? (
                     <Text style={styles.modalCustomerOnline}>
                       <Text style={styles.emeraldDot}>● </Text>Online • Express Hyperlocal Buyer
                     </Text>
                   ) : (
                     <Text style={styles.modalCustomerOffline} numberOfLines={1}>
                       {activeConversation.lastSeenTime
-                        ? `Last seen at ${activeConversation.lastSeenTime}`
+                        ? (activeConversation.lastSeenTime.toLowerCase().startsWith('active') || activeConversation.lastSeenTime.toLowerCase().startsWith('last seen')
+                            ? activeConversation.lastSeenTime
+                            : `Last seen at ${activeConversation.lastSeenTime}`)
                         : 'Active 10m ago'}
                     </Text>
                   )}
@@ -940,7 +1077,7 @@ export const StudioChatTab: React.FC<StudioChatTabProps> = memo(({ onSelectConve
                   placeholder="Type reply or counter offer..."
                   placeholderTextColor="#94A3B8"
                   value={replyText}
-                  onChangeText={setReplyText}
+                  onChangeText={handleReplyChange}
                   multiline
                   maxLength={500}
                 />
@@ -1453,6 +1590,14 @@ const styles = StyleSheet.create({
     color: '#10B981',
     fontWeight: '600',
     marginTop: 1,
+  },
+  modalCustomerTyping: {
+    fontSize: 11.5,
+    color: '#059669',
+    fontWeight: '700',
+    fontStyle: 'italic',
+    marginTop: 1,
+    letterSpacing: 0.2,
   },
   modalCustomerOffline: {
     fontSize: 11.5,

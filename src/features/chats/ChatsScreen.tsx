@@ -23,6 +23,7 @@ import { ChatHeader } from './components/ChatHeader';
 import { ChatInfoModal, ChatThemeMode } from './components/ChatInfoModal';
 import { QuickInquiryChips } from './components/QuickInquiryChips';
 import { useSellerStore } from '../seller/sellerStore';
+import { useAuthStore } from '../auth/authStore';
 
 export interface ChatThreadMessage {
   id: string;
@@ -177,7 +178,127 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
       status: 'read',
     },
   ]);
+  const user = useAuthStore((s) => s.user);
   const [newMsgText, setNewMsgText] = useState('');
+  const [isSellerTyping, setIsSellerTyping] = useState<boolean>(false);
+  const buyerTypingTimeoutRef = useRef<any>(null);
+
+  // Send real-time typing indicator with 2-second debounce
+  const handleTextChange = useCallback(
+    (text: string) => {
+      setNewMsgText(text);
+
+      if (selectedChat?.id && !isSellerBlocked) {
+        // Emit typing = true immediately
+        BargainChatService.sendTyping(selectedChat.id, true, 'customer', user?.uid);
+
+        if (buyerTypingTimeoutRef.current) {
+          clearTimeout(buyerTypingTimeoutRef.current);
+        }
+        buyerTypingTimeoutRef.current = setTimeout(() => {
+          if (selectedChat?.id) {
+            BargainChatService.sendTyping(selectedChat.id, false, 'customer', user?.uid);
+          }
+        }, 2000);
+      }
+    },
+    [selectedChat?.id, isSellerBlocked, user?.uid]
+  );
+
+  // Manage Real-time WebSocket, Typing events, and IST Presence synchronization
+  useEffect(() => {
+    if (!selectedChat?.id) {
+      setIsSellerTyping(false);
+      return;
+    }
+
+    const currentUserId = user?.uid || 'buyer';
+    BargainChatService.connectWebSocket({
+      negotiationId: selectedChat.id,
+      userId: currentUserId,
+      role: 'customer',
+      shopId: selectedChat.boutiqueName,
+    });
+
+    // 1. Fetch authentic IST clock time and online status from PostgreSQL
+    BargainChatService.getUserPresence(selectedChat.id).then((presence) => {
+      if (presence) {
+        setSelectedChat((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            isOnline: presence.isOnline,
+            time: presence.clockTime || prev.time,
+          };
+        });
+      }
+    });
+
+    // 2. Real-time typing listener (instant WhatsApp-style switch)
+    let safetyTypingTimer: any = null;
+    const unsubTyping = BargainChatService.addTypingListener((data) => {
+      if (data.role === 'seller' || (data.userId && data.userId !== currentUserId)) {
+        setIsSellerTyping(data.isTyping);
+        if (data.isTyping) {
+          if (safetyTypingTimer) clearTimeout(safetyTypingTimer);
+          safetyTypingTimer = setTimeout(() => {
+            setIsSellerTyping(false);
+          }, 3500);
+        } else {
+          if (safetyTypingTimer) clearTimeout(safetyTypingTimer);
+        }
+      }
+    });
+
+    // 3. Real-time presence listener (Online/Offline status)
+    const unsubPresence = BargainChatService.addPresenceListener((data) => {
+      if (data.role === 'seller' || (data.userId && data.userId !== currentUserId)) {
+        setSelectedChat((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            isOnline: data.isOnline,
+            time: data.clockTime || data.lastSeenFormatted || prev.time,
+          };
+        });
+      }
+    });
+
+    // 4. Real-time message listener
+    const unsubMessage = BargainChatService.addMessageListener((msg) => {
+      if (msg.role === 'seller' && (msg.message_text || msg.text)) {
+        const incomingText = msg.message_text || msg.text;
+        const timeStr =
+          msg.last_seen_clock ||
+          new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setThreadMessages((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return [
+            ...prev,
+            {
+              id: msg.id || `msg_incoming_${Date.now()}`,
+              sender: 'seller',
+              text: incomingText,
+              timestamp: timeStr,
+              status: 'read',
+              offerPrice: msg.offered_price,
+            },
+          ];
+        });
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 80);
+      }
+    });
+
+    return () => {
+      unsubTyping();
+      unsubPresence();
+      unsubMessage();
+      if (safetyTypingTimer) clearTimeout(safetyTypingTimer);
+      BargainChatService.disconnectWebSocket();
+    };
+  }, [selectedChat?.id, user?.uid]);
 
   // Keyboard visibility tracking for floating input bar
   useEffect(() => {
@@ -414,6 +535,15 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
       setThreadMessages((prev) => [...prev, buyerMessage]);
       setNewMsgText('');
 
+      // Clear typing indicator on message send
+      if (buyerTypingTimeoutRef.current) {
+        clearTimeout(buyerTypingTimeoutRef.current);
+        buyerTypingTimeoutRef.current = null;
+      }
+      if (selectedChat?.id) {
+        BargainChatService.sendTyping(selectedChat.id, false, 'customer', user?.uid);
+      }
+
       // Update parent chat list last message preview
       if (selectedChat) {
         setChats((prev) =>
@@ -430,8 +560,15 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 60);
 
-      // 1. Direct REST API Call to Go Backend -> Writes to PostgreSQL database!
+      // 1. Direct REST & WebSocket Call to Go Backend -> Writes to PostgreSQL database & alerts participants!
       if (selectedChat?.id && !selectedChat.id.startsWith('chat_')) {
+        BargainChatService.sendWebSocketMessage(
+          selectedChat.id,
+          textToSend,
+          user?.uid || 'buyer',
+          'customer',
+          customOfferPrice
+        );
         BargainChatService.postChatMessage(
           selectedChat.id,
           textToSend,
@@ -450,6 +587,13 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
           .then((res) => {
             if (res.negotiation?.id) {
               setSelectedChat((prev) => (prev ? { ...prev, id: res.negotiation!.id } : null));
+              BargainChatService.sendWebSocketMessage(
+                res.negotiation.id,
+                textToSend,
+                user?.uid || 'buyer',
+                'customer',
+                customOfferPrice
+              );
               BargainChatService.postChatMessage(
                 res.negotiation.id,
                 textToSend,
@@ -472,48 +616,56 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
         );
       } catch {}
 
-      // 3. Realistic Boutique Seller Response after 1.2s
-      setTimeout(() => {
-        const replyTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        let replyText = 'Thanks for reaching out! We have reserved this item for you. Dispatches in 24 hours via express courier.';
-
-        const lower = textToSend.toLowerCase();
-        if (
-          customOfferPrice ||
-          lower.includes('discount') ||
-          lower.includes('combo') ||
-          lower.includes('₹') ||
-          lower.includes('offer')
-        ) {
-          replyText = `Great offer! We can accept ₹${
-            customOfferPrice || Math.max(100, (attachedProduct?.price || 2000) - 200)
-          } for quick checkout. Unlocked instant dispatch! 🎉`;
-        } else if (lower.includes('available')) {
-          replyText = 'Yes, this piece is 100% in stock and ready for immediate packing and dispatch!';
-        } else if (lower.includes('photo') || lower.includes('fit') || lower.includes('check')) {
-          replyText =
-            'Real daylight photos and video fit check sent! It has a relaxed premium silhouette with high GSM weave.';
-        } else if (lower.includes('dispatch') || lower.includes('today')) {
-          replyText =
-            'Yes! Intra-city express riders are available. If you order now, dispatch happens within 30-45 minutes.';
-        }
-
-        const sellerReplyMsg: ChatThreadMessage = {
-          id: `msg_seller_${Date.now()}`,
-          sender: 'seller',
-          text: replyText,
-          timestamp: replyTime,
-          status: 'read',
-        };
-
-        setThreadMessages((prev) => [...prev, sellerReplyMsg]);
+      // 3. Realistic Boutique Seller Response after 1.2s (with WhatsApp-style typing indicator)
+      if (!selectedChat?.id || selectedChat.id.startsWith('chat_')) {
+        // Show seller typing indicator after 350ms
+        setTimeout(() => {
+          setIsSellerTyping(true);
+        }, 350);
 
         setTimeout(() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
-      }, 1200);
+          setIsSellerTyping(false);
+          const replyTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          let replyText = 'Thanks for reaching out! We have reserved this item for you. Dispatches in 24 hours via express courier.';
+
+          const lower = textToSend.toLowerCase();
+          if (
+            customOfferPrice ||
+            lower.includes('discount') ||
+            lower.includes('combo') ||
+            lower.includes('₹') ||
+            lower.includes('offer')
+          ) {
+            replyText = `Great offer! We can accept ₹${
+              customOfferPrice || Math.max(100, (attachedProduct?.price || 2000) - 200)
+            } for quick checkout. Unlocked instant dispatch! 🎉`;
+          } else if (lower.includes('available')) {
+            replyText = 'Yes, this piece is 100% in stock and ready for immediate packing and dispatch!';
+          } else if (lower.includes('photo') || lower.includes('fit') || lower.includes('check')) {
+            replyText =
+              'Real daylight photos and video fit check sent! It has a relaxed premium silhouette with high GSM weave.';
+          } else if (lower.includes('dispatch') || lower.includes('today')) {
+            replyText =
+              'Yes! Intra-city express riders are available. If you order now, dispatch happens within 30-45 minutes.';
+          }
+
+          const sellerReplyMsg: ChatThreadMessage = {
+            id: `msg_seller_${Date.now()}`,
+            sender: 'seller',
+            text: replyText,
+            timestamp: replyTime,
+            status: 'read',
+          };
+
+          setThreadMessages((prev) => [...prev, sellerReplyMsg]);
+
+          setTimeout(() => {
+            flatListRef.current?.scrollToEnd({ animated: true });
+          }, 100);
+        }, 1300);
+      }
     },
-    [newMsgText, selectedChat, isSellerBlocked, attachedProduct]
+    [newMsgText, selectedChat, isSellerBlocked, attachedProduct, user?.uid]
   );
 
   return (
@@ -683,6 +835,7 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
               sellerAvatar={selectedChat?.avatar}
               isVerified={selectedChat?.verified ?? true}
               isOnline={selectedChat?.isOnline ?? true}
+              isTyping={isSellerTyping}
               lastSeenTime={
                 selectedChat?.time?.includes(':')
                   ? `Today at ${selectedChat.time}`
@@ -800,7 +953,7 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
               placeholder={`Message ${selectedChat?.boutiqueName || 'Street Drops'}...`}
               placeholderTextColor="#94A3B8"
               value={newMsgText}
-              onChangeText={setNewMsgText}
+              onChangeText={handleTextChange}
               editable={!isSellerBlocked}
               returnKeyType="send"
               onSubmitEditing={() => handleSendMessage()}
