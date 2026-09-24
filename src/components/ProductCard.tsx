@@ -138,23 +138,23 @@ export const ProductCard: React.FC<ProductCardProps> = memo(({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FAF5ED',
-    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#EFE7DC',
+    borderColor: '#EFE8DE',
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
+    shadowOpacity: 0.05,
     shadowRadius: 6,
-    elevation: 1,
+    elevation: 2,
     width: '100%',
   },
   imageContainer: {
     width: '100%',
     aspectRatio: 0.84, // ~3:4 Portrait vertical ratio
     position: 'relative',
-    backgroundColor: '#F0E9DF',
+    backgroundColor: '#F8FAFC',
     overflow: 'hidden',
   },
   image: {

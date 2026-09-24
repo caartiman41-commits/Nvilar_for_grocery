@@ -458,13 +458,14 @@ export const HomeScreen = () => {
         showsVerticalScrollIndicator={false}
         removeClippedSubviews={true}
         overScrollMode="never"
+        style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={handleRefresh}
             colors={['#3B111A', '#8B5E3C', '#155DFC']}
-            progressBackgroundColor="#FAF6F0"
+            progressBackgroundColor="#FFFFFF"
             tintColor="#3B111A"
           />
         }
@@ -544,8 +545,13 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  scrollView: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
   scrollContent: {
     paddingBottom: 40,
+    backgroundColor: '#FFFFFF',
   },
   feedHeaderRow: {
     flexDirection: 'row',
@@ -554,6 +560,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     marginTop: 8,
     marginBottom: 6,
+    backgroundColor: '#FFFFFF',
   },
   feedHeaderSub: {
     fontSize: 9.5,
@@ -572,9 +579,9 @@ const styles = StyleSheet.create({
   itemCountPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3EDE2',
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#E6DCCF',
+    borderColor: '#E2E8F0',
     paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 12,
@@ -589,7 +596,7 @@ const styles = StyleSheet.create({
   itemCountText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#5C4E46',
+    color: '#475569',
   },
   gridContainer: {
     flexDirection: 'row',
@@ -597,6 +604,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 12,
     marginTop: 2,
+    backgroundColor: '#FFFFFF',
   },
   cardWrapper: {
     marginBottom: 12,
