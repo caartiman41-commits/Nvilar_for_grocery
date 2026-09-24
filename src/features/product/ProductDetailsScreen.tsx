@@ -452,7 +452,7 @@ export const ProductDetailsScreen: React.FC = memo(() => {
 const styles = StyleSheet.create({
   rootContainer: {
     flex: 1,
-    backgroundColor: '#FAF9F6',
+    backgroundColor: '#FFFFFF',
   },
   scrollContainer: {
     flex: 1,

@@ -69,7 +69,7 @@ export const ProductImageGallery: React.FC<ProductImageGalleryProps> = memo(({
         onMomentumScrollEnd={handleScroll}
         keyExtractor={(_, index) => index.toString()}
         renderItem={({ item, index }) => (
-          <View style={{ width, height: galleryHeight, backgroundColor: '#F5EFE6' }}>
+          <View style={{ width, height: galleryHeight, backgroundColor: '#FFFFFF' }}>
             <FastImage
               source={{
                 uri: item,
@@ -149,7 +149,7 @@ export const ProductImageGallery: React.FC<ProductImageGalleryProps> = memo(({
 const styles = StyleSheet.create({
   container: {
     position: 'relative',
-    backgroundColor: '#F5EFE6', // Subtle warm neutral base to handle any image height/aspect ratio
+    backgroundColor: '#FFFFFF', // Clean pure white base
   },
   image: {
     width: '100%',

@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#EFE8DE',
+    borderTopColor: '#F1F5F9',
   },
   headerRow: {
     flexDirection: 'row',
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#EFE8DE',
+    borderTopColor: '#F1F5F9',
   },
   storyHeaderTitle: {
     fontSize: 13,

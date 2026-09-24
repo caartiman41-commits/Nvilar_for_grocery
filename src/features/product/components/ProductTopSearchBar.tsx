@@ -81,9 +81,9 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#FAF6F0', // Subtle warm background matching app palette
+    backgroundColor: '#FFFFFF', // Clean pure white header
     borderBottomWidth: 1,
-    borderBottomColor: '#EFE8DE',
+    borderBottomColor: '#F1F5F9',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 4,
     borderWidth: 1.5,
-    borderColor: '#FAF6F0',
+    borderColor: '#FFFFFF',
   },
   cartBadgeText: {
     fontSize: 10,

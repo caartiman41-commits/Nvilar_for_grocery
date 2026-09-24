@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   container: {
     marginTop: 18,
     paddingBottom: 24,
-    backgroundColor: '#FDFBF7', // Subtle warm luxury canvas
+    backgroundColor: '#FFFFFF', // Clean pure white canvas
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#EFE8DE', // Subtle warm border
+    borderColor: '#E2E8F0', // Clean neutral border
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
   imageWrapper: {
     width: 152,
     height: 188,
-    backgroundColor: '#F1EBE1',
+    backgroundColor: '#F8FAFC',
     position: 'relative',
   },
   productImage: {
@@ -375,10 +375,10 @@ const styles = StyleSheet.create({
   },
   sectionDivider: {
     height: 8,
-    backgroundColor: '#F7F3EB', // Soft warm band divider
+    backgroundColor: '#F8FAFC', // Crisp clean divider band
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: '#EFE8DE',
+    borderColor: '#F1F5F9',
     marginVertical: 18,
   },
 });
