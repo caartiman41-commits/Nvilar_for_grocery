@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   ScrollView,
   RefreshControl,
@@ -13,13 +14,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { MitrenoHeader } from '../../components/MitrenoHeader';
 import { VisualCategoryBar, VISUAL_CATEGORIES } from '../../components/VisualCategoryBar';
-import { VerifiedBoutiquesBar } from '../../components/VerifiedBoutiquesBar';
 import { DealFilterModal } from '../../components/DealFilterModal';
 import { ProductCard } from '../../components/ProductCard';
 import { FloatingCartSummary } from '../../components/FloatingCartSummary';
 import { BannerCarousel } from '../../components/BannerCarousel';
 import { useCartStore } from '../cart/cartStore';
 import { colors } from '../../theme/colors';
+import { typography } from '../../theme/typography';
 import { ProductService } from '../../services/ProductService';
 
 export interface BoutiqueProductItem {
@@ -471,8 +472,17 @@ export const HomeScreen = () => {
         {/* Curated Drops Carousel */}
         <BannerCarousel />
 
-        {/* Verified Indie Boutiques Stories Bar */}
-        <VerifiedBoutiquesBar />
+        {/* Curated Feed Section Header */}
+        <View style={styles.feedHeaderRow}>
+          <View>
+            <Text style={styles.feedHeaderSub}>EXPLORE COLLECTIONS</Text>
+            <Text style={styles.feedHeaderTitle}>Curated Boutique Drops</Text>
+          </View>
+          <View style={styles.itemCountPill}>
+            <View style={styles.liveDot} />
+            <Text style={styles.itemCountText}>{filteredProducts.length} Pieces</Text>
+          </View>
+        </View>
 
         {/* 2-Column Product Grid with Shuffle Fade Animation */}
         <Animated.View style={[styles.gridContainer, { opacity: fadeAnim }]}>
@@ -537,12 +547,56 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 40,
   },
+  feedHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  feedHeaderSub: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#8B5E3C',
+    letterSpacing: 1,
+    marginBottom: 1,
+  },
+  feedHeaderTitle: {
+    fontFamily: typography.fontFamily.serifBold,
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#1E0B12',
+    letterSpacing: -0.3,
+  },
+  itemCountPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3EDE2',
+    borderWidth: 1,
+    borderColor: '#E6DCCF',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
+    marginRight: 5,
+  },
+  itemCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#5C4E46',
+  },
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
-    marginTop: 8,
+    marginTop: 2,
   },
   cardWrapper: {
     marginBottom: 12,
