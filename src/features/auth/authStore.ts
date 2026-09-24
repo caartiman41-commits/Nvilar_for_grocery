@@ -5,6 +5,22 @@ import * as Keychain from 'react-native-keychain';
 import { apiClient } from '../../api/client';
 import { useSellerStore } from '../seller/sellerStore';
 
+// FCM Token helper — returns token if @react-native-firebase/messaging is available
+const getFCMToken = async (): Promise<string | null> => {
+  try {
+    const messaging = require('@react-native-firebase/messaging').default;
+    if (messaging && typeof messaging === 'function') {
+      const messagingInstance = messaging();
+      await messagingInstance.registerDeviceForRemoteMessages?.();
+      const token = await messagingInstance.getToken?.();
+      return token || null;
+    }
+  } catch {
+    // @react-native-firebase/messaging not available
+  }
+  return null;
+};
+
 export interface User {
   uid: string;
   phoneNumber: string | null;
@@ -53,10 +69,14 @@ export const useAuthStore = create<AuthState>()(
         const name = targetUser.displayName || 'Grezto Member';
 
         try {
+          // Acquire FCM device token for push notification registration
+          const fcmToken = await getFCMToken();
+
           const payload = {
             firebase_uid: uid,
             phone: phone,
             full_name: name,
+            fcm_token: fcmToken || '',
           };
 
           const res = await apiClient.post('/auth/sync', payload, {

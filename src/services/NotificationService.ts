@@ -381,15 +381,36 @@ export function initialize(): () => void {
         .registerDeviceForRemoteMessages?.()
         .catch(() => {});
 
-      // Get FCM Token
+      // Get FCM Token and sync to backend
       messagingInstance
         .getToken?.()
-        .then((token: string) => {
+        .then(async (token: string) => {
           console.log('[NotificationService] FCM Device Token acquired:', token?.substring(0, 16) + '...');
+          if (token) {
+            try {
+              const { default: apiClient } = require('../api/client');
+              await apiClient.post('/auth/sync', { fcm_token: token });
+              console.log('[NotificationService] FCM Token synced to backend');
+            } catch (syncErr: any) {
+              console.warn('[NotificationService] Token backend sync failed:', syncErr?.message);
+            }
+          }
         })
         .catch((e: any) => {
           console.log('[NotificationService] FCM Token fetch skipped:', e?.message);
         });
+
+      // Listen for token refresh (e.g., app restore, token rotation)
+      const unsubTokenRefresh = messagingInstance.onTokenRefresh?.((newToken: string) => {
+        console.log('[NotificationService] FCM Token refreshed:', newToken?.substring(0, 16) + '...');
+        if (newToken) {
+          try {
+            const { default: apiClient } = require('../api/client');
+            apiClient.post('/auth/sync', { fcm_token: newToken }).catch(() => {});
+          } catch {}
+        }
+      });
+      if (typeof unsubTokenRefresh === 'function') cleanups.push(unsubTokenRefresh);
 
       // Foreground message listener
       const unsubMessage = messagingInstance.onMessage?.(async (remoteMessage: any) => {
