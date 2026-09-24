@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { colors } from './src/theme/colors';
 import { MitrenoToastContainer } from './src/components/MitrenoToast';
+import { NotificationService } from './src/services/NotificationService';
 
 const App = () => {
   useEffect(() => {
@@ -12,6 +13,13 @@ const App = () => {
       (StatusBar as any).setTranslucent?.(true);
       (StatusBar as any).setBackgroundColor?.('transparent');
     }
+
+    // Initialize notification channels, Firebase listeners, and foreground alerts
+    const unsubscribeNotifications = NotificationService.initialize();
+
+    return () => {
+      unsubscribeNotifications?.();
+    };
   }, []);
 
   return (

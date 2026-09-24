@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSellerStore } from '../sellerStore';
 
 // Lazy-loaded or memoized tabs
@@ -24,6 +24,7 @@ export type StudioTabKey = 'studio' | 'orders' | 'catalog' | 'chat' | 'profile';
 export const SellerStudioScreen: React.FC = memo(() => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const [activeTab, setActiveTab] = useState<StudioTabKey>('studio');
 
   const { orders, products, conversations, exitStudioMode, fetchSellerStudioDataFromBackend } = useSellerStore();
@@ -31,6 +32,14 @@ export const SellerStudioScreen: React.FC = memo(() => {
   React.useEffect(() => {
     fetchSellerStudioDataFromBackend();
   }, [fetchSellerStudioDataFromBackend]);
+
+  React.useEffect(() => {
+    if (route.params?.initialTab) {
+      setActiveTab(route.params.initialTab);
+    } else if (route.params?.conversation_id || route.params?.conversationId) {
+      setActiveTab('chat');
+    }
+  }, [route.params]);
 
   const handleSwitchToBuyerApp = useCallback(() => {
     exitStudioMode();
@@ -81,7 +90,9 @@ export const SellerStudioScreen: React.FC = memo(() => {
           <StudioCatalogTab />
         )}
         {activeTab === 'chat' && (
-          <StudioChatTab />
+          <StudioChatTab
+            initialConversationId={route?.params?.conversation_id || route?.params?.conversationId}
+          />
         )}
         {activeTab === 'profile' && (
           <StudioProfileTab

@@ -1,4 +1,4 @@
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -25,9 +25,24 @@ if (fs.existsSync(assetsDest)) {
   }
 }
 
+// Clean stale bundle file if present
+if (fs.existsSync(bundleJsPath)) {
+  try {
+    fs.unlinkSync(bundleJsPath);
+  } catch (e) {
+    console.warn('Could not delete old bundle file, continuing...', e.message);
+  }
+}
+fs.mkdirSync(path.dirname(bundleJsPath), { recursive: true });
+
 console.log('🚀 [1/3] Bundling React Native JavaScript (Production)...');
+const uniqueId = Date.now();
+const tempBundleJs = path.join(rootDir, `temp-bundle-${uniqueId}.js`);
+const tempBundleHbc = path.join(rootDir, `temp-bundle-${uniqueId}.hbc`);
+
+const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 execSync(
-  `npx react-native bundle --platform android --dev false --entry-file index.js --bundle-output "${bundleJsPath}" --assets-dest "${assetsDest}"`,
+  `${npxCmd} react-native bundle --platform android --dev false --entry-file index.js --bundle-output "${tempBundleJs}" --assets-dest "${assetsDest}"`,
   { cwd: rootDir, stdio: 'inherit' }
 );
 
@@ -44,31 +59,22 @@ if (platform === 'win32') {
 
 if (!fs.existsSync(hermescBin)) {
   console.warn('⚠️ hermesc not found at: ' + hermescBin + '. Keeping plain JS bundle.');
+  fs.copyFileSync(tempBundleJs, bundleJsPath);
+  fs.unlinkSync(tempBundleJs);
   process.exit(0);
 }
 
 console.log('⚡ [2/3] Compiling JavaScript into Hermes Bytecode (AOT Binary)...');
-execSync(
-  `"${hermescBin}" -emit-binary -O -out "${bundleHbcPath}" "${bundleJsPath}"`,
+execFileSync(
+  hermescBin,
+  ['-emit-binary', '-O', '-out', tempBundleHbc, tempBundleJs],
   { cwd: rootDir, stdio: 'inherit' }
 );
 
 console.log('📦 [3/3] Replacing bundle with optimized Hermes Bytecode...');
-// Windows file handles: unlink before copy
-for (let attempt = 0; attempt < 5; attempt++) {
-  try {
-    if (fs.existsSync(bundleJsPath)) {
-      fs.unlinkSync(bundleJsPath);
-    }
-    fs.copyFileSync(bundleHbcPath, bundleJsPath);
-    fs.unlinkSync(bundleHbcPath);
-    break;
-  } catch (err) {
-    if (attempt === 4) throw err;
-    const end = Date.now() + 500;
-    while (Date.now() < end) {}
-  }
-}
+fs.copyFileSync(tempBundleHbc, bundleJsPath);
+if (fs.existsSync(tempBundleJs)) fs.unlinkSync(tempBundleJs);
+if (fs.existsSync(tempBundleHbc)) fs.unlinkSync(tempBundleHbc);
 
 // Clear stale intermediate assets
 const intermediateAssets = path.join(rootDir, 'android', 'app', 'build', 'intermediates', 'assets');

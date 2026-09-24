@@ -56,6 +56,9 @@ export interface SellerState {
   assignRider: (orderId: string, riderName?: string) => void;
 
   // Chat Actions
+  setConversations: (conversations: StudioConversation[]) => void;
+  deleteConversation: (convId: string) => void;
+  toggleBlockCustomer: (convId: string) => void;
   sendChatMessage: (convId: string, text: string) => void;
   acceptDealOffer: (convId: string, msgId: string) => void;
   receiveCustomerMessage: (
@@ -289,6 +292,24 @@ export const useSellerStore = create<SellerState>()(
             ord.id === orderId
               ? { ...ord, riderAssigned: true, riderName }
               : ord
+          ),
+        }));
+      },
+
+      setConversations: (conversations: StudioConversation[]) => {
+        set({ conversations });
+      },
+
+      deleteConversation: (convId: string) => {
+        set((state) => ({
+          conversations: state.conversations.filter((c) => c.id !== convId),
+        }));
+      },
+
+      toggleBlockCustomer: (convId: string) => {
+        set((state) => ({
+          conversations: state.conversations.map((c) =>
+            c.id === convId ? { ...c, isBlocked: !c.isBlocked } : c
           ),
         }));
       },

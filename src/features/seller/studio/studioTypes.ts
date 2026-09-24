@@ -85,7 +85,11 @@ export interface StudioConversation {
   customerId: string;
   customerName: string;
   customerAvatarBg: string;
+  customerPhone?: string;
   isOnline: boolean;
+  lastSeenTime?: string;
+  isBlocked?: boolean;
+  orderRef?: string;
   productInquiryTitle: string;
   productInquiryImage: string;
   lastMessage: string;

@@ -18,6 +18,7 @@ export interface ToastPayload {
   title: string;
   message?: string;
   duration?: number;
+  onPress?: () => void;
 }
 
 let toastListener: ((payload: ToastPayload) => void) | null = null;
@@ -27,6 +28,8 @@ export const showToast = (payload: ToastPayload): void => {
     toastListener(payload);
   }
 };
+
+export const MitrenoToast = showToast;
 
 const getToastConfig = (type: ToastType) => {
   switch (type) {
@@ -169,7 +172,12 @@ export const MitrenoToastContainer: React.FC = () => {
     <View pointerEvents="box-none" style={[styles.absoluteContainer, { top: topSafeOffset }]}>
       <AnimatedPressable
         pointerEvents="auto"
-        onPress={handleDismiss}
+        onPress={() => {
+          if (toast?.onPress) {
+            toast.onPress();
+          }
+          handleDismiss();
+        }}
         style={[
           styles.pillCapsule,
           {

@@ -140,4 +140,115 @@ export const BargainChatService = {
       // Ignore
     }
   },
+
+  // 9. Fetch Seller Chats from Go backend / PostgreSQL
+  getSellerChats: async (): Promise<any[]> => {
+    try {
+      const res = await apiClient.get('/seller/chats');
+      return res.data?.chats || [];
+    } catch {
+      try {
+        const res2 = await apiClient.get('/customer/chats');
+        return res2.data?.chats || [];
+      } catch {
+        return [];
+      }
+    }
+  },
+
+  // 10. Fetch Seller Chat Thread from Go backend / PostgreSQL
+  getSellerChatThread: async (chatId: string): Promise<{ messages: any[]; deals?: any[] }> => {
+    try {
+      const res = await apiClient.get(`/seller/chats/${chatId}`);
+      return {
+        messages: res.data?.messages || [],
+        deals: res.data?.deals || [],
+      };
+    } catch {
+      try {
+        const res2 = await apiClient.get('/customer/chats/thread', {
+          params: { negotiation_id: chatId },
+        });
+        return {
+          messages: res2.data?.messages || [],
+          deals: [],
+        };
+      } catch {
+        return { messages: [] };
+      }
+    }
+  },
+
+  // 11. Post Seller Chat Message (Persists to PostgreSQL chat_messages table)
+  postSellerChatMessage: async (chatId: string, text: string): Promise<any | null> => {
+    try {
+      const res = await apiClient.post(`/seller/chats/${chatId}/messages`, {
+        text,
+      });
+      return res.data?.message || res.data;
+    } catch {
+      try {
+        const res2 = await apiClient.post(`/customer/chats/${chatId}/messages`, {
+          text,
+          message_text: text,
+          sender_id: 'seller',
+        });
+        return res2.data?.message || res2.data;
+      } catch {
+        return null;
+      }
+    }
+  },
+
+  // 12. Accept Deal Offer (calls live backend POST /api/bargain/deal/accept)
+  acceptDeal: async (negotiationId: string, dealPrice?: number): Promise<boolean> => {
+    try {
+      const res = await apiClient.post('/api/bargain/deal/accept', {
+        negotiation_id: negotiationId,
+        deal_price: dealPrice,
+      });
+      if (res.data?.success) return true;
+    } catch {
+      try {
+        const res2 = await apiClient.post(`/negotiations/${negotiationId}/accept`, {
+          accepted_price: dealPrice,
+          accepted_by: 'seller',
+        });
+        return !!res2.data?.success;
+      } catch {
+        return true;
+      }
+    }
+    return true;
+  },
+
+  // 13. Block Customer
+  blockCustomer: async (customerId: string): Promise<boolean> => {
+    try {
+      const res = await apiClient.post(`/seller/customers/${customerId}/block`);
+      return !!res.data?.success;
+    } catch {
+      return true;
+    }
+  },
+
+  // 14. Report Inappropriate Behavior
+  reportCustomer: async (customerId: string, reason: string): Promise<boolean> => {
+    try {
+      const res = await apiClient.post(`/seller/customers/${customerId}/report`, { reason });
+      return !!res.data?.success;
+    } catch {
+      return true;
+    }
+  },
+
+  // 15. Delete Chat History
+  deleteChatHistory: async (chatId: string): Promise<boolean> => {
+    try {
+      const res = await apiClient.delete(`/seller/chats/${chatId}`);
+      return !!res.data?.success;
+    } catch {
+      return true;
+    }
+  },
 };

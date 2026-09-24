@@ -144,6 +144,8 @@ export interface ChatsScreenProps {
     params?: {
       attachedProduct?: any;
       product?: any;
+      conversation_id?: string;
+      conversationId?: string;
     };
   };
 }
@@ -352,6 +354,36 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
     }
   }, [attachedProduct]);
 
+  // Handle deep-link routing with conversation_id
+  const deepLinkConvId =
+    propRoute?.params?.conversation_id ||
+    propRoute?.params?.conversationId ||
+    navRoute?.params?.conversation_id ||
+    navRoute?.params?.conversationId;
+
+  useEffect(() => {
+    if (deepLinkConvId) {
+      const existing = chats.find((c) => c.id === deepLinkConvId);
+      if (existing) {
+        handleOpenChat(existing);
+      } else {
+        const directChat: ChatMessage = {
+          id: deepLinkConvId,
+          boutiqueName: 'Mitreno Boutique',
+          avatar:
+            'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=150&auto=format&fit=crop&q=80',
+          verified: true,
+          isOnline: true,
+          lastMessage: 'Active Live Bargain',
+          time: 'Just now',
+          status: 'deal_pending',
+          statusLabel: 'Deal Pending',
+        };
+        handleOpenChat(directChat);
+      }
+    }
+  }, [deepLinkConvId, chats, handleOpenChat]);
+
   const filteredChats = chats.filter((chat) => {
     if (activeFilter !== 'all' && chat.status !== activeFilter) {
       return false;
@@ -558,12 +590,16 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storiesScroll}>
             {STORIES.map((item) => (
               <TouchableOpacity key={item.id} style={styles.storyItem} activeOpacity={0.8}>
-                {item.isActive && (
-                  <View style={styles.activeBadgePill}>
-                    <Text style={styles.activeBadgeText}>Active</Text>
-                    <View style={styles.activePillDot} />
-                  </View>
-                )}
+                <View style={styles.storyBadgeSlot}>
+                  {item.isActive ? (
+                    <View style={styles.activeBadgePill}>
+                      <Text style={styles.activeBadgeText}>Active</Text>
+                      <View style={styles.activePillDot} />
+                    </View>
+                  ) : (
+                    <View style={styles.inactiveBadgePlaceholder} />
+                  )}
+                </View>
                 <View style={styles.avatarWrapper}>
                   <FastImage source={{ uri: item.avatar }} style={styles.storyAvatar as any} />
                   {item.isActive && <View style={styles.onlineDotOverlay} />}
@@ -964,6 +1000,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: 68,
   },
+  storyBadgeSlot: {
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  inactiveBadgePlaceholder: {
+    height: 18,
+    backgroundColor: 'transparent',
+  },
   activeBadgePill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -973,7 +1019,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 2,
-    marginBottom: 4,
+    marginBottom: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,

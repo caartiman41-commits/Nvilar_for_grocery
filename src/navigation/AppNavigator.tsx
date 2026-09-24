@@ -10,8 +10,11 @@ import { ProductDetailsScreen } from '../features/product/ProductDetailsScreen';
 import { OrdersScreen } from '../features/orders/OrdersScreen';
 import { SellerOnboardingScreen } from '../features/seller/SellerOnboardingScreen';
 import { SellerStudioScreen } from '../features/seller/studio/SellerStudioScreen';
+import { StudioChatTab } from '../features/seller/studio/tabs/StudioChatTab';
+import { ChatsScreen } from '../features/chats/ChatsScreen';
 
 import { useAuthStore } from '../features/auth/authStore';
+import { navigationRef, NotificationService } from '../services/NotificationService';
 
 const Stack = createNativeStackNavigator();
 
@@ -19,7 +22,10 @@ export const AppNavigator = () => {
   const { isAuthenticated } = useAuthStore();
 
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      ref={navigationRef}
+      onReady={() => NotificationService.onNavigationReady()}
+    >
       <Stack.Navigator
         initialRouteName={isAuthenticated ? 'MainTabs' : 'Auth'}
         screenOptions={{ headerShown: false }}
@@ -77,6 +83,24 @@ export const AppNavigator = () => {
           options={{
             animation: 'fade',
             animationDuration: 220,
+          }}
+        />
+        <Stack.Screen
+          name="ChatsScreen"
+          component={ChatsScreen}
+          options={{
+            animation: 'slide_from_right',
+            animationDuration: 220,
+            freezeOnBlur: true,
+          }}
+        />
+        <Stack.Screen
+          name="StudioChatTab"
+          component={StudioChatTab}
+          options={{
+            animation: 'slide_from_right',
+            animationDuration: 220,
+            freezeOnBlur: true,
           }}
         />
       </Stack.Navigator>
