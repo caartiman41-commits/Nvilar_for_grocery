@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -14,7 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 import { MitrenoHeader } from '../../components/MitrenoHeader';
 import { VisualCategoryBar, VISUAL_CATEGORIES } from '../../components/VisualCategoryBar';
 import { VerifiedBoutiquesBar } from '../../components/VerifiedBoutiquesBar';
-import { DealFilterPills } from '../../components/DealFilterPills';
+import { DealFilterModal } from '../../components/DealFilterModal';
 import { ProductCard } from '../../components/ProductCard';
 import { FloatingCartSummary } from '../../components/FloatingCartSummary';
 import { BannerCarousel } from '../../components/BannerCarousel';
@@ -261,6 +261,8 @@ export const HomeScreen = () => {
   const navigation = useNavigation<any>();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedFilter, setSelectedFilter] = useState('all');
+  const [selectedSort, setSelectedSort] = useState('recommended');
+  const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -345,28 +347,42 @@ export const HomeScreen = () => {
     fetchLiveProducts();
   }, [fetchLiveProducts]);
 
-  const filteredProducts = shuffledProducts.filter((item) => {
-    // 1. Filter by Visual Category (if specific category selected)
-    if (selectedCategory === 'men' && (item.id === 'p17' || item.id === 'p8')) return false;
-    if (selectedCategory === 'women' && (item.id === 'p1' || item.id === 'p2' || item.id === 'p4' || item.id === 'p6' || item.id === 'p7')) return false;
-    if (selectedCategory === 'kids' && (item.id === 'p2' || item.id === 'p6' || item.id === 'p13' || item.id === 'p20')) return false;
-    if (selectedCategory === 'ethnic' && item.id !== 'p2' && item.id !== 'p8' && item.id !== 'p14') return false;
-    if (selectedCategory === 'streetwear' && item.id !== 'p4' && item.id !== 'p9' && item.id !== 'p13' && item.id !== 'p18') return false;
-    if (selectedCategory === 'footwear' && item.id !== 'p3') return false;
+  const filteredProducts = useMemo(() => {
+    const list = shuffledProducts.filter((item) => {
+      // 1. Filter by Visual Category (if specific category selected)
+      if (selectedCategory === 'men' && (item.id === 'p17' || item.id === 'p8')) return false;
+      if (selectedCategory === 'women' && (item.id === 'p1' || item.id === 'p2' || item.id === 'p4' || item.id === 'p6' || item.id === 'p7')) return false;
+      if (selectedCategory === 'kids' && (item.id === 'p2' || item.id === 'p6' || item.id === 'p13' || item.id === 'p20')) return false;
+      if (selectedCategory === 'ethnic' && item.id !== 'p2' && item.id !== 'p8' && item.id !== 'p14') return false;
+      if (selectedCategory === 'streetwear' && item.id !== 'p4' && item.id !== 'p9' && item.id !== 'p13' && item.id !== 'p18') return false;
+      if (selectedCategory === 'footwear' && item.id !== 'p3') return false;
 
-    // 2. Filter by Deal pills
-    if (selectedFilter === 'all') return true;
-    if (selectedFilter === 'under_1999') return item.price <= 1999;
-    if (selectedFilter === 'min_50') {
-      const discount = Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100);
-      return discount >= 50;
+      // 2. Filter by Deal options
+      if (selectedFilter === 'all') return true;
+      if (selectedFilter === 'under_1999') return item.price <= 1999;
+      if (selectedFilter === 'min_50') {
+        const discount = Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100);
+        return discount >= 50;
+      }
+      if (selectedFilter === 'biggest_discount') {
+        const discount = Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100);
+        return discount >= 45;
+      }
+      return item.filterGroup === selectedFilter;
+    });
+
+    // 3. Sorting
+    if (selectedSort === 'price_asc') {
+      return [...list].sort((a, b) => a.price - b.price);
     }
-    if (selectedFilter === 'biggest_discount') {
-      const discount = Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100);
-      return discount >= 45;
+    if (selectedSort === 'price_desc') {
+      return [...list].sort((a, b) => b.price - a.price);
     }
-    return item.filterGroup === selectedFilter;
-  });
+    if (selectedSort === 'rating') {
+      return [...list].sort((a, b) => b.rating - a.rating);
+    }
+    return list;
+  }, [shuffledProducts, selectedCategory, selectedFilter, selectedSort]);
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
@@ -427,6 +443,8 @@ export const HomeScreen = () => {
       <MitrenoHeader
         locationName="Kolkata, WB"
         onSearchPress={() => navigation.navigate('Search')}
+        onFilterPress={() => setIsFilterModalVisible(true)}
+        hasActiveFilter={selectedFilter !== 'all' || selectedSort !== 'recommended'}
       />
 
       {/* Visual Category Capsule Bar matching Screenshot 3 */}
@@ -455,12 +473,6 @@ export const HomeScreen = () => {
 
         {/* Verified Indie Boutiques Stories Bar */}
         <VerifiedBoutiquesBar />
-
-        {/* Dynamic Deal Filter Pills */}
-        <DealFilterPills
-          activeFilterId={selectedFilter}
-          onSelectFilter={setSelectedFilter}
-        />
 
         {/* 2-Column Product Grid with Shuffle Fade Animation */}
         <Animated.View style={[styles.gridContainer, { opacity: fadeAnim }]}>
@@ -494,6 +506,22 @@ export const HomeScreen = () => {
       {totalItems > 0 && (
         <FloatingCartSummary onPress={() => navigation.navigate('BagTab')} />
       )}
+
+      {/* Deal & Sort Filter Bottom Sheet Modal */}
+      <DealFilterModal
+        visible={isFilterModalVisible}
+        onClose={() => setIsFilterModalVisible(false)}
+        activeFilter={selectedFilter}
+        activeSort={selectedSort}
+        onApply={(filter, sort) => {
+          setSelectedFilter(filter);
+          setSelectedSort(sort);
+        }}
+        onReset={() => {
+          setSelectedFilter('all');
+          setSelectedSort('recommended');
+        }}
+      />
     </View>
   );
 };
@@ -513,7 +541,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    paddingHorizontal: 12, // Exact 12px outer margin matching carousel, banner, and filter pills
+    paddingHorizontal: 12,
+    marginTop: 8,
   },
   cardWrapper: {
     marginBottom: 12,

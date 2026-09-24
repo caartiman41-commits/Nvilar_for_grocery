@@ -17,6 +17,7 @@ export interface MitrenoHeaderProps {
   onLocationPress?: () => void;
   onFilterPress?: () => void;
   onSearchPress?: () => void;
+  hasActiveFilter?: boolean;
 }
 
 export const MitrenoHeader: React.FC<MitrenoHeaderProps> = ({
@@ -24,6 +25,7 @@ export const MitrenoHeader: React.FC<MitrenoHeaderProps> = ({
   onLocationPress,
   onFilterPress,
   onSearchPress,
+  hasActiveFilter = false,
 }) => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
@@ -83,13 +85,24 @@ export const MitrenoHeader: React.FC<MitrenoHeaderProps> = ({
 
         {/* Right: Filter Pill Button */}
         <TouchableOpacity
-          style={styles.filterPillBtn}
+          style={[styles.filterPillBtn, hasActiveFilter && styles.filterPillBtnActive]}
           onPress={handleFilterPress}
           activeOpacity={0.75}
         >
-          <Icon name="tune-variant" size={14} color="#0F172A" style={{ marginRight: 4 }} />
-          <Text style={styles.filterBtnText}>Filter</Text>
-          <Icon name="chevron-down" size={13} color="#64748B" style={{ marginLeft: 3 }} />
+          <Icon
+            name="tune-variant"
+            size={14}
+            color={hasActiveFilter ? '#FFFFFF' : '#0F172A'}
+            style={{ marginRight: 4 }}
+          />
+          <Text style={[styles.filterBtnText, hasActiveFilter && styles.filterBtnTextActive]}>
+            Filter
+          </Text>
+          {hasActiveFilter ? (
+            <View style={styles.activeFilterDot} />
+          ) : (
+            <Icon name="chevron-down" size={13} color="#64748B" style={{ marginLeft: 3 }} />
+          )}
         </TouchableOpacity>
       </View>
 
@@ -172,10 +185,24 @@ const styles = StyleSheet.create({
     paddingVertical: 5.5,
     borderRadius: 16,
   },
+  filterPillBtnActive: {
+    backgroundColor: '#3B111A',
+    borderColor: '#3B111A',
+  },
   filterBtnText: {
     fontSize: 12,
     fontWeight: '700',
     color: '#0F172A',
+  },
+  filterBtnTextActive: {
+    color: '#FFFFFF',
+  },
+  activeFilterDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
+    marginLeft: 6,
   },
   searchBarRow: {
     flexDirection: 'row',
