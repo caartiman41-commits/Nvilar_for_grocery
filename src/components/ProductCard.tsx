@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#EFE8DE',
+    borderColor: '#E2E8F0',
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
   },
   strikethroughPrice: {
     fontSize: 11,
-    color: '#9C8C85',
+    color: '#94A3B8',
     textDecorationLine: 'line-through',
     marginLeft: 6,
     fontWeight: '500',

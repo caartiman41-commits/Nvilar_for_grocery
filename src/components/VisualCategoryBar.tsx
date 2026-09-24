@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
     paddingTop: 1,
     paddingBottom: 2,
     borderBottomWidth: 1,
-    borderBottomColor: '#EFE8DE',
+    borderBottomColor: '#E2E8F0',
   },
   scrollContent: {
     paddingHorizontal: 12,

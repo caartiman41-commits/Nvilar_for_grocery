@@ -537,10 +537,11 @@ export const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.warmBackground,
+    backgroundColor: '#FFFFFF',
   },
   content: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
   },
   scrollView: {
     flex: 1,
@@ -581,5 +582,6 @@ const styles = StyleSheet.create({
   },
   cardWrapper: {
     marginBottom: 12,
+    backgroundColor: '#FFFFFF',
   },
 });

@@ -106,11 +106,13 @@ const styles = StyleSheet.create({
     height: 138,
     marginVertical: 6,
     position: 'relative',
+    backgroundColor: '#FFFFFF',
   },
   slide: {
     width: width,
     height: 138,
     paddingHorizontal: 12,
+    backgroundColor: '#FFFFFF',
   },
   bannerImage: {
     width: '100%',
