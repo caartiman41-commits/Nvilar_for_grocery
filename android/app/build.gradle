@@ -80,7 +80,7 @@ android {
 
     namespace "com.greztoapp"
     defaultConfig {
-        applicationId "com.greztoapp"
+        applicationId "com.mitreno.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
