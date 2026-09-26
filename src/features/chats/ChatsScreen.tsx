@@ -147,6 +147,13 @@ export interface ChatsScreenProps {
       product?: any;
       conversation_id?: string;
       conversationId?: string;
+      seller?: {
+        shopId?: string;
+        name?: string;
+        avatar?: string;
+        verified?: boolean;
+        isOnline?: boolean;
+      };
     };
   };
 }
@@ -169,6 +176,7 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
   const [isSellerBlocked, setIsSellerBlocked] = useState(false);
   const [chatTheme, setChatTheme] = useState<ChatThemeMode>('ivory');
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [threadMessages, setThreadMessages] = useState<ChatThreadMessage[]>([
     {
       id: 'msg_welcome',
@@ -304,11 +312,22 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
   useEffect(() => {
     const showSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => setIsKeyboardVisible(true)
+      (e) => {
+        setIsKeyboardVisible(true);
+        if (e?.endCoordinates?.height) {
+          setKeyboardHeight(e.endCoordinates.height);
+        }
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
     );
     const hideSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setIsKeyboardVisible(false)
+      () => {
+        setIsKeyboardVisible(false);
+        setKeyboardHeight(0);
+      }
     );
     return () => {
       showSub.remove();
@@ -474,6 +493,56 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
       });
     }
   }, [attachedProduct]);
+
+  // Handle boutique seller passed from BoutiqueStoreScreen (when user taps 'Message')
+  const incomingSeller =
+    propRoute?.params?.seller ||
+    navRoute?.params?.seller;
+
+  useEffect(() => {
+    if (incomingSeller) {
+      const sellerName = incomingSeller.name || 'Mitreno Boutique';
+      const sellerAvatar =
+        incomingSeller.avatar ||
+        'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=150&auto=format&fit=crop&q=80';
+      const welcomeMsg = `Namaste! Welcome to ${sellerName}. How can we assist you with our designer pieces today?`;
+
+      const activeChat: ChatMessage = {
+        id: incomingSeller.shopId || `chat_${Date.now()}`,
+        boutiqueName: sellerName,
+        avatar: sellerAvatar,
+        verified: incomingSeller.verified ?? true,
+        isOnline: incomingSeller.isOnline ?? true,
+        lastMessage: welcomeMsg,
+        time: 'Just now',
+        status: 'deal_pending',
+        statusLabel: 'Direct Boutique Chat',
+      };
+
+      setSelectedChat(activeChat);
+      setThreadMessages([
+        {
+          id: `msg_seller_welcome_${Date.now()}`,
+          sender: 'seller',
+          text: welcomeMsg,
+          timestamp: 'Just now',
+          status: 'read',
+        },
+      ]);
+
+      setChats((prev) => {
+        const exists = prev.some((c) => c.boutiqueName.toLowerCase() === sellerName.toLowerCase());
+        if (exists) {
+          return prev.map((c) =>
+            c.boutiqueName.toLowerCase() === sellerName.toLowerCase()
+              ? { ...c, lastMessage: welcomeMsg, time: 'Just now' }
+              : c
+          );
+        }
+        return [activeChat, ...prev];
+      });
+    }
+  }, [incomingSeller?.shopId, incomingSeller?.name]);
 
   // Handle deep-link routing with conversation_id
   const deepLinkConvId =
@@ -824,8 +893,14 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
         onRequestClose={() => setSelectedChat(null)}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={[styles.dmContainer, { backgroundColor: THEME_BACKGROUNDS[chatTheme] }]}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={[
+            styles.dmContainer,
+            {
+              backgroundColor: THEME_BACKGROUNDS[chatTheme],
+              paddingBottom: Platform.OS === 'android' ? keyboardHeight : 0,
+            },
+          ]}
           keyboardVerticalOffset={0}
         >
           {/* 1. REVAMPED TOP CHAT HEADER (Screenshot 2) */}
@@ -896,7 +971,8 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
             ref={flatListRef}
             data={threadMessages}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.dmList}
+            style={styles.dmMessagesFlatList}
+            contentContainerStyle={[styles.dmList, { flexGrow: 1, justifyContent: 'flex-end' }]}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
@@ -934,7 +1010,9 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
 
           {/* 3. QUICK INQUIRY PILL CHIPS ROW (Screenshot 2) */}
           {!isSellerBlocked && (
-            <QuickInquiryChips onSelectInquiry={(text) => handleSendMessage(text)} />
+            <View style={styles.quickChipsContainer}>
+              <QuickInquiryChips onSelectInquiry={(text) => handleSendMessage(text)} />
+            </View>
           )}
 
           {/* 4. FLOATING INPUT BAR (Docked right above keyboard) */}
@@ -1339,6 +1417,16 @@ const styles = StyleSheet.create({
   dmContainer: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  dmMessagesFlatList: {
+    flex: 1,
+  },
+  quickChipsContainer: {
+    height: 44,
+    maxHeight: 44,
+    flexShrink: 0,
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
   },
   dmHeader: {
     flexDirection: 'row',

@@ -35,7 +35,9 @@ export const SellerApplicationStatusView: React.FC<SellerApplicationStatusViewPr
 }) => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const { applicationId, cancelApplication, syncSellerStatusFromBackend } = useSellerStore();
+  const applicationId = useSellerStore((s) => s.applicationId);
+  const cancelApplication = useSellerStore((s) => s.cancelApplication);
+  const syncSellerStatusFromBackend = useSellerStore((s) => s.syncSellerStatusFromBackend);
 
   useEffect(() => {
     syncSellerStatusFromBackend();

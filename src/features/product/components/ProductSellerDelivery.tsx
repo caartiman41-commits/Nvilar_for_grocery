@@ -29,7 +29,8 @@ export const ProductSellerDelivery: React.FC<ProductSellerDeliveryProps> = memo(
   onMakeOffer,
   onSellerPress,
 }) => {
-  const { addresses, selectedAddressId } = useCheckoutStore();
+  const addresses = useCheckoutStore((s) => s.addresses);
+  const selectedAddressId = useCheckoutStore((s) => s.selectedAddressId);
   const selectedAddress = addresses.find(a => a.id === selectedAddressId) || addresses[0];
   const [addressModalVisible, setAddressModalVisible] = useState(false);
   const [currentPincode, setCurrentPincode] = useState(selectedAddress?.pincode || delivery.pincode);
@@ -111,7 +112,11 @@ export const ProductSellerDelivery: React.FC<ProductSellerDeliveryProps> = memo(
       </View>
 
       {/* 4. Fulfilled By Card */}
-      <View style={styles.fulfilledCard}>
+      <TouchableOpacity
+        style={styles.fulfilledCard}
+        onPress={onSellerPress}
+        activeOpacity={0.75}
+      >
         <View style={styles.fulfilledLeft}>
           <Icon name="package-variant-closed" size={20} color="#059669" style={{ marginRight: 10 }} />
           <View style={styles.fulfilledTextCol}>
@@ -123,7 +128,7 @@ export const ProductSellerDelivery: React.FC<ProductSellerDeliveryProps> = memo(
             <Text style={styles.dispatchesText}>• {seller.dispatchesIn}</Text>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
 
       {/* 5. Policy Triplet Row (3 Equal Cards - Exact Match with Screenshot 3) */}
       <View style={styles.policyTripletRow}>

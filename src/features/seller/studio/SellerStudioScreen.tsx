@@ -11,6 +11,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSellerStore } from '../sellerStore';
+import { useAuthStore } from '../../auth/authStore';
 
 // Lazy-loaded or memoized tabs
 import { StudioDashboardTab } from './tabs/StudioDashboardTab';
@@ -27,11 +28,30 @@ export const SellerStudioScreen: React.FC = memo(() => {
   const route = useRoute<any>();
   const [activeTab, setActiveTab] = useState<StudioTabKey>('studio');
 
-  const { orders, products, conversations, exitStudioMode, fetchSellerStudioDataFromBackend } = useSellerStore();
+  const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   React.useEffect(() => {
-    fetchSellerStudioDataFromBackend();
-  }, [fetchSellerStudioDataFromBackend]);
+    if (!isAuthenticated || !user) {
+      navigation.replace('Auth');
+    }
+  }, [isAuthenticated, user, navigation]);
+
+  const orders = useSellerStore((s) => s.orders);
+  const products = useSellerStore((s) => s.products);
+  const conversations = useSellerStore((s) => s.conversations);
+  const exitStudioMode = useSellerStore((s) => s.exitStudioMode);
+  const fetchSellerStudioDataFromBackend = useSellerStore((s) => s.fetchSellerStudioDataFromBackend);
+
+  React.useEffect(() => {
+    if (isAuthenticated && user) {
+      fetchSellerStudioDataFromBackend();
+    }
+  }, [isAuthenticated, user, fetchSellerStudioDataFromBackend]);
+
+  if (!isAuthenticated || !user) {
+    return null;
+  }
 
   React.useEffect(() => {
     if (route.params?.initialTab) {

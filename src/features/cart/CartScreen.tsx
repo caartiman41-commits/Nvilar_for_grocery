@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 import { View, StyleSheet, Text, Platform, ScrollView, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import FastImage from 'react-native-fast-image';
@@ -9,11 +9,20 @@ import { useCartStore } from './cartStore';
 import { colors } from '../../theme/colors';
 import { formatINR } from '../../utils/formatters';
 
-export const CartScreen = () => {
+export const CartScreen = memo(() => {
   const navigation = useNavigation<any>();
-  const { items, getTotalItems, getTotalPrice, removeItem, updateQuantity } = useCartStore();
-  const totalItems = getTotalItems();
-  const totalPrice = getTotalPrice();
+  const items = useCartStore((s) => s.items);
+  const removeItem = useCartStore((s) => s.removeItem);
+  const updateQuantity = useCartStore((s) => s.updateQuantity);
+
+  const totalItems = useMemo(
+    () => items.reduce((acc, item) => acc + item.quantity, 0),
+    [items]
+  );
+  const totalPrice = useMemo(
+    () => items.reduce((acc, item) => acc + item.price * item.quantity, 0),
+    [items]
+  );
   
   const deliveryCharge = 35;
   const toPay = totalPrice + deliveryCharge;
@@ -93,7 +102,7 @@ export const CartScreen = () => {
       )}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

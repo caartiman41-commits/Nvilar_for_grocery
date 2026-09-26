@@ -8,15 +8,19 @@ import { useSellerStore } from '../seller/sellerStore';
 // FCM Token helper — returns token if @react-native-firebase/messaging is available
 const getFCMToken = async (): Promise<string | null> => {
   try {
-    const messaging = require('@react-native-firebase/messaging').default;
-    if (messaging && typeof messaging === 'function') {
-      const messagingInstance = messaging();
-      await messagingInstance.registerDeviceForRemoteMessages?.();
-      const token = await messagingInstance.getToken?.();
-      return token || null;
+    const { getMessaging, getToken, registerDeviceForRemoteMessages } = require('@react-native-firebase/messaging');
+    if (typeof getMessaging === 'function') {
+      const messagingInstance = getMessaging();
+      if (typeof registerDeviceForRemoteMessages === 'function') {
+        await registerDeviceForRemoteMessages(messagingInstance).catch(() => {});
+      }
+      if (typeof getToken === 'function') {
+        const token = await getToken(messagingInstance);
+        return token || null;
+      }
     }
-  } catch {
-    // @react-native-firebase/messaging not available
+  } catch (err: any) {
+    console.log('[authStore] FCM token retrieval skipped:', err?.message || err);
   }
   return null;
 };
@@ -35,11 +39,13 @@ interface AuthState {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
+  isHydrated: boolean;
   setUser: (user: User | null, token?: string | null) => void;
   setToken: (token: string | null) => void;
-  syncUserWithBackend: (userData?: Partial<User>) => Promise<User | null>;
-  loginWithTruecaller: (profile: { phoneNumber: string; displayName?: string; authCode?: string }) => Promise<User>;
-  loginWithFirebase: (profile: { uid: string; phoneNumber: string; displayName?: string }) => Promise<User>;
+  setHydrated: (isHydrated: boolean) => void;
+  syncUserWithBackend: (userData?: Partial<User> & { action?: 'login' | 'create' }) => Promise<User | null>;
+  loginWithTruecaller: (profile: { phoneNumber: string; displayName?: string; authCode?: string; action?: 'login' | 'create' }) => Promise<User>;
+  loginWithFirebase: (profile: { uid: string; phoneNumber: string; displayName?: string; action?: 'login' | 'create' }) => Promise<User>;
   logout: () => void;
 }
 
@@ -49,6 +55,9 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       isAuthenticated: false,
+      isHydrated: false,
+
+      setHydrated: (isHydrated) => set({ isHydrated }),
 
       setUser: (user, token) =>
         set({
@@ -67,12 +76,14 @@ export const useAuthStore = create<AuthState>()(
         const uid = targetUser.uid || `usr_${Date.now()}`;
         const phone = targetUser.phoneNumber || '';
         const name = targetUser.displayName || 'Grezto Member';
+        const action = (userData as any)?.action || 'login';
 
         try {
           // Acquire FCM device token for push notification registration
           const fcmToken = await getFCMToken();
 
           const payload = {
+            action,
             firebase_uid: uid,
             phone: phone,
             full_name: name,
@@ -109,28 +120,40 @@ export const useAuthStore = create<AuthState>()(
                   applicationStatus: 'under_review',
                   hasSubmittedApplication: true,
                 });
+              } else {
+                useSellerStore.getState().resetApplication();
               }
+            } catch {}
+
+            // Automatically sync saved delivery addresses for this user/phone
+            try {
+              const { useCheckoutStore } = require('../checkout/checkoutStore');
+              useCheckoutStore.getState().fetchAddressesFromBackend(synced.phoneNumber);
             } catch {}
 
             return synced;
           }
-        } catch (err) {
-          console.warn('[AUTH SYNC] Go backend offline or error, using local verified session:', err);
+        } catch (err: any) {
+          const status = err?.response?.status;
+          const code = err?.response?.data?.code;
+          const errMsg = err?.response?.data?.error || err?.message;
+
+          // Fail-closed on Gatekeeper conflicts: DO NOT create a phantom local session!
+          if (status === 409 || code === 'PHONE_ALREADY_REGISTERED') {
+            throw new Error('This phone number is already registered. Please Sign In.');
+          }
+          if (status === 404 || code === 'ACCOUNT_NOT_FOUND') {
+            throw new Error('No account found with this phone number. Please Create an Account first.');
+          }
+
+          console.warn('[AUTH SYNC] Go backend error:', errMsg);
+          throw err;
         }
 
-        const localUser: User = {
-          uid,
-          phoneNumber: phone,
-          displayName: name,
-          role: 'customer',
-          isSeller: false,
-          sellerStatus: 'none',
-        };
-        set({ user: localUser, isAuthenticated: true });
-        return localUser;
+        return null;
       },
 
-      loginWithTruecaller: async ({ phoneNumber, displayName, authCode }) => {
+      loginWithTruecaller: async ({ phoneNumber, displayName, authCode, action }) => {
         const cleanPhone = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
         const uid = `tc_${cleanPhone.replace('+', '')}`;
         const name = displayName || 'Grezto Member';
@@ -139,12 +162,16 @@ export const useAuthStore = create<AuthState>()(
           uid,
           phoneNumber: cleanPhone,
           displayName: name,
-        });
+          action: action || 'login',
+        } as any);
 
-        return user || { uid, phoneNumber: cleanPhone, displayName: name };
+        if (!user) {
+          throw new Error('Authentication failed');
+        }
+        return user;
       },
 
-      loginWithFirebase: async ({ uid, phoneNumber, displayName }) => {
+      loginWithFirebase: async ({ uid, phoneNumber, displayName, action }) => {
         const cleanPhone = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
         const name = displayName || 'Grezto Member';
 
@@ -152,19 +179,35 @@ export const useAuthStore = create<AuthState>()(
           uid,
           phoneNumber: cleanPhone,
           displayName: name,
-        });
+          action: action || 'login',
+        } as any);
 
-        return user || { uid, phoneNumber: cleanPhone, displayName: name };
+        if (!user) {
+          throw new Error('Authentication failed');
+        }
+        return user;
       },
 
       logout: () => {
         Keychain.resetGenericPassword();
+        try {
+          useSellerStore.getState().resetApplication();
+          AsyncStorage.removeItem('mitreno-seller-storage');
+        } catch {}
         set({ user: null, token: null, isAuthenticated: false });
       },
     }),
     {
       name: 'grezto-auth-storage',
       storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        user: state.user,
+        token: state.token,
+        isAuthenticated: state.isAuthenticated,
+      }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHydrated(true);
+      },
     }
   )
 );

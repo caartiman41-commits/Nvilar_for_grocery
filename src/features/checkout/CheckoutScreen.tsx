@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, memo } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,19 +6,21 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Image,
   Alert,
   Keyboard,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
+import FastImage from 'react-native-fast-image';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useCheckoutStore } from './checkoutStore';
+import { useCheckoutStore, CheckoutAddress, defaultAshrafAddress } from './checkoutStore';
+import { useAuthStore } from '../auth/authStore';
 import { useCartStore } from '../cart/cartStore';
 import { useOrderStore } from '../orders/orderStore';
-import { requestLocationPermission, getCurrentLocation } from '../../services/LocationService';
+import { requestLocationPermission, getCurrentLocation, reverseGeocode } from '../../services/LocationService';
 import { formatINR } from '../../utils/formatters';
 import { showToast } from '../../components/MitrenoToast';
 
@@ -182,21 +184,50 @@ const LiveGpsDetectorCard: React.FC<LiveGpsDetectorCardProps> = React.memo(({
   );
 });
 
-export const CheckoutScreen = () => {
+export const CheckoutScreen = memo(() => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const insets = useSafeAreaInsets();
 
-  const {
-    draftAddress,
-    setDraftField,
-  } = useCheckoutStore();
+  const addresses = useCheckoutStore((s) => s.addresses);
+  const selectedAddressId = useCheckoutStore((s) => s.selectedAddressId);
+  const setSelectedAddressId = useCheckoutStore((s) => s.setSelectedAddressId);
+  const setDefaultAddress = useCheckoutStore((s) => s.setDefaultAddress);
+  const deleteAddress = useCheckoutStore((s) => s.deleteAddress);
+  const saveDraftAsNew = useCheckoutStore((s) => s.saveDraftAsNew);
+  const updateDraftAsExisting = useCheckoutStore((s) => s.updateDraftAsExisting);
+  const setDraftField = useCheckoutStore((s) => s.setDraftField);
+  const fetchAddressesFromBackend = useCheckoutStore((s) => s.fetchAddressesFromBackend);
+  const userPhone = useAuthStore((s) => s.user?.phoneNumber);
 
-  const { items: cartItems, clearCart } = useCartStore();
-  const { placeOrder } = useOrderStore();
+  const cartItems = useCartStore((s) => s.items);
+  const clearCart = useCartStore((s) => s.clearCart);
+  const placeOrder = useOrderStore((s) => s.placeOrder);
 
   // 1 = ADDRESS, 2 = REVIEW, 3 = PAYMENT
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+
+  // In Step 1: 'list' (saved addresses matching Screenshot 2) vs 'form' (add/edit address)
+  const [step1SubView, setStep1SubView] = useState<'list' | 'form'>('list');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeActionSheetAddress, setActiveActionSheetAddress] = useState<CheckoutAddress | null>(null);
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [isFetchingGPSInForm, setIsFetchingGPSInForm] = useState(false);
+
+  // Auto-fetch user's saved addresses from backend PostgreSQL
+  useEffect(() => {
+    fetchAddressesFromBackend(userPhone || '9864975438');
+  }, [fetchAddressesFromBackend, userPhone]);
+
+  // Active selected address
+  const activeAddress: CheckoutAddress = useMemo(() => {
+    if (selectedAddressId && addresses.length > 0) {
+      const found = addresses.find((a) => a.id === selectedAddressId);
+      if (found) return found;
+    }
+    return addresses[0] || defaultAshrafAddress;
+  }, [addresses, selectedAddressId]);
 
   // Direct checkout item from route params or fallback to cart items
   const directItem = route.params?.directItem;
@@ -244,17 +275,30 @@ export const CheckoutScreen = () => {
     };
   }, [directItem, cartItems]);
 
-  // FORM INPUTS - EMPTY BY DEFAULT (No dummy / pre-filled hardcoded data)
-  // Only pre-fill if user specifically edited or saved custom data in this session
-  const [fullName, setFullName] = useState<string>('');
-  const [mobileNumber, setMobileNumber] = useState<string>('');
-  const [alternatePhone, setAlternatePhone] = useState<string>('');
-  const [stateName, setStateName] = useState<string>('');
-  const [cityVillage, setCityVillage] = useState<string>('');
-  const [pincode, setPincode] = useState<string>('');
-  const [flatHouseStreet, setFlatHouseStreet] = useState<string>('');
+  // Form Inputs for Adding or Editing an address
+  const [formState, setFormState] = useState<{
+    yourName: string;
+    phone: string;
+    alternatePhone: string;
+    houseNoName: string;
+    nearbyArea: string;
+    cityVillage: string;
+    state: string;
+    pincode: string;
+    addressType: 'HOME' | 'WORK' | 'OTHER';
+  }>({
+    yourName: 'ASHAFUL ISLAM',
+    phone: '9864975438',
+    alternatePhone: '',
+    houseNoName: '',
+    nearbyArea: '',
+    cityVillage: 'Six Mile',
+    state: 'Assam',
+    pincode: '781005',
+    addressType: 'HOME',
+  });
 
-  // Form Field Validation Errors (Inline field highlighting & real-time clearing)
+  // Form Field Validation Errors
   const [fieldErrors, setFieldErrors] = useState<{ [key: string]: string }>({});
 
   const clearFieldError = useCallback((field: string) => {
@@ -266,14 +310,299 @@ export const CheckoutScreen = () => {
     });
   }, []);
 
-  // AUTOMATIC LIVE HIGH-ACCURACY GPS LOCATION (Managed in LiveGpsDetectorCard)
-  const [detectedCoords, setDetectedCoords] = useState<{ latitude: number; longitude: number }>({
-    latitude: 26.134407,
-    longitude: 91.813353,
-  });
+  // Filtered addresses for search query in Step 1
+  const filteredAddresses = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return addresses;
+    }
+    const q = searchQuery.toLowerCase().trim();
+    return addresses.filter((addr) => {
+      const fullText = [
+        addr.houseNoName,
+        addr.flatHouseStreet,
+        addr.nearbyArea,
+        addr.cityVillage,
+        addr.state,
+        addr.pincode,
+        addr.yourName,
+        addr.phone,
+        addr.addressType,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return fullText.includes(q);
+    });
+  }, [addresses, searchQuery]);
 
-  const handleCoordsDetected = useCallback((coords: { latitude: number; longitude: number }) => {
-    setDetectedCoords(coords);
+  // Quick Action: Use Current Location
+  const handleUseCurrentLocation = useCallback(async () => {
+    try {
+      setIsLocating(true);
+      const hasPermission = await requestLocationPermission();
+      if (!hasPermission) {
+        showToast({
+          type: 'warning',
+          title: 'Location Permission Needed',
+          message: 'Please allow location permission to auto-detect your delivery address.',
+        });
+        setIsLocating(false);
+        return;
+      }
+
+      const position = await getCurrentLocation();
+      const geo = await reverseGeocode(position.latitude, position.longitude);
+
+      const titleParts = geo.title ? geo.title.split(',') : ['Current Area'];
+      const houseNo = titleParts[0]?.trim() || 'Current Location';
+      const area = titleParts.slice(1).join(', ')?.trim() || geo.subtitle || 'Nearby';
+      const pincodeMatch = geo.subtitle.match(/\b\d{6}\b/);
+      const pincode = pincodeMatch ? pincodeMatch[0] : '781005';
+      const cityVillage = geo.subtitle.split(',')[0]?.trim() || 'Guwahati';
+
+      setDraftField('yourName', activeAddress.yourName || 'ASHAFUL ISLAM');
+      setDraftField('phone', userPhone || activeAddress.phone || '9864975438');
+      setDraftField('houseNoName', houseNo);
+      setDraftField('nearbyArea', area);
+      setDraftField('cityVillage', cityVillage);
+      setDraftField('state', 'Assam');
+      setDraftField('pincode', pincode);
+      setDraftField('addressType', 'HOME');
+      setDraftField('distance', '0m');
+      setDraftField('gpsLocation', `${position.latitude.toFixed(5)}, ${position.longitude.toFixed(5)}`);
+
+      saveDraftAsNew();
+
+      const created = useCheckoutStore.getState().addresses[0];
+      if (created) {
+        setSelectedAddressId(created.id);
+      }
+      setIsLocating(false);
+      showToast({
+        type: 'success',
+        title: 'Location Added',
+        message: `${houseNo}, ${cityVillage}`,
+      });
+    } catch (err: any) {
+      setIsLocating(false);
+      showToast({
+        type: 'warning',
+        title: 'Location Error',
+        message: err?.message || 'Could not fetch current GPS location.',
+      });
+    }
+  }, [setDraftField, saveDraftAsNew, setSelectedAddressId, activeAddress, userPhone]);
+
+  // Open Add Address Form
+  const handleOpenAddForm = useCallback(() => {
+    setEditingAddressId(null);
+    setFormState({
+      yourName: activeAddress.yourName || 'ASHAFUL ISLAM',
+      phone: userPhone || activeAddress.phone || '9864975438',
+      alternatePhone: '',
+      houseNoName: '',
+      nearbyArea: '',
+      cityVillage: 'Guwahati',
+      state: 'Assam',
+      pincode: '781005',
+      addressType: 'HOME',
+    });
+    setFieldErrors({});
+    setStep1SubView('form');
+  }, [activeAddress, userPhone]);
+
+  // Open Edit Address Form from ActionSheet
+  const handleOpenEditForm = useCallback((addr: CheckoutAddress) => {
+    setActiveActionSheetAddress(null);
+    setEditingAddressId(addr.id);
+    setFormState({
+      yourName: addr.yourName || 'ASHAFUL ISLAM',
+      phone: addr.phone || '9864975438',
+      alternatePhone: addr.alternatePhone || '',
+      houseNoName: addr.houseNoName || '',
+      nearbyArea: addr.nearbyArea || '',
+      cityVillage: addr.cityVillage || 'Guwahati',
+      state: addr.state || 'Assam',
+      pincode: addr.pincode || '',
+      addressType: addr.addressType || 'HOME',
+    });
+    setFieldErrors({});
+    setStep1SubView('form');
+  }, []);
+
+  // Delete Address Confirmation
+  const handleDeleteAddressConfirm = useCallback((addr: CheckoutAddress) => {
+    setActiveActionSheetAddress(null);
+    Alert.alert(
+      'Delete Address',
+      'Are you sure you want to remove this delivery address?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            deleteAddress(addr.id);
+            showToast({
+              type: 'info',
+              title: 'Address Removed',
+              message: 'Delivery address has been deleted.',
+            });
+          },
+        },
+      ]
+    );
+  }, [deleteAddress]);
+
+  // Set Address as Default
+  const handleSetDefault = useCallback((addr: CheckoutAddress) => {
+    setActiveActionSheetAddress(null);
+    setDefaultAddress(addr.id);
+    setSelectedAddressId(addr.id);
+    showToast({
+      type: 'success',
+      title: 'Default Address Updated',
+      message: `${addr.addressType || 'HOME'} is now your primary address.`,
+    });
+  }, [setDefaultAddress, setSelectedAddressId]);
+
+  // In-form GPS Autofill
+  const handleFormGPSFetch = useCallback(async () => {
+    try {
+      setIsFetchingGPSInForm(true);
+      const hasPermission = await requestLocationPermission();
+      if (!hasPermission) {
+        showToast({
+          type: 'warning',
+          title: 'Location Permission Needed',
+          message: 'Please grant location permission to autofill address.',
+        });
+        setIsFetchingGPSInForm(false);
+        return;
+      }
+      const position = await getCurrentLocation();
+      const geo = await reverseGeocode(position.latitude, position.longitude);
+
+      const titleParts = geo.title ? geo.title.split(',') : ['Current Area'];
+      const houseNo = titleParts[0]?.trim() || '';
+      const area = titleParts.slice(1).join(', ')?.trim() || geo.subtitle;
+      const pincodeMatch = geo.subtitle.match(/\b\d{6}\b/);
+      const pincode = pincodeMatch ? pincodeMatch[0] : '';
+      const cityVillage = geo.subtitle.split(',')[0]?.trim() || '';
+
+      setFormState((prev) => ({
+        ...prev,
+        houseNoName: houseNo || prev.houseNoName,
+        nearbyArea: area || prev.nearbyArea,
+        cityVillage: cityVillage || prev.cityVillage,
+        pincode: pincode || prev.pincode,
+        state: 'Assam',
+      }));
+      showToast({
+        type: 'success',
+        title: 'Location Detected',
+        message: 'Address fields filled from GPS.',
+      });
+    } catch (err: any) {
+      showToast({
+        type: 'warning',
+        title: 'GPS Error',
+        message: err?.message || 'Failed to retrieve GPS location.',
+      });
+    } finally {
+      setIsFetchingGPSInForm(false);
+    }
+  }, []);
+
+  // Save Add/Edit Address Form
+  const handleSaveForm = useCallback(() => {
+    const newErrors: { [key: string]: string } = {};
+    if (formState.yourName.trim().length <= 1) {
+      newErrors.yourName = 'Please enter contact name';
+    }
+    if (formState.phone.replace(/\D/g, '').length < 10) {
+      newErrors.phone = 'Enter valid 10-digit mobile number';
+    }
+    if (formState.houseNoName.trim().length < 1) {
+      newErrors.houseNoName = 'Enter house / flat / building name';
+    }
+    if (formState.nearbyArea.trim().length < 1) {
+      newErrors.nearbyArea = 'Enter street / area / landmark';
+    }
+    if (formState.cityVillage.trim().length < 1) {
+      newErrors.cityVillage = 'City or village is required';
+    }
+    if (formState.state.trim().length < 1) {
+      newErrors.state = 'State is required';
+    }
+    if (formState.pincode.replace(/\D/g, '').length !== 6) {
+      newErrors.pincode = 'Pincode must be 6 digits';
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setFieldErrors(newErrors);
+      showToast({
+        type: 'error',
+        title: 'Incomplete Address Details',
+        message: 'Please fill in all mandatory fields.',
+      });
+      return;
+    }
+
+    setDraftField('yourName', formState.yourName.trim());
+    setDraftField('phone', formState.phone.trim());
+    setDraftField('alternatePhone', formState.alternatePhone.trim());
+    setDraftField('houseNoName', formState.houseNoName.trim());
+    setDraftField('nearbyArea', formState.nearbyArea.trim());
+    setDraftField('pincode', formState.pincode.trim());
+    setDraftField('cityVillage', formState.cityVillage.trim());
+    setDraftField('state', formState.state.trim());
+    setDraftField('addressType', formState.addressType);
+
+    if (editingAddressId) {
+      updateDraftAsExisting(editingAddressId);
+      setSelectedAddressId(editingAddressId);
+      showToast({
+        type: 'success',
+        title: 'Address Updated',
+        message: 'Changes saved successfully.',
+      });
+    } else {
+      setDraftField('distance', '0m');
+      saveDraftAsNew();
+      const created = useCheckoutStore.getState().addresses[0];
+      if (created) {
+        setSelectedAddressId(created.id);
+      }
+      showToast({
+        type: 'success',
+        title: 'Address Saved',
+        message: 'New address saved and selected.',
+      });
+    }
+
+    setStep1SubView('list');
+  }, [
+    formState,
+    editingAddressId,
+    setDraftField,
+    updateDraftAsExisting,
+    saveDraftAsNew,
+    setSelectedAddressId,
+  ]);
+
+  // Deliver to Selected Address CTA
+  const handleDeliverToThisAddress = useCallback(() => {
+    if (!selectedAddressId && addresses.length > 0) {
+      setSelectedAddressId(addresses[0].id);
+    }
+    setCurrentStep(2);
+  }, [selectedAddressId, addresses, setSelectedAddressId]);
+
+  // Return to address list from Step 2
+  const handleEditAddress = useCallback(() => {
+    setStep1SubView('list');
+    setCurrentStep(1);
   }, []);
 
   // Keyboard visibility tracking to prevent window resize shifts & accidental CTA triggers
@@ -305,77 +634,21 @@ export const CheckoutScreen = () => {
   const handlingFee = 59;
   const totalDue = itemTotal + handlingFee;
 
-  // Pincode validation state
-  const isPincodeComplete = pincode.trim().length === 6;
-  const isPincodeIncomplete = pincode.trim().length > 0 && pincode.trim().length < 6;
-
-  const handleSaveAndProceed = () => {
-    const newErrors: { [key: string]: string } = {};
-
-    if (fullName.trim().length <= 1) {
-      newErrors.fullName = 'Please enter full name';
-    }
-    if (mobileNumber.replace(/\D/g, '').length !== 10) {
-      newErrors.mobileNumber = 'Enter a valid 10-digit mobile number';
-    }
-    if (stateName.trim().length <= 1) {
-      newErrors.stateName = 'State is required';
-    }
-    if (cityVillage.trim().length <= 1) {
-      newErrors.cityVillage = 'City or village is required';
-    }
-    if (pincode.replace(/\D/g, '').length !== 6) {
-      newErrors.pincode = 'Pincode must be exactly 6 digits';
-    }
-    if (flatHouseStreet.trim().length <= 2) {
-      newErrors.flatHouseStreet = 'Enter house no., street & landmark';
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setFieldErrors(newErrors);
-      showToast({
-        type: 'error',
-        title: 'Incomplete Address Details',
-        message: 'Please check the highlighted boxes in red below.',
-      });
-      return;
-    }
-
-    // Save into draft store
-    setDraftField('yourName', fullName.trim());
-    setDraftField('phone', mobileNumber.trim());
-    setDraftField('alternatePhone', alternatePhone.trim());
-    setDraftField('state', stateName.trim());
-    setDraftField('cityVillage', cityVillage.trim());
-    setDraftField('pincode', pincode.trim());
-    setDraftField('flatHouseStreet', flatHouseStreet.trim());
-    setDraftField('houseNoName', flatHouseStreet.trim());
-    setDraftField('gpsLocation', `${detectedCoords.latitude.toFixed(5)}, ${detectedCoords.longitude.toFixed(5)}`);
-
-    // Move smoothly to Step 2
-    setCurrentStep(2);
-  };
-
-  const handleEditAddress = () => {
-    // Smoothly return to Step 1 with user-entered values
-    setCurrentStep(1);
-  };
-
   const handleConfirmPayment = () => {
     const finalAddress = {
-      id: `addr-${Date.now()}`,
-      state: stateName.trim() || 'Maharashtra',
-      gpsLocation: `${detectedCoords.latitude.toFixed(5)}, ${detectedCoords.longitude.toFixed(5)}`,
-      pincode: pincode.trim(),
-      cityVillage: cityVillage.trim(),
-      houseNoName: flatHouseStreet.trim(),
-      flatHouseStreet: flatHouseStreet.trim(),
-      nearbyArea: cityVillage.trim(),
-      yourName: fullName.trim(),
-      phone: mobileNumber.trim(),
-      alternatePhone: alternatePhone.trim(),
-      addressType: 'HOME' as const,
-      distance: '10.9 km',
+      id: activeAddress.id || `addr-${Date.now()}`,
+      state: activeAddress.state || 'Assam',
+      gpsLocation: activeAddress.gpsLocation || '26.134456, 91.813250',
+      pincode: activeAddress.pincode || '781005',
+      cityVillage: activeAddress.cityVillage || 'Six Mile',
+      houseNoName: activeAddress.houseNoName || 'Six Mile',
+      flatHouseStreet: activeAddress.flatHouseStreet || activeAddress.houseNoName,
+      nearbyArea: activeAddress.nearbyArea || activeAddress.cityVillage,
+      yourName: activeAddress.yourName || 'ASHAFUL ISLAM',
+      phone: activeAddress.phone || '9864975438',
+      alternatePhone: activeAddress.alternatePhone || '',
+      addressType: activeAddress.addressType || 'HOME',
+      distance: activeAddress.distance || '0m',
     };
 
     const finalItems = [
@@ -522,6 +795,7 @@ export const CheckoutScreen = () => {
             onPress={() => {
               if (currentStep === 3) setCurrentStep(2);
               else if (currentStep === 2) setCurrentStep(1);
+              else if (currentStep === 1 && step1SubView === 'form') setStep1SubView('list');
               else navigation.goBack();
             }}
             activeOpacity={0.7}
@@ -533,7 +807,11 @@ export const CheckoutScreen = () => {
             <Text style={styles.headerSubtitle}>MITRENO FAST CHECKOUT</Text>
             <Text style={styles.headerMainTitle}>
               {currentStep === 1
-                ? 'Add Delivery Address'
+                ? step1SubView === 'form'
+                  ? editingAddressId
+                    ? 'Edit Delivery Address'
+                    : 'Add Delivery Address'
+                  : 'Select delivery address'
                 : currentStep === 2
                 ? 'Review & Confirm'
                 : 'Secure Payment'}
@@ -565,132 +843,375 @@ export const CheckoutScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* ========================================================================= */}
-        {/* STEP 1: ADDRESS FORM                                                      */}
+        {/* STEP 1: SELECT OR ADD DELIVERY ADDRESS                                    */}
         {/* ========================================================================= */}
         {currentStep === 1 && (
-          <View style={styles.step1Card}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>RECEIVER INFORMATION</Text>
-              <Text style={styles.sectionSubtitle}>* All fields mandatory</Text>
+          step1SubView === 'list' ? (
+            <View style={styles.step1ListContainer}>
+              {/* Search Bar */}
+              <View style={styles.searchBar}>
+                <Icon name="magnify" size={20} color="#94A3B8" style={styles.searchIcon} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search an area or address"
+                  placeholderTextColor="#94A3B8"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  autoCorrect={false}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => setSearchQuery('')}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Icon name="close-circle" size={18} color="#94A3B8" />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Quick Action Buttons (2 Side-by-Side matching Screenshot 2) */}
+              <View style={styles.quickActionsRow}>
+                {/* Button 1: Use current location */}
+                <TouchableOpacity
+                  style={styles.quickActionCard}
+                  onPress={handleUseCurrentLocation}
+                  disabled={isLocating}
+                  activeOpacity={0.8}
+                >
+                  {isLocating ? (
+                    <ActivityIndicator size="small" color="#2563EB" />
+                  ) : (
+                    <Icon name="crosshairs-gps" size={18} color="#2563EB" />
+                  )}
+                  <Text style={styles.quickActionText}>
+                    {isLocating ? 'Locating...' : 'Use current location'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Button 2: Add new address */}
+                <TouchableOpacity
+                  style={styles.quickActionCard}
+                  onPress={handleOpenAddForm}
+                  activeOpacity={0.8}
+                >
+                  <Icon name="plus" size={18} color="#2563EB" />
+                  <Text style={styles.quickActionText}>Add new address</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Section Header */}
+              <Text style={styles.savedSectionHeader}>Saved addresses</Text>
+
+              {/* Address Cards List */}
+              {filteredAddresses.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Icon name="map-marker-question-outline" size={44} color="#CBD5E1" />
+                  <Text style={styles.emptyTitle}>No address found</Text>
+                  <Text style={styles.emptySub}>
+                    Try searching for another keyword or add a new delivery address above.
+                  </Text>
+                </View>
+              ) : (
+                filteredAddresses.map((address) => {
+                  const isSelected = address.id === selectedAddressId;
+                  const addressTitle =
+                    address.addressType ||
+                    (address.yourName ? address.yourName.toUpperCase() : 'HOME');
+
+                  const formattedAddress =
+                    address.flatHouseStreet ||
+                    [
+                      address.houseNoName,
+                      address.nearbyArea,
+                      address.cityVillage,
+                      address.state,
+                      address.pincode,
+                    ]
+                      .filter(Boolean)
+                      .join(', ');
+
+                  const iconName =
+                    address.addressType === 'HOME'
+                      ? 'home-outline'
+                      : address.addressType === 'WORK'
+                      ? 'briefcase-outline'
+                      : 'map-marker-outline';
+
+                  const distanceLabel = address.distance || '0m';
+
+                  return (
+                    <TouchableOpacity
+                      key={address.id}
+                      style={[
+                        styles.savedAddressCard,
+                        isSelected && styles.savedAddressCardSelected,
+                      ]}
+                      onPress={() => setSelectedAddressId(address.id)}
+                      activeOpacity={0.85}
+                    >
+                      {/* Left Column: Icon container + Distance */}
+                      <View style={styles.cardLeftCol}>
+                        <View
+                          style={[
+                            styles.iconContainer,
+                            isSelected && styles.iconContainerSelected,
+                          ]}
+                        >
+                          <Icon
+                            name={iconName}
+                            size={22}
+                            color={isSelected ? '#155DFC' : '#1E293B'}
+                          />
+                        </View>
+                        <Text style={styles.distanceText}>{distanceLabel}</Text>
+                      </View>
+
+                      {/* Middle Column: Title + Pill + Full Address + Phone */}
+                      <View style={styles.cardMiddleCol}>
+                        <View style={styles.cardTitleRow}>
+                          <Text style={styles.addressTitleText}>{addressTitle}</Text>
+                          {isSelected && (
+                            <View style={styles.selectedBadge}>
+                              <Text style={styles.selectedBadgeText}>Selected</Text>
+                            </View>
+                          )}
+                        </View>
+
+                        <Text style={styles.addressBodyText} numberOfLines={3}>
+                          {formattedAddress}
+                        </Text>
+
+                        <View style={styles.phoneRow}>
+                          <Icon
+                            name="phone-outline"
+                            size={13}
+                            color="#64748B"
+                            style={styles.phoneIcon}
+                          />
+                          <Text style={styles.phoneText}>
+                            {address.phone || '9864975438'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Right Column: Three dots action menu */}
+                      <TouchableOpacity
+                        style={styles.moreActionBtn}
+                        onPress={() => setActiveActionSheetAddress(address)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        activeOpacity={0.7}
+                      >
+                        <Icon name="dots-vertical" size={20} color="#64748B" />
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
             </View>
+          ) : (
+            /* STEP 1 SUB-VIEW: FORM (ADD / EDIT) */
+            <View style={styles.step1Card}>
+              {/* Top back link to list */}
+              <TouchableOpacity
+                style={styles.formBackBtn}
+                onPress={() => setStep1SubView('list')}
+                activeOpacity={0.7}
+              >
+                <Icon name="arrow-left" size={16} color="#155DFC" style={{ marginRight: 6 }} />
+                <Text style={styles.formBackBtnText}>Back to saved addresses</Text>
+              </TouchableOpacity>
 
-            {/* 1. FULL NAME */}
-            <AddressInputBox
-              label="FULL NAME"
-              value={fullName}
-              onChangeText={(t) => {
-                setFullName(t);
-                clearFieldError('fullName');
-              }}
-              error={fieldErrors.fullName}
-              placeholder="Full name"
-            />
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>
+                  {editingAddressId ? 'EDIT DELIVERY ADDRESS' : 'ADD NEW ADDRESS'}
+                </Text>
+                <Text style={styles.sectionSubtitle}>* All fields required</Text>
+              </View>
 
-            {/* 2. MOBILE NUMBER + ALTERNATE PHONE (OPT) */}
-            <View style={styles.twoColRow}>
+              {/* Address Type Selector */}
+              <Text style={styles.typeSelectorLabel}>ADDRESS TYPE</Text>
+              <View style={styles.typeSelectorRow}>
+                {(['HOME', 'WORK', 'OTHER'] as const).map((t) => {
+                  const isCurrentType = formState.addressType === t;
+                  const typeIcon =
+                    t === 'HOME'
+                      ? 'home-outline'
+                      : t === 'WORK'
+                      ? 'briefcase-outline'
+                      : 'map-marker-outline';
+
+                  return (
+                    <TouchableOpacity
+                      key={t}
+                      style={[
+                        styles.typePill,
+                        isCurrentType && styles.typePillActive,
+                      ]}
+                      onPress={() =>
+                        setFormState((prev) => ({ ...prev, addressType: t }))
+                      }
+                      activeOpacity={0.8}
+                    >
+                      <Icon
+                        name={typeIcon}
+                        size={16}
+                        color={isCurrentType ? '#FFFFFF' : '#475569'}
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text
+                        style={[
+                          styles.typePillText,
+                          isCurrentType && styles.typePillTextActive,
+                        ]}
+                      >
+                        {t}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* GPS Autofill helper button */}
+              <TouchableOpacity
+                style={styles.gpsAssistBtn}
+                onPress={handleFormGPSFetch}
+                disabled={isFetchingGPSInForm}
+                activeOpacity={0.8}
+              >
+                {isFetchingGPSInForm ? (
+                  <ActivityIndicator size="small" color="#2563EB" style={{ marginRight: 8 }} />
+                ) : (
+                  <Icon name="crosshairs-gps" size={16} color="#2563EB" style={{ marginRight: 8 }} />
+                )}
+                <Text style={styles.gpsAssistText}>
+                  {isFetchingGPSInForm
+                    ? 'Fetching GPS details...'
+                    : 'Auto-fill current location from GPS'}
+                </Text>
+              </TouchableOpacity>
+
+              {/* 1. FULL NAME */}
               <AddressInputBox
-                label="MOBILE NUMBER"
-                value={mobileNumber}
+                label="CONTACT / RECIPIENT NAME"
+                value={formState.yourName}
                 onChangeText={(t) => {
-                  setMobileNumber(t.replace(/[^0-9]/g, ''));
-                  clearFieldError('mobileNumber');
+                  setFormState((prev) => ({ ...prev, yourName: t }));
+                  clearFieldError('yourName');
                 }}
-                error={fieldErrors.mobileNumber}
-                placeholder="10-digit mobile"
-                keyboardType="phone-pad"
-                maxLength={14}
-                style={{ flex: 1, marginRight: 6 }}
+                error={fieldErrors.yourName}
+                placeholder="Full name"
               />
+
+              {/* 2. MOBILE NUMBER + ALTERNATE PHONE (OPT) */}
+              <View style={styles.twoColRow}>
+                <AddressInputBox
+                  label="MOBILE NUMBER"
+                  value={formState.phone}
+                  onChangeText={(t) => {
+                    setFormState((prev) => ({ ...prev, phone: t.replace(/[^0-9]/g, '') }));
+                    clearFieldError('phone');
+                  }}
+                  error={fieldErrors.phone}
+                  placeholder="10-digit mobile"
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  style={{ flex: 1, marginRight: 6 }}
+                />
+                <AddressInputBox
+                  label="ALT PHONE (opt)"
+                  value={formState.alternatePhone}
+                  onChangeText={(t) => {
+                    setFormState((prev) => ({ ...prev, alternatePhone: t.replace(/[^0-9]/g, '') }));
+                  }}
+                  placeholder="Optional phone"
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  style={{ flex: 1, marginLeft: 6 }}
+                />
+              </View>
+
+              {/* 3. FLAT / HOUSE NO / BUILDING */}
               <AddressInputBox
-                label="ALT PHONE (opt)"
-                value={alternatePhone}
-                onChangeText={setAlternatePhone}
-                placeholder="Optional phone"
-                keyboardType="phone-pad"
-                maxLength={14}
-                style={{ flex: 1, marginLeft: 6 }}
+                label="HOUSE / FLAT / BUILDING NO"
+                value={formState.houseNoName}
+                onChangeText={(t) => {
+                  setFormState((prev) => ({ ...prev, houseNoName: t }));
+                  clearFieldError('houseNoName');
+                }}
+                error={fieldErrors.houseNoName}
+                placeholder="e.g. Six Mile, House No 11"
+              />
+
+              {/* 4. STREET / NEARBY AREA */}
+              <AddressInputBox
+                label="STREET / AREA / LANDMARK"
+                value={formState.nearbyArea}
+                onChangeText={(t) => {
+                  setFormState((prev) => ({ ...prev, nearbyArea: t }));
+                  clearFieldError('nearbyArea');
+                }}
+                error={fieldErrors.nearbyArea}
+                placeholder="e.g. Near Kabarsthan Path, Six Mile"
+                multiline={true}
+                numberOfLines={2}
+              />
+
+              {/* 5. STATE + CITY / VILLAGE */}
+              <View style={styles.twoColRow}>
+                <AddressInputBox
+                  label="STATE"
+                  value={formState.state}
+                  onChangeText={(t) => {
+                    setFormState((prev) => ({ ...prev, state: t }));
+                    clearFieldError('state');
+                  }}
+                  error={fieldErrors.state}
+                  placeholder="e.g. Assam"
+                  style={{ flex: 1, marginRight: 6 }}
+                />
+                <AddressInputBox
+                  label="CITY / DISTRICT"
+                  value={formState.cityVillage}
+                  onChangeText={(t) => {
+                    setFormState((prev) => ({ ...prev, cityVillage: t }));
+                    clearFieldError('cityVillage');
+                  }}
+                  error={fieldErrors.cityVillage}
+                  placeholder="e.g. Six Mile, Guwahati"
+                  style={{ flex: 1, marginLeft: 6 }}
+                />
+              </View>
+
+              {/* 6. PINCODE */}
+              <AddressInputBox
+                label="PINCODE"
+                value={formState.pincode}
+                onChangeText={(t) => {
+                  setFormState((prev) => ({ ...prev, pincode: t.replace(/[^0-9]/g, '') }));
+                  clearFieldError('pincode');
+                }}
+                error={fieldErrors.pincode}
+                placeholder="6-digit PIN"
+                keyboardType="number-pad"
+                maxLength={6}
+                isError={formState.pincode.length > 0 && formState.pincode.length < 6}
+                isSuccess={formState.pincode.length === 6}
+                badge={
+                  formState.pincode.length === 6 ? (
+                    <View style={styles.pincodeSuccessBadge}>
+                      <Icon name="check-circle" size={12} color="#059669" style={{ marginRight: 3 }} />
+                      <Text style={styles.pincodeSuccessText}>Verified Postal Code</Text>
+                    </View>
+                  ) : null
+                }
+                rightIcon={
+                  formState.pincode.length === 6 ? (
+                    <Icon name="check-bold" size={16} color="#059669" style={styles.pincodeIconInside} />
+                  ) : null
+                }
               />
             </View>
-
-            {/* 3. STATE + CITY / VILLAGE (2 COLUMNS) */}
-            <View style={styles.twoColRow}>
-              <AddressInputBox
-                label="STATE"
-                value={stateName}
-                onChangeText={(t) => {
-                  setStateName(t);
-                  clearFieldError('stateName');
-                }}
-                error={fieldErrors.stateName}
-                placeholder="State name"
-                style={{ flex: 1, marginRight: 6 }}
-              />
-              <AddressInputBox
-                label="CITY / VILLAGE"
-                value={cityVillage}
-                onChangeText={(t) => {
-                  setCityVillage(t);
-                  clearFieldError('cityVillage');
-                }}
-                error={fieldErrors.cityVillage}
-                placeholder="City or town"
-                style={{ flex: 1, marginLeft: 6 }}
-              />
-            </View>
-
-            {/* 4. PINCODE (WITH REAL-TIME RED/GREEN VISUAL VALIDATION) */}
-            <AddressInputBox
-              label="PINCODE"
-              value={pincode}
-              onChangeText={(t) => {
-                setPincode(t.replace(/[^0-9]/g, ''));
-                clearFieldError('pincode');
-              }}
-              error={fieldErrors.pincode}
-              placeholder="6-digit PIN"
-              keyboardType="number-pad"
-              maxLength={6}
-              isError={isPincodeIncomplete}
-              isSuccess={isPincodeComplete}
-              badge={
-                isPincodeIncomplete ? (
-                  <View style={styles.pincodeErrorBadge}>
-                    <Icon name="arrow-left" size={10} color="#EF4444" style={{ marginRight: 2 }} />
-                    <Text style={styles.pincodeErrorText}>6 digits required</Text>
-                  </View>
-                ) : isPincodeComplete ? (
-                  <View style={styles.pincodeSuccessBadge}>
-                    <Icon name="check-circle" size={12} color="#059669" style={{ marginRight: 3 }} />
-                    <Text style={styles.pincodeSuccessText}>Verified Postal Code</Text>
-                  </View>
-                ) : null
-              }
-              rightIcon={
-                isPincodeComplete ? (
-                  <Icon name="check-bold" size={16} color="#059669" style={styles.pincodeIconInside} />
-                ) : isPincodeIncomplete ? (
-                  <Icon name="alert-circle-outline" size={16} color="#EF4444" style={styles.pincodeIconInside} />
-                ) : null
-              }
-            />
-
-            {/* 5. FLAT / HOUSE NO., STREET, LANDMARK */}
-            <AddressInputBox
-              label="FLAT / HOUSE NO., STREET, LANDMARK"
-              value={flatHouseStreet}
-              onChangeText={(t) => {
-                setFlatHouseStreet(t);
-                clearFieldError('flatHouseStreet');
-              }}
-              error={fieldErrors.flatHouseStreet}
-              placeholder="Flat, House no., Building, Landmark"
-              multiline={true}
-              numberOfLines={2}
-            />
-
-            {/* 6. AUTOMATIC LIVE HIGH-ACCURACY GPS DETECTOR */}
-            <LiveGpsDetectorCard onCoordsDetected={handleCoordsDetected} />
-          </View>
+          )
         )}
 
         {/* ========================================================================= */}
@@ -707,31 +1228,41 @@ export const CheckoutScreen = () => {
                   onPress={handleEditAddress}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.editAddressBtnText}>EDIT ADDRESS</Text>
+                  <Text style={styles.editAddressBtnText}>CHANGE</Text>
                 </TouchableOpacity>
               </View>
 
               <View style={styles.addressSummaryBox}>
                 <View style={styles.addressNameRow}>
                   <Icon name="map-marker" size={16} color="#2563EB" style={{ marginRight: 6 }} />
-                  <Text style={styles.addressRecipientName}>{fullName.toUpperCase()}</Text>
+                  <Text style={styles.addressRecipientName}>
+                    {(activeAddress.yourName || 'ASHAFUL ISLAM').toUpperCase()}
+                  </Text>
+                  <View style={styles.addressTypeBadgeStep2}>
+                    <Text style={styles.addressTypeBadgeTextStep2}>
+                      {activeAddress.addressType || 'HOME'}
+                    </Text>
+                  </View>
                 </View>
 
-                <Text style={styles.addressLines} numberOfLines={2}>
-                  {flatHouseStreet}, {cityVillage}, {stateName} - {pincode}
+                <Text style={styles.addressLines} numberOfLines={3}>
+                  {activeAddress.flatHouseStreet ||
+                    [
+                      activeAddress.houseNoName,
+                      activeAddress.nearbyArea,
+                      activeAddress.cityVillage,
+                      activeAddress.state,
+                      activeAddress.pincode,
+                    ]
+                      .filter(Boolean)
+                      .join(', ')}
                 </Text>
 
                 <View style={styles.contactDetailsRow}>
                   <Icon name="cellphone" size={13} color="#64748B" style={{ marginRight: 4 }} />
                   <Text style={styles.contactDetailsText}>
-                    {mobileNumber} {alternatePhone ? `• Alt: ${alternatePhone}` : ''}
-                  </Text>
-                </View>
-
-                <View style={styles.gpsRow}>
-                  <Icon name="navigation-variant-outline" size={13} color="#2563EB" style={{ marginRight: 4 }} />
-                  <Text style={styles.gpsText}>
-                    GPS Locked: {detectedCoords.latitude.toFixed(5)}, {detectedCoords.longitude.toFixed(5)}
+                    {activeAddress.phone || '9864975438'}{' '}
+                    {activeAddress.alternatePhone ? `• Alt: ${activeAddress.alternatePhone}` : ''}
                   </Text>
                 </View>
               </View>
@@ -750,7 +1281,15 @@ export const CheckoutScreen = () => {
 
               {/* Product Info Row */}
               <View style={styles.productReviewRow}>
-                <Image source={{ uri: checkoutProduct.image }} style={styles.productThumbnail} />
+                <FastImage
+                  source={{
+                    uri: checkoutProduct.image,
+                    priority: FastImage.priority.normal,
+                    cache: FastImage.cacheControl.immutable,
+                  }}
+                  style={styles.productThumbnail as any}
+                  resizeMode={FastImage.resizeMode.cover}
+                />
                 <View style={styles.productDetailsCol}>
                   <Text style={styles.productReviewName} numberOfLines={2}>
                     {checkoutProduct.name}
@@ -998,10 +1537,16 @@ export const CheckoutScreen = () => {
         <View style={styles.stickyBottomBar}>
           <TouchableOpacity
             style={styles.primaryCtaBtn}
-            onPress={handleSaveAndProceed}
+            onPress={step1SubView === 'list' ? handleDeliverToThisAddress : handleSaveForm}
             activeOpacity={0.85}
           >
-            <Text style={styles.primaryCtaText}>SAVE & PROCEED TO REVIEW</Text>
+            <Text style={styles.primaryCtaText}>
+              {step1SubView === 'list'
+                ? 'DELIVER TO THIS ADDRESS'
+                : editingAddressId
+                ? 'UPDATE & DELIVER HERE'
+                : 'SAVE & DELIVER HERE'}
+            </Text>
             <Icon name="chevron-right" size={18} color="#FFFFFF" style={{ marginLeft: 4 }} />
           </TouchableOpacity>
         </View>
@@ -1023,9 +1568,74 @@ export const CheckoutScreen = () => {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Action Sheet Popup for Three Dots (Edit / Delete / Set Default) */}
+      {activeActionSheetAddress && (
+        <View style={styles.actionSheetBackdrop}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            onPress={() => setActiveActionSheetAddress(null)}
+            activeOpacity={1}
+          />
+          <View style={styles.actionSheetContainer}>
+            <View style={styles.actionSheetHandle} />
+            <Text style={styles.actionSheetTitle}>Address Options</Text>
+            <Text style={styles.actionSheetSub} numberOfLines={1}>
+              {[
+                activeActionSheetAddress.houseNoName,
+                activeActionSheetAddress.nearbyArea,
+                activeActionSheetAddress.cityVillage,
+              ]
+                .filter(Boolean)
+                .join(', ')}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.actionSheetBtn}
+              onPress={() => handleOpenEditForm(activeActionSheetAddress)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIconBox, { backgroundColor: '#EFF6FF' }]}>
+                <Icon name="pencil-outline" size={18} color="#2563EB" />
+              </View>
+              <Text style={styles.actionSheetBtnText}>Edit Address</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionSheetBtn}
+              onPress={() => handleSetDefault(activeActionSheetAddress)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIconBox, { backgroundColor: '#ECFDF5' }]}>
+                <Icon name="star-outline" size={18} color="#059669" />
+              </View>
+              <Text style={[styles.actionSheetBtnText, { color: '#059669' }]}>Set as Default</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionSheetBtn}
+              onPress={() => handleDeleteAddressConfirm(activeActionSheetAddress)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionIconBox, { backgroundColor: '#FEF2F2' }]}>
+                <Icon name="trash-can-outline" size={18} color="#EF4444" />
+              </View>
+              <Text style={[styles.actionSheetBtnText, { color: '#EF4444' }]}>Delete Address</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionSheetBtn, styles.actionCancelBtn]}
+              onPress={() => setActiveActionSheetAddress(null)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.actionCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -1944,5 +2554,321 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     fontWeight: '900',
     letterSpacing: 0.5,
+  },
+  step1ListContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 24,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
+    marginBottom: 14,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13.5,
+    color: '#0F172A',
+    padding: 0,
+    fontWeight: '500',
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 8,
+  },
+  quickActionCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    gap: 6,
+  },
+  quickActionText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+  savedSectionHeader: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#64748B',
+    marginTop: 16,
+    marginBottom: 10,
+    letterSpacing: 0.3,
+  },
+  savedAddressCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1.2,
+    borderColor: '#E2E8F0',
+    padding: 14,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  savedAddressCardSelected: {
+    borderColor: '#10B981',
+    backgroundColor: '#FAFDFB',
+  },
+  cardLeftCol: {
+    alignItems: 'center',
+    width: 48,
+    marginRight: 6,
+  },
+  iconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconContainerSelected: {
+    backgroundColor: '#EFF6FF',
+  },
+  distanceText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  cardMiddleCol: {
+    flex: 1,
+    paddingHorizontal: 6,
+  },
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  addressTitleText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  selectedBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  selectedBadgeText: {
+    color: '#059669',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  addressBodyText: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: '#475569',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  phoneIcon: {
+    marginRight: 4,
+  },
+  phoneText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  moreActionBtn: {
+    padding: 6,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 36,
+    paddingHorizontal: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  emptyTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#334155',
+    marginTop: 10,
+  },
+  emptySub: {
+    fontSize: 12.5,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  formBackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  formBackBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#155DFC',
+  },
+  typeSelectorLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#334155',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  typeSelectorRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  typePill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  typePillActive: {
+    backgroundColor: '#155DFC',
+    borderColor: '#155DFC',
+  },
+  typePillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  typePillTextActive: {
+    color: '#FFFFFF',
+  },
+  gpsAssistBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EFF6FF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+  gpsAssistText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#2563EB',
+  },
+  actionSheetBackdrop: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    justifyContent: 'flex-end',
+    zIndex: 999,
+  },
+  actionSheetContainer: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 28,
+  },
+  actionSheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#CBD5E1',
+    alignSelf: 'center',
+    marginBottom: 12,
+  },
+  actionSheetTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  actionSheetSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 16,
+  },
+  actionSheetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  actionIconBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  actionSheetBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  actionCancelBtn: {
+    justifyContent: 'center',
+    borderBottomWidth: 0,
+    marginTop: 8,
+    paddingVertical: 10,
+  },
+  actionCancelText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#64748B',
+    textAlign: 'center',
+    width: '100%',
+  },
+  addressTypeBadgeStep2: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 8,
+  },
+  addressTypeBadgeTextStep2: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#155DFC',
   },
 });

@@ -2,14 +2,8 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 import { useAuthStore } from '../features/auth/authStore';
 
-// PC Host IP on local Wi-Fi network so physical Android phones connected to Wi-Fi can reach the backend.
-const PC_DEV_IP = '10.121.102.31';
-
-// For Android physical devices on Wi-Fi, use PC_DEV_IP:8080.
-// For Android Emulator, 10.0.2.2:8080 works.
-export const BASE_URL = Platform.OS === 'android'
-  ? `http://${PC_DEV_IP}:8080/api`
-  : 'http://localhost:8080/api';
+// Uses localhost:8080/api which bridges seamlessly via 'adb reverse tcp:8080 tcp:8080'
+export const BASE_URL = 'http://localhost:8080/api';
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,

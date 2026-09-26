@@ -1,0 +1,113 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Mitreno High-Performance Native Go Backend API",
+    "description": "Production-grade REST and WebSocket API for Mitreno Social-Commerce Native Android App, React Native, and Global Admin Dashboard.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080/api",
+      "description": "Local Development Server"
+    },
+    {
+      "url": "https://api.mitreno.com/api",
+      "description": "Production Cloud Run Cluster"
+    }
+  ],
+  "paths": {
+    "/auth/sync": {
+      "post": {
+        "summary": "Synchronize Firebase Phone Auth User (Strictly No Avatar)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["uid", "phone"],
+                "properties": {
+                  "uid": { "type": "string" },
+                  "phone": { "type": "string" },
+                  "full_name": { "type": "string" },
+                  "email": { "type": "string" },
+                  "gender": { "type": "string" },
+                  "body_measurements": { "type": "object" },
+                  "fcm_token": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "User synchronized successfully" }
+        }
+      }
+    },
+    "/shops": {
+      "get": {
+        "summary": "List Verified Boutiques (Address info inside Bio)",
+        "responses": {
+          "200": { "description": "List of shops" }
+        }
+      }
+    },
+    "/products": {
+      "get": {
+        "summary": "List Designer Products with Filters",
+        "parameters": [
+          { "name": "category", "in": "query", "schema": { "type": "string" } },
+          { "name": "shop_id", "in": "query", "schema": { "type": "string" } },
+          { "name": "q", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "List of products" }
+        }
+      }
+    },
+    "/reels": {
+      "get": {
+        "summary": "Get Vertical Video Feed (Cloudflare R2)",
+        "responses": {
+          "200": { "description": "Video feed array" }
+        }
+      }
+    },
+    "/negotiations/start": {
+      "post": {
+        "summary": "Start Live Bargaining Session",
+        "responses": {
+          "201": { "description": "Negotiation created" }
+        }
+      }
+    },
+    "/orders": {
+      "post": {
+        "summary": "Create Order with 24-hr Free Cancellation Window",
+        "responses": {
+          "201": { "description": "Order placed successfully" }
+        }
+      }
+    },
+    "/orders/{id}/items/{item_id}/cancel": {
+      "post": {
+        "summary": "Cancel Item within 24 Hours with Reason",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "item_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Item cancelled and refund initiated" }
+        }
+      }
+    },
+    "/admin/dashboard": {
+      "get": {
+        "summary": "Global Admin Panel Aggregated Statistics",
+        "responses": {
+          "200": { "description": "Aggregated analytics metrics" }
+        }
+      }
+    }
+  }
+}

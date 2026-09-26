@@ -88,9 +88,11 @@ export const ProductDetailsScreen: React.FC = memo(() => {
       price: bp.base_price,
       originalPrice: orig,
       discountPercent: disc,
+      shopId: bp.shop?.id || bp.shop_id || 'shop_KD56AHEq_42723',
       images: bp.gallery_images && bp.gallery_images.length > 0 ? bp.gallery_images : [bp.thumbnail, ...fallbackProduct.images.slice(1)],
       seller: bp.shop
         ? {
+            shopId: bp.shop.id || bp.shop_id || 'shop_KD56AHEq_42723',
             name: bp.shop.name,
             handle: `@${bp.shop.name.toLowerCase().replace(/\s+/g, '')}`,
             rating: bp.shop.rating ? Number(bp.shop.rating) : 4.8,
@@ -98,7 +100,10 @@ export const ProductDetailsScreen: React.FC = memo(() => {
             avatar: bp.shop.logo_url || bp.shop.cover_image || fallbackProduct.seller.avatar,
             dispatchesIn: fallbackProduct.seller.dispatchesIn,
           }
-        : fallbackProduct.seller,
+        : {
+            ...fallbackProduct.seller,
+            shopId: 'shop_KD56AHEq_42723',
+          },
       specifications: [
         {
           key: 'fabric',
@@ -212,20 +217,18 @@ export const ProductDetailsScreen: React.FC = memo(() => {
   }, [productData]);
 
   const handleMakeOffer = useCallback(() => {
-    try {
-      navigation.navigate('MainTabs', {
-        screen: 'ChatsTab',
-        params: {
-          product: productData,
-          boutiqueName: productData.seller.name,
-        },
-      });
-    } catch {
-      navigation.navigate('ChatsTab' as any, {
-        product: productData,
-        boutiqueName: productData.seller.name,
-      });
-    }
+    navigation.navigate('ChatsScreen', {
+      product: productData,
+      attachedProduct: productData,
+      seller: {
+        shopId: (productData as any).shopId || (productData.seller as any)?.shopId || 'shop_KD56AHEq_42723',
+        name: productData.seller?.name || 'Mitreno Boutique',
+        avatar: productData.seller?.avatar || 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=150&auto=format&fit=crop&q=80',
+        verified: productData.seller?.verified ?? true,
+        isOnline: true,
+      },
+      boutiqueName: productData.seller?.name || 'Mitreno Boutique',
+    });
   }, [navigation, productData]);
 
   const handleProductPress = useCallback((item: ProductDetailItem) => {
@@ -321,11 +324,21 @@ export const ProductDetailsScreen: React.FC = memo(() => {
         {/* 3. Middle Product Info Section (Seamless Plane aligned to 12px margin) */}
         <View style={styles.productInfoSection}>
           {/* Boutique Store Name */}
-          <View style={styles.boutiqueRow}>
+          <TouchableOpacity
+            style={styles.boutiqueRow}
+            onPress={() =>
+              navigation.navigate('BoutiqueStore', {
+                shopId: (productData as any).shopId || (productData.seller as any)?.shopId || 'shop_KD56AHEq_42723',
+                seller: productData.seller,
+              })
+            }
+            activeOpacity={0.75}
+          >
             <Text style={styles.boutiqueNameText}>
               {productData.seller?.name || 'Mitreno Boutique'}
             </Text>
-          </View>
+            <Icon name="chevron-right" size={14} color="#64748B" style={{ marginLeft: 3 }} />
+          </TouchableOpacity>
 
           {/* Product Title with natural clean typography */}
           <Text style={styles.productTitle}>
@@ -376,6 +389,12 @@ export const ProductDetailsScreen: React.FC = memo(() => {
               delivery={productData.delivery}
               policies={productData.policies}
               onMakeOffer={handleMakeOffer}
+              onSellerPress={() =>
+                navigation.navigate('BoutiqueStore', {
+                  shopId: (productData as any).shopId || (productData.seller as any)?.shopId || 'shop_KD56AHEq_42723',
+                  seller: productData.seller,
+                })
+              }
             />
 
             {/* 5. 2-Column Specifications & Product Story */}

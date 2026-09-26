@@ -17,6 +17,7 @@ export interface ProductCardProps {
   reviewCount?: number;
   freeDelivery?: boolean;
   onPress?: () => void;
+  onBoutiquePress?: () => void;
   onBargain?: () => void;
   onBuy?: () => void;
   onAdd?: () => void;
@@ -33,6 +34,7 @@ export const ProductCard: React.FC<ProductCardProps> = memo(({
   reviewCount,
   freeDelivery = true,
   onPress,
+  onBoutiquePress,
   onBargain,
   onBuy,
   onAdd,
@@ -88,11 +90,25 @@ export const ProductCard: React.FC<ProductCardProps> = memo(({
       {/* Info Container below image */}
       <View style={styles.infoContainer}>
         {/* Boutique Domain */}
-        <View style={styles.boutiqueRow}>
-          <Text style={styles.boutiqueName} numberOfLines={1}>
-            {boutiqueName}
-          </Text>
-        </View>
+        {onBoutiquePress ? (
+          <TouchableOpacity
+            style={styles.boutiqueRow}
+            onPress={onBoutiquePress}
+            activeOpacity={0.7}
+            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+          >
+            <Text style={styles.boutiqueName} numberOfLines={1}>
+              {boutiqueName}
+            </Text>
+            <Icon name="chevron-right" size={11} color="#94A3B8" />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.boutiqueRow}>
+            <Text style={styles.boutiqueName} numberOfLines={1}>
+              {boutiqueName}
+            </Text>
+          </View>
+        )}
 
         {/* Product Title in Luxury Serif */}
         <Text style={styles.productTitle} numberOfLines={1}>

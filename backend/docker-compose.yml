@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: mitreno_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mitreno
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations/001_initial_schema.sql:/docker-entrypoint-initdb.d/001_initial_schema.sql
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mitreno_go_api
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: 8080
+      ENV: development
+      DATABASE_URL: postgres://postgres:password@postgres:5432/mitreno?sslmode=disable
+      ADMIN_SECRET_KEY: mitreno_super_secret_admin_key_2026
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:

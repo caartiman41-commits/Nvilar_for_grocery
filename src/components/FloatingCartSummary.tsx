@@ -1,13 +1,19 @@
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import FastImage from 'react-native-fast-image';
 import { useCartStore } from '../features/cart/cartStore';
 
-export const FloatingCartSummary = ({ onPress }: any) => {
-  const { items, getTotalItems, getTotalPrice } = useCartStore();
-  const totalItems = getTotalItems();
-  const totalPrice = getTotalPrice();
+export const FloatingCartSummary = memo(({ onPress }: any) => {
+  const items = useCartStore((s) => s.items);
+  const totalItems = useMemo(
+    () => items.reduce((acc, item) => acc + item.quantity, 0),
+    [items]
+  );
+  const totalPrice = useMemo(
+    () => items.reduce((acc, item) => acc + item.price * item.quantity, 0),
+    [items]
+  );
 
   if (totalItems === 0) return null;
   const displayItems = items.slice(0, 3);
@@ -32,7 +38,7 @@ export const FloatingCartSummary = ({ onPress }: any) => {
       </View>
     </TouchableOpacity>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

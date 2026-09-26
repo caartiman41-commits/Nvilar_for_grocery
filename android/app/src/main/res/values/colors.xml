@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Grezto / Mitreno Gold Notification Badge and System Accent Tint -->
-    <color name="notification_color">#E6A524</color>
-    <color name="notification_accent">#E6A524</color>
-    <color name="notification_badge">#E6A524</color>
+    <!-- Mitreno Crimson Brand Notification Badge and System Accent Tint -->
+    <color name="notification_color">#E11D48</color>
+    <color name="notification_accent">#E11D48</color>
+    <color name="notification_badge">#E11D48</color>
+    <color name="ic_launcher_background">#FFFFFF</color>
     <color name="grezto_gold">#E6A524</color>
     <color name="grezto_charcoal">#1B1B1B</color>
 </resources>

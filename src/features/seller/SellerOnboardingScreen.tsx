@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, memo } from 'react';
 import {
   View,
   Text,
@@ -78,11 +78,13 @@ const INITIAL_FORM_DATA: SellerApplicationData = {
   registrationFeePaid: false,
 };
 
-export const SellerOnboardingScreen = () => {
+export const SellerOnboardingScreen = memo(() => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const { user } = useAuthStore();
-  const { hasSubmittedApplication, applicationStatus, resetApplication } = useSellerStore();
+  const user = useAuthStore((s) => s.user);
+  const hasSubmittedApplication = useSellerStore((s) => s.hasSubmittedApplication);
+  const applicationStatus = useSellerStore((s) => s.applicationStatus);
+  const resetApplication = useSellerStore((s) => s.resetApplication);
 
   const isSeller = Boolean(user?.isSeller || user?.role === 'seller' || applicationStatus === 'approved');
 
@@ -514,7 +516,7 @@ export const SellerOnboardingScreen = () => {
       </View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

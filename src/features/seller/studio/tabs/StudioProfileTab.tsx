@@ -11,8 +11,8 @@ import {
   Alert,
   Dimensions,
   Platform,
-  Image,
 } from 'react-native';
+import FastImage from 'react-native-fast-image';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -114,7 +114,10 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
   onEditProfile,
 }) => {
   const insets = useSafeAreaInsets();
-  const { profile, products, updateProfile, toggleStockStatus } = useSellerStore();
+  const profile = useSellerStore((s) => s.profile);
+  const products = useSellerStore((s) => s.products);
+  const updateProfile = useSellerStore((s) => s.updateProfile);
+  const toggleStockStatus = useSellerStore((s) => s.toggleStockStatus);
 
   const [activeSubTab, setActiveSubTab] = useState<ProfileSubTab>('products');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -343,10 +346,14 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
                 activeOpacity={0.85}
               >
                 {profile.avatarUri ? (
-                  <Image
-                    source={{ uri: profile.avatarUri }}
-                    style={styles.avatarImage}
-                    resizeMode="cover"
+                  <FastImage
+                    source={{
+                      uri: profile.avatarUri,
+                      priority: FastImage.priority.normal,
+                      cache: FastImage.cacheControl.immutable,
+                    }}
+                    style={styles.avatarImage as any}
+                    resizeMode={FastImage.resizeMode.cover}
                   />
                 ) : (
                   <View style={styles.avatarInitialsBox}>
@@ -516,10 +523,14 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
             {products.map((product: StudioProduct) => (
               <View key={product.id} style={styles.productCard}>
                 <View style={styles.productImageWrap}>
-                  <Image
-                    source={{ uri: product.imageUri }}
-                    style={styles.productImage}
-                    resizeMode="cover"
+                  <FastImage
+                    source={{
+                      uri: product.imageUri,
+                      priority: FastImage.priority.normal,
+                      cache: FastImage.cacheControl.immutable,
+                    }}
+                    style={styles.productImage as any}
+                    resizeMode={FastImage.resizeMode.cover}
                   />
 
                   {/* Discount / Boost badges */}
@@ -586,10 +597,14 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
                 onPress={() => setSelectedReel(reel)}
                 activeOpacity={0.85}
               >
-                <Image
-                  source={{ uri: reel.thumbnail }}
-                  style={styles.reelThumbnail}
-                  resizeMode="cover"
+                <FastImage
+                  source={{
+                    uri: reel.thumbnail,
+                    priority: FastImage.priority.normal,
+                    cache: FastImage.cacheControl.immutable,
+                  }}
+                  style={styles.reelThumbnail as any}
+                  resizeMode={FastImage.resizeMode.cover}
                 />
 
                 <LinearGradient
@@ -747,7 +762,14 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
           {/* Top Story Header */}
           <View style={styles.storyViewerHeader}>
             <View style={styles.storyHeaderLeft}>
-              <Image source={{ uri: profile.avatarUri }} style={styles.storyHeaderAvatar} />
+              <FastImage
+                source={{
+                  uri: profile.avatarUri,
+                  priority: FastImage.priority.normal,
+                  cache: FastImage.cacheControl.immutable,
+                }}
+                style={styles.storyHeaderAvatar as any}
+              />
               <View>
                 <Text style={styles.storyHeaderName}>{profile.name}</Text>
                 <Text style={styles.storyHeaderTime}>2h ago • Live Story</Text>
@@ -764,10 +786,14 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
           </View>
 
           {/* Story Image */}
-          <Image
-            source={{ uri: activeStories[storyActiveIndex] }}
-            style={styles.storyViewerImage}
-            resizeMode="cover"
+          <FastImage
+            source={{
+              uri: activeStories[storyActiveIndex],
+              priority: FastImage.priority.normal,
+              cache: FastImage.cacheControl.immutable,
+            }}
+            style={styles.storyViewerImage as any}
+            resizeMode={FastImage.resizeMode.cover}
           />
 
           {/* Story Navigation Tap Zones */}
@@ -885,7 +911,14 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
                   onPress={() => handleAddPresetStory(item.uri, item.title)}
                   activeOpacity={0.85}
                 >
-                  <Image source={{ uri: item.uri }} style={styles.addStoryThumb} />
+                  <FastImage
+                    source={{
+                      uri: item.uri,
+                      priority: FastImage.priority.normal,
+                      cache: FastImage.cacheControl.immutable,
+                    }}
+                    style={styles.addStoryThumb as any}
+                  />
                   <LinearGradient
                     colors={['transparent', 'rgba(0,0,0,0.85)']}
                     style={styles.addStoryGradient}
@@ -925,10 +958,14 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
             {/* Top Section: Avatar Management & 12 Recommended Avatars */}
             <View style={styles.avatarManageCard}>
               <View style={styles.avatarPreviewWrap}>
-                <Image
-                  source={{ uri: editAvatarUri || profile.avatarUri }}
-                  style={styles.avatarLargePreview}
-                  resizeMode="cover"
+                <FastImage
+                  source={{
+                    uri: editAvatarUri || profile.avatarUri,
+                    priority: FastImage.priority.normal,
+                    cache: FastImage.cacheControl.immutable,
+                  }}
+                  style={styles.avatarLargePreview as any}
+                  resizeMode={FastImage.resizeMode.cover}
                 />
               </View>
 
@@ -999,7 +1036,14 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
                         }}
                         activeOpacity={0.75}
                       >
-                        <Image source={{ uri: avatar.uri }} style={styles.recommendedImg} />
+                        <FastImage
+                          source={{
+                            uri: avatar.uri,
+                            priority: FastImage.priority.normal,
+                            cache: FastImage.cacheControl.immutable,
+                          }}
+                          style={styles.recommendedImg as any}
+                        />
                         {isSelected && (
                           <View style={styles.recommendedCheckmark}>
                             <Icon name="check" size={12} color="#FFFFFF" />
@@ -1303,10 +1347,14 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
             </TouchableOpacity>
 
             <View style={styles.reelPlayerCard}>
-              <Image
-                source={{ uri: selectedReel.thumbnail }}
-                style={styles.reelPlayerImage}
-                resizeMode="cover"
+              <FastImage
+                source={{
+                  uri: selectedReel.thumbnail,
+                  priority: FastImage.priority.normal,
+                  cache: FastImage.cacheControl.immutable,
+                }}
+                style={styles.reelPlayerImage as any}
+                resizeMode={FastImage.resizeMode.cover}
               />
 
               <LinearGradient

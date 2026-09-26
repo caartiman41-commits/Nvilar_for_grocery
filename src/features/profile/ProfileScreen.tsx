@@ -35,11 +35,15 @@ interface SettingRowItem {
 export const ProfileScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const { user, isAuthenticated, logout } = useAuthStore();
-  const { hasSubmittedApplication, applicationStatus, applicationId } = useSellerStore();
+  const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const logout = useAuthStore((s) => s.logout);
+  const hasSubmittedApplication = useSellerStore((s) => s.hasSubmittedApplication);
+  const applicationStatus = useSellerStore((s) => s.applicationStatus);
+  const applicationId = useSellerStore((s) => s.applicationId);
 
-  const isSeller = Boolean(user?.isSeller || user?.role === 'seller' || applicationStatus === 'approved');
-  const isUnderReview = !isSeller && Boolean(hasSubmittedApplication && applicationStatus === 'under_review');
+  const isSeller = Boolean(isAuthenticated && (user?.isSeller || user?.role === 'seller' || applicationStatus === 'approved'));
+  const isUnderReview = Boolean(isAuthenticated && !isSeller && hasSubmittedApplication && applicationStatus === 'under_review');
 
   const displayName = user?.displayName || 'Privilege Guest';
   const displayPhone = user?.phoneNumber || '';
@@ -67,6 +71,10 @@ export const ProfileScreen = () => {
   };
 
   const handleBecomeSeller = () => {
+    if (!isAuthenticated) {
+      navigation.navigate('Auth');
+      return;
+    }
     if (isSeller) {
       navigation.navigate('SellerStudio');
     } else {

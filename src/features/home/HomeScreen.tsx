@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Animated,
   useWindowDimensions,
   Alert,
+  Platform,
 } from 'react-native';
 import FastImage from 'react-native-fast-image';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -23,6 +24,7 @@ import { useCartStore } from '../cart/cartStore';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { ProductService } from '../../services/ProductService';
+import { ProductGridSkeleton } from '../../components/ProductGridSkeleton';
 
 export interface BoutiqueProductItem {
   id: string;
@@ -259,20 +261,50 @@ const BOUTIQUE_PRODUCTS: BoutiqueProductItem[] = [
   },
 ];
 
-export const HomeScreen = () => {
+interface ProductGridItemProps {
+  item: BoutiqueProductItem;
+  width: number;
+  onProductPress: (item: BoutiqueProductItem) => void;
+  onBoutiquePress: (item: BoutiqueProductItem) => void;
+  onBargain: (item: BoutiqueProductItem) => void;
+  onBuy: (item: BoutiqueProductItem) => void;
+}
+
+const ProductGridItem = memo(({ item, width, onProductPress, onBoutiquePress, onBargain, onBuy }: ProductGridItemProps) => (
+  <View style={[styles.cardWrapper, { width }]}>
+    <ProductCard
+      id={item.id}
+      name={item.name}
+      price={item.price}
+      originalPrice={item.originalPrice}
+      image={item.image}
+      boutiqueName={item.boutiqueName}
+      rating={item.rating}
+      onBoutiquePress={() => onBoutiquePress(item)}
+      onPress={() => onProductPress(item)}
+      onBargain={() => onBargain(item)}
+      onBuy={() => onBuy(item)}
+      onAdd={() => onBuy(item)}
+    />
+  </View>
+));
+
+export const HomeScreen = memo(() => {
   const navigation = useNavigation<any>();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [selectedSort, setSelectedSort] = useState('recommended');
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { addItem, items } = useCartStore();
+  const addItem = useCartStore((s) => s.addItem);
+  const cartItems = useCartStore((s) => s.items);
 
   const SIDE_PADDING = 12;
   const GAP = 10;
-  const cardWidth = Math.floor((width - (SIDE_PADDING * 2) - GAP) / 2);
+  const cardWidth = useMemo(() => Math.floor((width - (SIDE_PADDING * 2) - GAP) / 2), [width]);
 
   // Preload top featured boutique product images + visual category avatars into cache
   useEffect(() => {
@@ -287,7 +319,7 @@ export const HomeScreen = () => {
     FastImage.preload([...categoryImages, ...topImages]);
   }, []);
 
-  const totalItems = items.reduce((acc, item) => acc + item.quantity, 0);
+  const totalItems = useMemo(() => cartItems.reduce((acc, item) => acc + item.quantity, 0), [cartItems]);
 
   // ==========================================================================
   // SMART SHUFFLE: Rating-weighted Fisher-Yates (high-rated products bubble up)
@@ -342,6 +374,8 @@ export const HomeScreen = () => {
       }
     } catch {
       // Offline fallback
+    } finally {
+      setIsInitialLoading(false);
     }
   }, [selectedCategory, smartShuffle]);
 
@@ -410,7 +444,7 @@ export const HomeScreen = () => {
     });
   }, [fadeAnim, fetchLiveProducts]);
 
-  const handleBargain = (product: BoutiqueProductItem) => {
+  const handleBargain = useCallback((product: BoutiqueProductItem) => {
     Alert.alert(
       'Live Bargain Window Open',
       `Submit your counter-offer for ${product.name} to ${product.boutiqueName}. Current price: ₹${product.price}.`,
@@ -422,9 +456,9 @@ export const HomeScreen = () => {
         },
       ]
     );
-  };
+  }, [navigation]);
 
-  const handleBuy = (product: BoutiqueProductItem) => {
+  const handleBuy = useCallback((product: BoutiqueProductItem) => {
     navigation.navigate('Checkout', {
       directItem: {
         id: product.id,
@@ -437,7 +471,46 @@ export const HomeScreen = () => {
         boutiqueName: product.boutiqueName,
       },
     });
-  };
+  }, [navigation]);
+
+  const handleProductPress = useCallback((item: BoutiqueProductItem) => {
+    FastImage.preload([{ uri: item.image, priority: FastImage.priority.high }]);
+    navigation.navigate('ProductDetails', { product: item, productId: item.id });
+  }, [navigation]);
+
+  const handleBoutiquePress = useCallback((item: BoutiqueProductItem) => {
+    navigation.navigate('BoutiqueStore', {
+      shopId: 'shop_KD56AHEq_42723',
+      shopName: item.boutiqueName,
+    });
+  }, [navigation]);
+
+  const renderProduct = useCallback(({ item }: { item: BoutiqueProductItem }) => (
+    <ProductGridItem
+      item={item}
+      width={cardWidth}
+      onProductPress={handleProductPress}
+      onBoutiquePress={handleBoutiquePress}
+      onBargain={handleBargain}
+      onBuy={handleBuy}
+    />
+  ), [cardWidth, handleProductPress, handleBoutiquePress, handleBargain, handleBuy]);
+
+  const keyExtractor = useCallback((item: BoutiqueProductItem) => item.id, []);
+
+  const refreshColors = useMemo(() => ['#3B111A', '#8B5E3C', '#155DFC'], []);
+
+  const listHeader = useMemo(() => (
+    <>
+      <BannerCarousel />
+      <View style={styles.feedHeaderRow}>
+        <View style={styles.feedHeaderTitleRow}>
+          <Icon name="star-four-points" size={15} color="#0F172A" style={styles.headerIcon} />
+          <Text style={styles.feedHeaderSub}>EXPLORE COLLECTIONS</Text>
+        </View>
+      </View>
+    </>
+  ), []);
 
   return (
     <View style={styles.container}>
@@ -455,60 +528,41 @@ export const HomeScreen = () => {
         onSelectCategory={(catId) => setSelectedCategory(catId)}
       />
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        removeClippedSubviews={true}
-        overScrollMode="never"
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            colors={['#3B111A', '#8B5E3C', '#155DFC']}
-            progressBackgroundColor="#FFFFFF"
-            tintColor="#3B111A"
-          />
-        }
-      >
-        {/* Curated Drops Carousel */}
-        <BannerCarousel />
-
-        {/* Curated Feed Section Header */}
-        <View style={styles.feedHeaderRow}>
-          <View style={styles.feedHeaderTitleRow}>
-            <Icon name="star-four-points" size={15} color="#0F172A" style={styles.headerIcon} />
-            <Text style={styles.feedHeaderSub}>EXPLORE COLLECTIONS</Text>
-          </View>
-        </View>
-
-        {/* 2-Column Product Grid with Shuffle Fade Animation */}
-        <Animated.View style={[styles.gridContainer, { opacity: fadeAnim }]}>
-          {filteredProducts.map((item) => (
-            <View
-              key={item.id}
-              style={[styles.cardWrapper, { width: cardWidth }]}
-            >
-              <ProductCard
-                id={item.id}
-                name={item.name}
-                price={item.price}
-                originalPrice={item.originalPrice}
-                image={item.image}
-                boutiqueName={item.boutiqueName}
-                rating={item.rating}
-                onPress={() => {
-                  FastImage.preload([{ uri: item.image, priority: FastImage.priority.high }]);
-                  navigation.navigate('ProductDetails', { product: item, productId: item.id });
-                }}
-                onBargain={() => handleBargain(item)}
-                onBuy={() => handleBuy(item)}
-                onAdd={() => handleBuy(item)}
-              />
-            </View>
-          ))}
-        </Animated.View>
-      </ScrollView>
+      {isInitialLoading ? (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {listHeader}
+          <ProductGridSkeleton count={6} />
+        </ScrollView>
+      ) : (
+        <Animated.FlatList
+          data={filteredProducts}
+          renderItem={renderProduct}
+          keyExtractor={keyExtractor}
+          numColumns={2}
+          columnWrapperStyle={styles.columnWrapper}
+          ListHeaderComponent={listHeader}
+          showsVerticalScrollIndicator={false}
+          removeClippedSubviews={Platform.OS === 'android'}
+          windowSize={5}
+          maxToRenderPerBatch={8}
+          initialNumToRender={6}
+          style={[styles.scrollView, { opacity: fadeAnim }]}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              colors={refreshColors}
+              progressBackgroundColor="#FFFFFF"
+              tintColor="#3B111A"
+            />
+          }
+        />
+      )}
 
       {/* Floating Bag Summary */}
       {totalItems > 0 && (
@@ -532,7 +586,7 @@ export const HomeScreen = () => {
       />
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -572,13 +626,9 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     letterSpacing: 1.2,
   },
-  gridContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  columnWrapper: {
     justifyContent: 'space-between',
     paddingHorizontal: 12,
-    marginTop: 2,
-    backgroundColor: '#FFFFFF',
   },
   cardWrapper: {
     marginBottom: 12,

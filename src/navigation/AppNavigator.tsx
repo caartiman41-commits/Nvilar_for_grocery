@@ -12,6 +12,8 @@ import { SellerOnboardingScreen } from '../features/seller/SellerOnboardingScree
 import { SellerStudioScreen } from '../features/seller/studio/SellerStudioScreen';
 import { StudioChatTab } from '../features/seller/studio/tabs/StudioChatTab';
 import { ChatsScreen } from '../features/chats/ChatsScreen';
+import { BoutiqueStoreScreen } from '../features/seller/BoutiqueStoreScreen';
+import { MitrenoBootSplash } from '../components/MitrenoBootSplash';
 
 import { useAuthStore } from '../features/auth/authStore';
 import { navigationRef, NotificationService } from '../services/NotificationService';
@@ -19,7 +21,13 @@ import { navigationRef, NotificationService } from '../services/NotificationServ
 const Stack = createNativeStackNavigator();
 
 export const AppNavigator = () => {
-  const { isAuthenticated } = useAuthStore();
+  const isHydrated = useAuthStore((s) => s.isHydrated);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  // Hydration Gate: Ensure persistent storage finishes reading before mounting routes
+  if (!isHydrated) {
+    return <MitrenoBootSplash />;
+  }
 
   return (
     <NavigationContainer
@@ -97,6 +105,15 @@ export const AppNavigator = () => {
         <Stack.Screen
           name="StudioChatTab"
           component={StudioChatTab}
+          options={{
+            animation: 'slide_from_right',
+            animationDuration: 220,
+            freezeOnBlur: true,
+          }}
+        />
+        <Stack.Screen
+          name="BoutiqueStore"
+          component={BoutiqueStoreScreen}
           options={{
             animation: 'slide_from_right',
             animationDuration: 220,

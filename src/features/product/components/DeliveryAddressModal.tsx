@@ -54,15 +54,13 @@ export const DeliveryAddressModal: React.FC<DeliveryAddressModalProps> = memo(({
   onClose,
   onSelectAddress,
 }) => {
-  const {
-    addresses,
-    selectedAddressId,
-    setSelectedAddressId,
-    setDraftField,
-    saveDraftAsNew,
-    updateDraftAsExisting,
-    deleteAddress,
-  } = useCheckoutStore();
+  const addresses = useCheckoutStore((s) => s.addresses);
+  const selectedAddressId = useCheckoutStore((s) => s.selectedAddressId);
+  const setSelectedAddressId = useCheckoutStore((s) => s.setSelectedAddressId);
+  const setDraftField = useCheckoutStore((s) => s.setDraftField);
+  const saveDraftAsNew = useCheckoutStore((s) => s.saveDraftAsNew);
+  const updateDraftAsExisting = useCheckoutStore((s) => s.updateDraftAsExisting);
+  const deleteAddress = useCheckoutStore((s) => s.deleteAddress);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'list' | 'form'>('list');

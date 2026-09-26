@@ -73,3 +73,15 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# Backend & Secrets
+backend/.env
+backend/.env.*
+!backend/.env.example
+*.exe
+*.dll
+*.so
+*.dylib
+*ServiceAccountKey*.json
+*serviceAccountKey*.json
+*service-account*.json

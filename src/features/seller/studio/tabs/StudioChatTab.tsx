@@ -32,15 +32,13 @@ export interface StudioChatTabProps {
 
 export const StudioChatTab: React.FC<StudioChatTabProps> = memo(({ onSelectConversation, initialConversationId }) => {
   const insets = useSafeAreaInsets();
-  const {
-    profile,
-    conversations,
-    setConversations,
-    sendChatMessage,
-    acceptDealOffer,
-    deleteConversation,
-    toggleBlockCustomer,
-  } = useSellerStore();
+  const profile = useSellerStore((s) => s.profile);
+  const conversations = useSellerStore((s) => s.conversations);
+  const setConversations = useSellerStore((s) => s.setConversations);
+  const sendChatMessage = useSellerStore((s) => s.sendChatMessage);
+  const acceptDealOffer = useSellerStore((s) => s.acceptDealOffer);
+  const deleteConversation = useSellerStore((s) => s.deleteConversation);
+  const toggleBlockCustomer = useSellerStore((s) => s.toggleBlockCustomer);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<ChatFilterType>('all');

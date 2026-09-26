@@ -7,15 +7,16 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
-  Image,
   Dimensions,
   Platform,
   Alert,
 } from 'react-native';
+import FastImage from 'react-native-fast-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
-import { useOrderStore, Order, OrderStatus } from './orderStore';
+import { useOrderStore, Order, OrderStatus, OrderItem } from './orderStore';
+import { SAMPLE_PRODUCTS } from '../product/productData';
 import { showToast } from '../../components/MitrenoToast';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -33,7 +34,9 @@ export const CANCELLATION_REASONS = [
 export const OrdersScreen: React.FC = memo(() => {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const { orders, cancelOrder, updateAddress } = useOrderStore();
+  const orders = useOrderStore((s) => s.orders);
+  const cancelOrder = useOrderStore((s) => s.cancelOrder);
+  const updateAddress = useOrderStore((s) => s.updateAddress);
 
   const [viewMode, setViewMode] = useState<'active' | 'history'>('active');
   const [expandedTrackingOrderIds, setExpandedTrackingOrderIds] = useState<Record<string, boolean>>({
@@ -160,6 +163,84 @@ export const OrdersScreen: React.FC = memo(() => {
     }
   };
 
+  // Handle tapping a product to view its full Product Details Page (PDP)
+  const handlePressProduct = useCallback(
+    (orderItem: OrderItem | null, order: Order) => {
+      if (!orderItem) return;
+
+      // Smart Product ID Resolution
+      let targetProductId = orderItem.id || 'p1';
+      const lowerName = (orderItem.name || '').toLowerCase();
+      const lowerId = (orderItem.id || '').toLowerCase();
+
+      if (
+        lowerName.includes('poplin') ||
+        lowerName.includes('overshirt') ||
+        lowerId.includes('poplin') ||
+        lowerId === 'p1'
+      ) {
+        targetProductId = 'p1';
+      } else if (
+        lowerName.includes('chikankari') ||
+        lowerName.includes('kurta') ||
+        lowerId.includes('chikankari') ||
+        lowerId === 'p2'
+      ) {
+        targetProductId = 'p2';
+      } else if (
+        lowerName.includes('silver') ||
+        lowerName.includes('ring') ||
+        lowerId.includes('ring') ||
+        lowerId === 'p3'
+      ) {
+        targetProductId = 'p3';
+      } else if (
+        lowerName.includes('hoodie') ||
+        lowerName.includes('streetwear') ||
+        lowerId.includes('hoodie') ||
+        lowerId === 'p4'
+      ) {
+        targetProductId = 'p4';
+      } else if (
+        lowerName.includes('chambray') ||
+        lowerName.includes('denim') ||
+        lowerId.includes('chambray') ||
+        lowerId === 'p5'
+      ) {
+        targetProductId = 'p5';
+      } else if (
+        lowerName.includes('linen') ||
+        lowerId.includes('linen') ||
+        lowerId === 'p6'
+      ) {
+        targetProductId = 'p6';
+      }
+
+      // Preload image for instantaneous zero-latency render
+      if (orderItem.image) {
+        FastImage.preload([{ uri: orderItem.image, priority: FastImage.priority.high }]);
+      }
+
+      const sampleProd = SAMPLE_PRODUCTS[targetProductId];
+
+      navigation.navigate('ProductDetails', {
+        productId: targetProductId,
+        product: sampleProd || {
+          id: targetProductId,
+          name: orderItem.name,
+          price: orderItem.price,
+          originalPrice: orderItem.originalPrice || Math.round(orderItem.price * 1.35),
+          image: orderItem.image,
+          boutiqueName: orderItem.boutiqueName || 'Sarojini Exclusive',
+          boutiqueTag: (orderItem.boutiqueName || 'Sarojini Exclusive').toUpperCase(),
+          size: orderItem.size,
+          rating: 4.8,
+        },
+      });
+    },
+    [navigation]
+  );
+
   // Render Fashion Order Card (Screenshot 2 & 5)
   const renderOrderItem = useCallback(
     ({ item }: { item: Order }) => {
@@ -180,18 +261,24 @@ export const OrdersScreen: React.FC = memo(() => {
             </Text>
           </View>
 
-          {/* 2. Product Row */}
-          <View style={styles.productRow}>
+          {/* 2. Interactive Product Row (Navigates to Product Details Screen) */}
+          <TouchableOpacity
+            style={styles.productRow}
+            onPress={() => handlePressProduct(primaryItem, item)}
+            activeOpacity={0.7}
+          >
             {/* Product Image Thumbnail with Qty Badge */}
             <View style={styles.productImageContainer}>
-              <Image
+              <FastImage
                 source={{
                   uri:
                     primaryItem?.image ||
                     'https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?w=900&auto=format&fit=crop&q=80',
+                  priority: FastImage.priority.normal,
+                  cache: FastImage.cacheControl.immutable,
                 }}
-                style={styles.productThumbnail}
-                resizeMode="cover"
+                style={styles.productThumbnail as any}
+                resizeMode={FastImage.resizeMode.cover}
               />
               <View style={styles.qtyBadge}>
                 <Text style={styles.qtyBadgeText}>
@@ -232,7 +319,7 @@ export const OrdersScreen: React.FC = memo(() => {
                 </View>
               </View>
 
-              {/* Spec Pills Row (Size & Discount) */}
+              {/* Spec Pills Row (Size & Discount & View Item CTA) */}
               <View style={styles.specPillsRow}>
                 <View style={styles.sizePill}>
                   <Text style={styles.sizePillText}>
@@ -246,9 +333,13 @@ export const OrdersScreen: React.FC = memo(() => {
                     </Text>
                   </View>
                 )}
+                <View style={styles.viewItemPill}>
+                  <Text style={styles.viewItemPillText}>View Item</Text>
+                  <Icon name="chevron-right" size={13} color="#2563EB" />
+                </View>
               </View>
             </View>
-          </View>
+          </TouchableOpacity>
 
           {/* 3. Card-Face Action Buttons */}
           <View style={styles.cardActionsRow}>
@@ -1082,6 +1173,23 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     fontWeight: '800',
     color: '#059669',
+  },
+  viewItemPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    borderWidth: 0.5,
+    borderColor: '#BFDBFE',
+    marginLeft: 'auto',
+  },
+  viewItemPillText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#2563EB',
+    marginRight: 1,
   },
 
   // Card Actions Row

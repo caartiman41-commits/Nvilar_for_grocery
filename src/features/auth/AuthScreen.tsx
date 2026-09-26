@@ -22,11 +22,13 @@ import { useAuthStore } from './authStore';
 import { TruecallerAuthService } from '../../services/TruecallerAuthService';
 import { FirebaseAuthService } from '../../services/FirebaseAuthService';
 import { showToast } from '../../components/MitrenoToast';
+import { apiClient } from '../../api/client';
 
 export const AuthScreen = () => {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const { loginWithTruecaller, loginWithFirebase } = useAuthStore();
+  const loginWithTruecaller = useAuthStore((s) => s.loginWithTruecaller);
+  const loginWithFirebase = useAuthStore((s) => s.loginWithFirebase);
 
   // Mode & Step State
   // Per user instruction: 'create' account must be FIRST and active by default
@@ -52,13 +54,18 @@ export const AuthScreen = () => {
   // Countdown timer for OTP resend
   const [countdown, setCountdown] = useState(0);
   const timerRef = useRef<any>(null);
+  const [isSkipping, setIsSkipping] = useState(false);
 
   const navigateToMainApp = () => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    } else {
-      navigation.replace('MainTabs');
-    }
+    if (isSkipping) return;
+    setIsSkipping(true);
+    requestAnimationFrame(() => {
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.replace('MainTabs');
+      }
+    });
   };
 
   useEffect(() => {
@@ -116,12 +123,13 @@ export const AuthScreen = () => {
 
     try {
       const res = await TruecallerAuthService.requestOneTapLogin();
-      if (res.success && (res.phoneNumber || res.authCode)) {
+      if (res.success && res.phoneNumber) {
         const verifiedName = res.name || fullName.trim() || 'Mitreno Member';
         await loginWithTruecaller({
-          phoneNumber: res.phoneNumber || '+919876543210',
+          phoneNumber: res.phoneNumber,
           displayName: verifiedName,
           authCode: res.authCode,
+          action: authMode,
         });
 
         showToast({
@@ -186,7 +194,7 @@ export const AuthScreen = () => {
     }
   };
 
-  // 2. Firebase Phone Auth: Send OTP
+  // 2. Firebase Phone Auth: Send OTP with Existence Validation
   const handleSendOtp = async () => {
     if (authMode === 'create' && fullName.trim().length < 2) {
       showToast({
@@ -209,6 +217,42 @@ export const AuthScreen = () => {
 
     setIsSendingOtp(true);
     try {
+      // Step A: Pre-check phone existence in Go backend database
+      try {
+        const checkRes = await apiClient.post('/auth/check-phone', { phone: cleanNumber });
+        if (checkRes.data?.success) {
+          const exists = !!checkRes.data.exists;
+
+          if (authMode === 'create' && exists) {
+            showToast({
+              type: 'warning',
+              title: 'Already Registered',
+              message: 'This mobile number is already registered. Please Sign In.',
+              duration: 4000,
+            });
+            setAuthMode('login');
+            setIsSendingOtp(false);
+            return;
+          }
+
+          if (authMode === 'login' && !exists) {
+            showToast({
+              type: 'warning',
+              title: 'Account Not Found',
+              message: 'No account found with this number. Please Create an Account first.',
+              duration: 4000,
+            });
+            setAuthMode('create');
+            setIsSendingOtp(false);
+            return;
+          }
+        }
+      } catch (checkErr: any) {
+        // Log pre-check failure and proceed with Firebase
+        console.warn('[handleSendOtp] check-phone pre-check notice:', checkErr?.message);
+      }
+
+      // Step B: Send real Firebase SMS OTP
       const res = await FirebaseAuthService.sendPhoneOtp(cleanNumber);
       if (res.success && res.confirmation) {
         setConfirmationResult(res.confirmation);
@@ -220,13 +264,11 @@ export const AuthScreen = () => {
           message: `6-digit verification code sent to +91 ${cleanNumber}`,
         });
       } else {
-        // Fallback for development / simulated environment
-        setStep('otp');
-        startCountdown();
         showToast({
-          type: 'info',
-          title: 'Verification Code',
-          message: `Enter code sent to +91 ${cleanNumber} (Dev OTP: 123456)`,
+          type: 'error',
+          title: 'SMS Delivery Failed',
+          message: res.error || 'Firebase could not send SMS OTP to this number. Please check connection and try again.',
+          duration: 5000,
         });
       }
     } catch (err: any) {
@@ -240,13 +282,13 @@ export const AuthScreen = () => {
     }
   };
 
-  // 3. Firebase Phone Auth: Verify OTP
+  // 3. Firebase Phone Auth: Strict Real OTP Verification (Zero Backdoor)
   const handleVerifyOtp = async () => {
-    if (otp.length < 4) {
+    if (otp.length < 6) {
       showToast({
         type: 'error',
         title: 'Incomplete Code',
-        message: 'Please enter the complete verification code',
+        message: 'Please enter the complete 6-digit verification code',
       });
       return;
     }
@@ -254,46 +296,38 @@ export const AuthScreen = () => {
     setIsVerifyingOtp(true);
     try {
       const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
-      const userDisplayName = authMode === 'create' ? fullName.trim() : 'Mitreno Member';
+      const userDisplayName = authMode === 'create' ? fullName.trim() : (fullName.trim() || 'Mitreno Member');
 
-      if (confirmationResult) {
-        const res = await FirebaseAuthService.confirmOtp(confirmationResult, otp);
-        if (res.success) {
-          await loginWithFirebase({
-            uid: res.user?.uid || `user_${Date.now()}`,
-            phoneNumber: `+91${cleanNumber}`,
-            displayName: userDisplayName,
-          });
-
-          showToast({
-            type: 'success',
-            title: `Welcome to Mitreno! 🎉`,
-            message: 'Phone number verified successfully.',
-          });
-          navigateToMainApp();
-          return;
-        }
+      if (!confirmationResult) {
+        showToast({
+          type: 'error',
+          title: 'Session Expired',
+          message: 'Verification session expired. Please request a new code.',
+        });
+        setStep('phone');
+        return;
       }
 
-      // Development / Simulated OTP check
-      if (otp === '123456' || otp.length >= 4) {
+      const res = await FirebaseAuthService.confirmOtp(confirmationResult, otp);
+      if (res.success && res.user) {
         await loginWithFirebase({
-          uid: `fb_user_${cleanNumber}`,
+          uid: res.user.uid,
           phoneNumber: `+91${cleanNumber}`,
           displayName: userDisplayName,
+          action: authMode,
         });
 
         showToast({
           type: 'success',
           title: `Welcome, ${userDisplayName}! 🎉`,
-          message: 'Account verified successfully.',
+          message: 'Phone number verified successfully.',
         });
         navigateToMainApp();
       } else {
         showToast({
           type: 'error',
           title: 'Invalid Code',
-          message: 'The code you entered is incorrect. Please verify and try again.',
+          message: res.error || 'The code you entered is incorrect. Please verify and try again.',
         });
       }
     } catch (err: any) {
@@ -312,15 +346,23 @@ export const AuthScreen = () => {
       style={[styles.container, { paddingTop: Math.max(insets.top, 16), paddingBottom: Math.max(insets.bottom, 16) }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* TOP HEADER: SKIP BUTTON ON RIGHT (MATCHING SCREENSHOT 3) */}
+      {/* TOP HEADER: SKIP BUTTON ON RIGHT (WITH LUXURY SOFT PILL & GENEROUS HIT SLOP) */}
       <View style={styles.topHeaderRow}>
-        <View style={{ width: 40 }} />
+        <View style={{ width: 44 }} />
         <TouchableOpacity
           onPress={navigateToMainApp}
           style={styles.skipBtn}
-          activeOpacity={0.7}
+          activeOpacity={0.4}
+          hitSlop={{ top: 24, bottom: 24, left: 30, right: 30 }}
+          accessibilityRole="button"
+          accessibilityLabel="Skip to Main App"
+          disabled={isSkipping}
         >
-          <Text style={styles.skipBtnText}>Skip  →</Text>
+          {isSkipping ? (
+            <ActivityIndicator size="small" color="#475569" />
+          ) : (
+            <Text style={styles.skipBtnText}>Skip  →</Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -589,13 +631,20 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   skipBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    minWidth: 86,
+    minHeight: 44,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 22,
+    backgroundColor: '#F1F5F9', // Luxury soft neutral capsule
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   skipBtnText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#6B7280',
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: '#475569',
+    letterSpacing: 0.3,
   },
   scrollContent: {
     flexGrow: 1,

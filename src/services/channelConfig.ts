@@ -317,7 +317,7 @@ export const buildFCMDozeBypassPayload = (options: FCMDozeBypassOptions) => {
           title: options.title,
           body: options.body,
           icon: options.icon || 'ic_notification',
-          color: options.color || '#E6A524',
+          color: options.color || '#E11D48',
           channel_id: options.channelId,
           sound: channel.sound,
           click_action: options.clickAction || (options.channelId === 'mitreno_seller_channel' ? 'OPEN_SELLER_CHAT' : 'OPEN_BUYER_CHAT'),

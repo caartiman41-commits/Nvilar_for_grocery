@@ -5,12 +5,12 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   Dimensions,
   Animated,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
+import FastImage from 'react-native-fast-image';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -45,7 +45,10 @@ export const StudioDashboardTab: React.FC<StudioDashboardTabProps> = memo(({
   onOpenProfile,
 }) => {
   const insets = useSafeAreaInsets();
-  const { orders, products, profile, updateOrderStatus } = useSellerStore();
+  const orders = useSellerStore((s) => s.orders);
+  const products = useSellerStore((s) => s.products);
+  const profile = useSellerStore((s) => s.profile);
+  const updateOrderStatus = useSellerStore((s) => s.updateOrderStatus);
 
   // Filter ONLY new pending incoming orders for the dashboard feed
   const newOrders = useMemo(() => {
@@ -212,7 +215,14 @@ export const StudioDashboardTab: React.FC<StudioDashboardTabProps> = memo(({
           <View style={styles.boutiqueBrandGroup}>
             <View style={styles.avatarContainer}>
               {profile.avatarUri ? (
-                <Image source={{ uri: profile.avatarUri }} style={styles.avatarImage} />
+                <FastImage
+                  source={{
+                    uri: profile.avatarUri,
+                    priority: FastImage.priority.normal,
+                    cache: FastImage.cacheControl.immutable,
+                  }}
+                  style={styles.avatarImage as any}
+                />
               ) : (
                 <View style={styles.avatarFallback}>
                   <Text style={styles.avatarFallbackText}>
@@ -525,7 +535,14 @@ export const StudioDashboardTab: React.FC<StudioDashboardTabProps> = memo(({
                 {/* Order Item Main Details */}
                 <View style={styles.orderCardBody}>
                   {order.productImage ? (
-                    <Image source={{ uri: order.productImage }} style={styles.orderProductThumb} />
+                    <FastImage
+                      source={{
+                        uri: order.productImage,
+                        priority: FastImage.priority.normal,
+                        cache: FastImage.cacheControl.immutable,
+                      }}
+                      style={styles.orderProductThumb as any}
+                    />
                   ) : (
                     <View style={styles.orderProductThumbPlaceholder}>
                       <Icon name="tshirt-crew" size={20} color="#94A3B8" />

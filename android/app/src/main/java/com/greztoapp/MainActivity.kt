@@ -26,6 +26,11 @@ class MainActivity : ReactActivity() {
    */
   override fun getMainComponentName(): String = "GreztoApp"
 
+  override fun onNewIntent(intent: Intent) {
+      super.onNewIntent(intent)
+      setIntent(intent)
+  }
+
   /**
    * Returns the instance of the [ReactActivityDelegate]. We use [DefaultReactActivityDelegate]
    * which allows you to enable New Architecture with a single boolean flags [fabricEnabled]

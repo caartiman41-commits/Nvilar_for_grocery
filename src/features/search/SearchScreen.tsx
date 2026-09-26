@@ -18,6 +18,7 @@ import { typography } from '../../theme/typography';
 import { AppHeader } from '../../components/AppHeader';
 import { ProductService, BackendProduct } from '../../services/ProductService';
 import { formatINR } from '../../utils/formatters';
+import { SearchSkeleton } from './components/SearchSkeleton';
 
 export const SearchScreen = () => {
   const navigation = useNavigation<any>();
@@ -115,10 +116,7 @@ export const SearchScreen = () => {
       </View>
 
       {isLoading ? (
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="small" color={colors.primaryDark} />
-          <Text style={styles.loadingText}>Searching catalog...</Text>
-        </View>
+        <SearchSkeleton count={6} />
       ) : hasSearched && results.length === 0 ? (
         <View style={styles.centerContainer}>
           <MaterialIcon name="magnify-close" size={44} color={colors.textMuted} />

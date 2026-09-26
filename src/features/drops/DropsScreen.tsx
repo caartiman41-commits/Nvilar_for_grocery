@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import {
   View,
   Text,
@@ -78,11 +78,11 @@ const REELS_DATA: ReelItem[] = [
   },
 ];
 
-export const DropsScreen = () => {
+export const DropsScreen = memo(() => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { height, width } = useWindowDimensions();
-  const { addItem } = useCartStore();
+  const addItem = useCartStore((s) => s.addItem);
 
   const [reels, setReels] = useState<ReelItem[]>(REELS_DATA);
   const [commentModalVisible, setCommentModalVisible] = useState(false);
@@ -318,6 +318,11 @@ export const DropsScreen = () => {
         decelerationRate="fast"
         snapToInterval={reelHeight}
         snapToAlignment="start"
+        getItemLayout={(_, index) => ({ length: reelHeight, offset: reelHeight * index, index })}
+        windowSize={3}
+        maxToRenderPerBatch={2}
+        initialNumToRender={1}
+        removeClippedSubviews={Platform.OS === 'android'}
       />
 
       {/* Interactive Comment Modal */}
@@ -373,7 +378,7 @@ export const DropsScreen = () => {
       </Modal>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

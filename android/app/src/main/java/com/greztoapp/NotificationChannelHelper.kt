@@ -5,6 +5,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.media.AudioAttributes
 import android.media.RingtoneManager
@@ -14,9 +16,13 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.Executors
 
 object NotificationChannelHelper {
     private const val TAG = "NotificationChannels"
+    private val executor = Executors.newCachedThreadPool()
 
     const val CHANNEL_ID_SELLER = "mitreno_seller_channel"
     const val CHANNEL_NAME_SELLER = "Boutique Inquiries & Customer Deals"
@@ -92,7 +98,7 @@ object NotificationChannelHelper {
                 enableVibration(true)
                 vibrationPattern = SELLER_VIBRATION_PATTERN
                 enableLights(true)
-                lightColor = Color.parseColor("#E6A524") // Grezto Gold Accent
+                lightColor = Color.parseColor("#E11D48") // Mitreno Crimson Brand Accent
                 setShowBadge(true)
                 lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
                 setSound(sellerSoundUri, audioAttributes)
@@ -150,7 +156,8 @@ object NotificationChannelHelper {
         channelId: String,
         title: String,
         body: String,
-        extras: Map<String, String>? = null
+        extras: Map<String, String>? = null,
+        bigPictureBitmap: Bitmap? = null
     ): NotificationCompat.Builder {
         val resolvedChannelId = when (channelId) {
             CHANNEL_ID_BUYER -> CHANNEL_ID_BUYER
@@ -182,25 +189,92 @@ object NotificationChannelHelper {
             .let { if (it != 0) it else android.R.drawable.ic_dialog_info }
 
         val colorResId = context.resources.getIdentifier("notification_color", "color", context.packageName)
-        val accentColor = if (colorResId != 0) ContextCompat.getColor(context, colorResId) else Color.parseColor("#E6A524")
+        val accentColor = if (colorResId != 0) ContextCompat.getColor(context, colorResId) else Color.parseColor("#E11D48")
 
-        return NotificationCompat.Builder(context, resolvedChannelId)
+        val largeIconResId = context.resources.getIdentifier("ic_notification_large", "drawable", context.packageName)
+            .let { if (it != 0) it else context.resources.getIdentifier("ic_launcher", "mipmap", context.packageName) }
+        val largeIcon = if (largeIconResId != 0) BitmapFactory.decodeResource(context.resources, largeIconResId) else null
+
+        val builder = NotificationCompat.Builder(context, resolvedChannelId)
             .setSmallIcon(smallIconResId)
             .setColor(accentColor)
             .setContentTitle(title)
             .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setVibrate(vibrationPattern)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .setDefaults(NotificationCompat.DEFAULT_SOUND or NotificationCompat.DEFAULT_LIGHTS)
+
+        if (largeIcon != null) {
+            builder.setLargeIcon(largeIcon)
+        }
+
+        // Apply BigPictureStyle if product hero image is decoded
+        if (bigPictureBitmap != null) {
+            val bigPicStyle = NotificationCompat.BigPictureStyle()
+                .bigPicture(bigPictureBitmap)
+                .setBigContentTitle(title)
+                .setSummaryText(body)
+            if (largeIcon != null) {
+                bigPicStyle.bigLargeIcon(largeIcon)
+            }
+            builder.setStyle(bigPicStyle)
+        } else {
+            builder.setStyle(NotificationCompat.BigTextStyle().bigText(body))
+        }
+
+        // Action Buttons: E-Commerce "Shop Now" and "Visit Now"
+        val isPromoOrProduct = extras?.containsKey("image_url") == true ||
+                extras?.containsKey("imageUrl") == true ||
+                extras?.containsKey("product_id") == true ||
+                extras?.containsKey("action_label") == true ||
+                bigPictureBitmap != null
+
+        if (isPromoOrProduct) {
+            val primaryActionLabel = extras?.get("action_label") ?: "🛍️ Shop Now"
+            val secondaryActionLabel = extras?.get("action_secondary") ?: "✨ Visit Now"
+            val productId = extras?.get("product_id") ?: ""
+
+            // Primary Action: Shop Now
+            val shopIntent = Intent(context, MainActivity::class.java).apply {
+                this.flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("action", "SHOP_NOW")
+                putExtra("product_id", productId)
+                putExtra("target_screen", "ProductDetails")
+                extras?.forEach { (key, value) -> putExtra(key, value) }
+            }
+            val shopPendingIntent = PendingIntent.getActivity(
+                context,
+                (System.currentTimeMillis() % 10000).toInt() + 10,
+                shopIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            builder.addAction(smallIconResId, primaryActionLabel, shopPendingIntent)
+
+            // Secondary Action: Visit Now / Explore
+            val visitIntent = Intent(context, MainActivity::class.java).apply {
+                this.flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("action", "VISIT_NOW")
+                putExtra("target_screen", "Explore")
+                extras?.forEach { (key, value) -> putExtra(key, value) }
+            }
+            val visitPendingIntent = PendingIntent.getActivity(
+                context,
+                (System.currentTimeMillis() % 10000).toInt() + 20,
+                visitIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            builder.addAction(0, secondaryActionLabel, visitPendingIntent)
+        }
+
+        return builder
     }
 
     /**
      * Posts a notification to the system tray with screen-off visibility, heads-up peeking,
-     * and signature haptic vibration.
+     * signature haptic vibration, BigPictureStyle product images, and action buttons.
      */
     fun postNotification(
         context: Context,
@@ -211,8 +285,36 @@ object NotificationChannelHelper {
         extras: Map<String, String>? = null
     ): Int {
         createNotificationChannels(context)
-        val builder = buildNotification(context, channelId, title, body, extras)
-        NotificationManagerCompat.from(context).notify(notificationId, builder.build())
+
+        val imageUrl = extras?.get("image_url") ?: extras?.get("imageUrl") ?: extras?.get("image")
+        if (!imageUrl.isNullOrEmpty()) {
+            executor.execute {
+                var bitmap: Bitmap? = null
+                try {
+                    val url = URL(imageUrl)
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.doInput = true
+                    conn.connectTimeout = 8000
+                    conn.readTimeout = 8000
+                    conn.instanceFollowRedirects = true
+                    conn.setRequestProperty("User-Agent", "Mozilla/5.0 MitrenoApp")
+                    conn.connect()
+                    val stream = conn.inputStream
+                    bitmap = BitmapFactory.decodeStream(stream)
+                    stream.close()
+                    conn.disconnect()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to download notification image: ${e.message}")
+                }
+
+                val builder = buildNotification(context, channelId, title, body, extras, bitmap)
+                NotificationManagerCompat.from(context).notify(notificationId, builder.build())
+            }
+        } else {
+            val builder = buildNotification(context, channelId, title, body, extras, null)
+            NotificationManagerCompat.from(context).notify(notificationId, builder.build())
+        }
+
         return notificationId
     }
 }

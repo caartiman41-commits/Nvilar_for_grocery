@@ -59,11 +59,15 @@ export interface MitrenoNotificationData {
 export interface MitrenoNotificationPayload {
   title: string;
   body: string;
+  image?: string;
   data?: MitrenoNotificationData;
   channelId?: string;
   notification?: {
     title?: string;
     body?: string;
+    android?: {
+      imageUrl?: string;
+    };
   };
 }
 
@@ -77,19 +81,50 @@ let pendingDeepLink: { targetRole: string; conversationId?: string } | null = nu
 /**
  * Executes or queues the deep-link route based on target_role and conversation_id
  */
-export function routeDeepLink(targetRole: string, conversationId?: string): boolean {
+export function routeDeepLink(
+  targetRole: string,
+  conversationId?: string,
+  extras?: Record<string, any>
+): boolean {
   const normalizedRole = (targetRole || '').toLowerCase().trim();
+  const action = ((extras?.action || '') as string).toUpperCase();
+  const productId = extras?.product_id || extras?.productId;
+  const targetScreen = extras?.target_screen || extras?.targetScreen || extras?.screen;
 
   if (!navigationRef.isReady()) {
     console.log('[NotificationService] NavigationRef not ready, caching pending deep-link:', {
       targetRole: normalizedRole,
       conversationId,
+      action,
+      productId,
     });
-    pendingDeepLink = { targetRole: normalizedRole, conversationId };
+    pendingDeepLink = { targetRole: normalizedRole, conversationId, extras } as any;
     return false;
   }
 
-  console.log(`[NotificationService] Navigating deep-link -> role: '${normalizedRole}', conversationId: '${conversationId}'`);
+  console.log(`[NotificationService] Navigating deep-link -> role: '${normalizedRole}', action: '${action}', productId: '${productId}'`);
+
+  // 1. E-Commerce "Shop Now" or Product PDP Deep Link
+  if (action === 'SHOP_NOW' || targetScreen === 'ProductDetails' || normalizedRole === 'product' || productId) {
+    try {
+      navigationRef.navigate('ProductDetails', {
+        productId: productId || 'prod_1',
+      });
+      return true;
+    } catch (err) {
+      console.warn('[NotificationService] Failed to navigate to ProductDetails:', err);
+    }
+  }
+
+  // 2. E-Commerce "Visit Now" or Explore Tab Deep Link
+  if (action === 'VISIT_NOW' || targetScreen === 'Explore' || normalizedRole === 'explore') {
+    try {
+      navigationRef.navigate('MainTabs', { screen: 'Explore' });
+      return true;
+    } catch (err) {
+      console.warn('[NotificationService] Failed to navigate to Explore:', err);
+    }
+  }
 
   if (normalizedRole === 'seller') {
     // Navigate user directly to StudioChatTab (or Seller Studio) with conversation_id
@@ -168,8 +203,9 @@ export function handleForegroundNotification(payload: MitrenoNotificationPayload
   const data = payload.data || {};
   const targetRole = (data.target_role || data.role || '').toLowerCase().trim();
   const conversationId = data.conversation_id || data.conversationId;
+  const image = payload.image || data.image_url || data.imageUrl || data.image || payload.notification?.android?.imageUrl;
 
-  console.log(`[NotificationService] Foreground notification received for role: '${targetRole}' | Title: '${title}'`);
+  console.log(`[NotificationService] Foreground notification received for role: '${targetRole}' | Title: '${title}' | Image: '${image || 'none'}'`);
 
   if (targetRole === 'seller') {
     // Trigger distinct double vibration pattern for Seller alerts: [0, 250, 200, 250]
@@ -178,6 +214,7 @@ export function handleForegroundNotification(payload: MitrenoNotificationPayload
       type: 'success',
       title,
       message: body,
+      image,
       onPress: () => {
         routeDeepLink('seller', conversationId);
       },
@@ -189,6 +226,7 @@ export function handleForegroundNotification(payload: MitrenoNotificationPayload
       type: 'info',
       title,
       message: body,
+      image,
       onPress: () => {
         routeDeepLink('buyer', conversationId);
       },
@@ -200,6 +238,7 @@ export function handleForegroundNotification(payload: MitrenoNotificationPayload
       type: 'info',
       title,
       message: body,
+      image,
       onPress: () => {
         if (conversationId) {
           routeDeepLink('buyer', conversationId);
@@ -217,11 +256,9 @@ export function handleNotificationTap(payload: MitrenoNotificationPayload | any)
   const targetRole = (data.target_role || data.role || '').toLowerCase().trim();
   const conversationId = data.conversation_id || data.conversationId;
 
-  console.log(`[NotificationService] Notification tapped -> role: '${targetRole}', conversationId: '${conversationId}'`);
+  console.log(`[NotificationService] Notification tapped -> role: '${targetRole}', conversationId: '${conversationId}', action: '${data.action}'`);
 
-  if (targetRole) {
-    routeDeepLink(targetRole, conversationId);
-  }
+  routeDeepLink(targetRole, conversationId, data);
 }
 
 // ---------------------------------------------------------------------------
@@ -307,6 +344,37 @@ export function simulateNotification(
   }
 }
 
+/**
+ * Posts a rich e-commerce product promotion notification with:
+ * - BigPictureStyle hero product image in the middle
+ * - "🛍️ Shop Now" primary action button
+ * - "✨ Visit Now" secondary action button
+ * - Mitreno authentic white squircle icon + red origami bag badge
+ */
+export function postProductPromoNotification(options: {
+  title: string;
+  body: string;
+  imageUrl: string;
+  productId?: string;
+  actionLabel?: string;
+  actionSecondary?: string;
+}): Promise<number | null> {
+  const data = {
+    target_role: 'buyer',
+    product_id: options.productId || 'prod_1',
+    image_url: options.imageUrl,
+    action_label: options.actionLabel || '🛍️ Shop Now',
+    action_secondary: options.actionSecondary || '✨ Visit Now',
+  };
+
+  return postNativeNotification(
+    MITRENO_BUYER_CHANNEL.id,
+    options.title,
+    options.body,
+    data
+  );
+}
+
 // ---------------------------------------------------------------------------
 // 6. Permission & Channel Initializer
 // ---------------------------------------------------------------------------
@@ -363,43 +431,83 @@ export function initialize(): () => void {
   let cleanups: (() => void)[] = [];
 
   try {
-    // Dynamic import to prevent bundler crash if optional native module is not linked
-    const messaging = require('@react-native-firebase/messaging').default;
-    if (messaging && typeof messaging === 'function') {
-      const messagingInstance = messaging();
+    // Support both modular v26+ and legacy API signatures
+    const messagingModule = require('@react-native-firebase/messaging');
+    const getMessaging = messagingModule.getMessaging || messagingModule.default || messagingModule;
+    const messagingInstance = typeof getMessaging === 'function' ? getMessaging() : (typeof messagingModule === 'function' ? messagingModule() : null);
 
-      // Request permission
-      messagingInstance
-        .requestPermission?.()
-        .then((authStatus: any) => {
-          console.log('[NotificationService] FCM Authorization status:', authStatus);
-        })
-        .catch(() => {});
+    if (messagingInstance) {
+      // 1. Request permission
+      if (typeof messagingModule.requestPermission === 'function') {
+        messagingModule.requestPermission(messagingInstance).catch(() => {});
+      } else if (typeof messagingInstance.requestPermission === 'function') {
+        messagingInstance.requestPermission().catch(() => {});
+      }
 
-      // Register device for remote messages
-      messagingInstance
-        .registerDeviceForRemoteMessages?.()
+      // 2. Register device for remote messages & subscribe to all_users topic
+      const registerFn = typeof messagingModule.registerDeviceForRemoteMessages === 'function'
+        ? messagingModule.registerDeviceForRemoteMessages(messagingInstance)
+        : (typeof messagingInstance.registerDeviceForRemoteMessages === 'function'
+          ? messagingInstance.registerDeviceForRemoteMessages()
+          : Promise.resolve());
+
+      Promise.resolve(registerFn)
         .then(() => {
-          messagingInstance.subscribeToTopic?.('all_users').catch(() => {});
+          console.log('[NotificationService] Registered for remote messages');
+          if (typeof messagingModule.subscribeToTopic === 'function') {
+            messagingModule.subscribeToTopic(messagingInstance, 'all_users').catch(() => {});
+          } else if (typeof messagingInstance.subscribeToTopic === 'function') {
+            messagingInstance.subscribeToTopic('all_users').catch(() => {});
+          }
         })
         .catch(() => {});
 
-      // Get FCM Token and sync to backend
-      messagingInstance
-        .getToken?.()
+      // 3. Get FCM Token and sync to backend
+      const getTokenPromise = typeof messagingModule.getToken === 'function'
+        ? messagingModule.getToken(messagingInstance)
+        : (typeof messagingInstance.getToken === 'function'
+          ? messagingInstance.getToken()
+          : Promise.reject(new Error('getToken not found')));
+
+      let cachedToken = '';
+      let lastSyncedKey = '';
+      const syncTokenToUser = async (fcmTok: string, u: any) => {
+        if (!fcmTok) return;
+        const uid = u?.uid || '';
+        const phone = u?.phoneNumber || '';
+        const syncKey = `${fcmTok}_${uid}_${phone}`;
+        if (lastSyncedKey === syncKey) return;
+        lastSyncedKey = syncKey;
+        try {
+          const { apiClient } = require('../api/client');
+          await apiClient.post('/auth/device-token', {
+            fcm_token: fcmTok,
+            user_id: uid,
+            phone: phone,
+          });
+          console.log(`✅ [NotificationService] FCM Token bound to user (uid: '${uid}', phone: '${phone}')`);
+        } catch (err: any) {
+          console.warn('[NotificationService] Token binding error:', err?.message);
+        }
+      };
+
+      getTokenPromise
         .then(async (token: string) => {
-          console.log('[NotificationService] FCM Device Token acquired:', token?.substring(0, 16) + '...');
+          console.log('🔥 [NotificationService] FCM Device Token acquired:', token);
           if (token) {
+            cachedToken = token;
             try {
-              const { apiClient } = require('../api/client');
               const { useAuthStore } = require('../features/auth/authStore');
               const currentUser = useAuthStore.getState()?.user;
-              await apiClient.post('/auth/device-token', {
-                fcm_token: token,
-                user_id: currentUser?.uid || '',
-                phone: currentUser?.phoneNumber || '',
+              await syncTokenToUser(token, currentUser);
+
+              // Subscribe to auth state changes so when user logs in, token binds instantly
+              const unsubAuth = useAuthStore.subscribe((state: any) => {
+                if (cachedToken && state?.user) {
+                  syncTokenToUser(cachedToken, state.user);
+                }
               });
-              console.log('[NotificationService] FCM Token registered on backend');
+              if (typeof unsubAuth === 'function') cleanups.push(unsubAuth);
             } catch (syncErr: any) {
               console.warn('[NotificationService] Token backend sync failed:', syncErr?.message);
             }
@@ -409,55 +517,94 @@ export function initialize(): () => void {
           console.log('[NotificationService] FCM Token fetch skipped:', e?.message);
         });
 
-      // Listen for token refresh (e.g., app restore, token rotation)
-      const unsubTokenRefresh = messagingInstance.onTokenRefresh?.((newToken: string) => {
-        console.log('[NotificationService] FCM Token refreshed:', newToken?.substring(0, 16) + '...');
-        if (newToken) {
-          try {
-            const { apiClient } = require('../api/client');
-            const { useAuthStore } = require('../features/auth/authStore');
-            const currentUser = useAuthStore.getState()?.user;
-            apiClient.post('/auth/device-token', {
-              fcm_token: newToken,
-              user_id: currentUser?.uid || '',
-              phone: currentUser?.phoneNumber || '',
-            }).catch(() => {});
-          } catch {}
-        }
-      });
-      if (typeof unsubTokenRefresh === 'function') cleanups.push(unsubTokenRefresh);
+      // 4. Listen for token refresh
+      const onTokenRefreshFn = messagingModule.onTokenRefresh || messagingInstance.onTokenRefresh;
+      if (typeof onTokenRefreshFn === 'function') {
+        const unsubTokenRefresh = messagingModule.onTokenRefresh
+          ? messagingModule.onTokenRefresh(messagingInstance, (newToken: string) => {
+              if (newToken) {
+                try {
+                  const { apiClient } = require('../api/client');
+                  const { useAuthStore } = require('../features/auth/authStore');
+                  const currentUser = useAuthStore.getState()?.user;
+                  apiClient.post('/auth/device-token', {
+                    fcm_token: newToken,
+                    user_id: currentUser?.uid || '',
+                    phone: currentUser?.phoneNumber || '',
+                  }).catch(() => {});
+                } catch {}
+              }
+            })
+          : messagingInstance.onTokenRefresh((newToken: string) => {
+              if (newToken) {
+                try {
+                  const { apiClient } = require('../api/client');
+                  const { useAuthStore } = require('../features/auth/authStore');
+                  const currentUser = useAuthStore.getState()?.user;
+                  apiClient.post('/auth/device-token', {
+                    fcm_token: newToken,
+                    user_id: currentUser?.uid || '',
+                    phone: currentUser?.phoneNumber || '',
+                  }).catch(() => {});
+                } catch {}
+              }
+            });
+        if (typeof unsubTokenRefresh === 'function') cleanups.push(unsubTokenRefresh);
+      }
 
-      // Foreground message listener
-      const unsubMessage = messagingInstance.onMessage?.(async (remoteMessage: any) => {
-        if (!remoteMessage) return;
-        const normalizedPayload: MitrenoNotificationPayload = {
-          title: remoteMessage.notification?.title || remoteMessage.data?.title || 'Mitreno Alert',
-          body: remoteMessage.notification?.body || remoteMessage.data?.body || '',
-          data: remoteMessage.data || {},
-          channelId: remoteMessage.notification?.android?.channelId,
+      // 5. Foreground message listener
+      const onMessageFn = messagingModule.onMessage || messagingInstance.onMessage;
+      if (typeof onMessageFn === 'function') {
+        const handleMsg = async (remoteMessage: any) => {
+          if (!remoteMessage) return;
+          const normalizedPayload: MitrenoNotificationPayload = {
+            title: remoteMessage.notification?.title || remoteMessage.data?.title || 'Mitreno Alert',
+            body: remoteMessage.notification?.body || remoteMessage.data?.body || '',
+            image: remoteMessage.notification?.android?.imageUrl || remoteMessage.data?.image_url || remoteMessage.data?.image,
+            data: remoteMessage.data || {},
+            channelId: remoteMessage.notification?.android?.channelId || remoteMessage.data?.channel_id,
+          };
+          handleForegroundNotification(normalizedPayload);
         };
-        handleForegroundNotification(normalizedPayload);
-      });
-      if (typeof unsubMessage === 'function') cleanups.push(unsubMessage);
+        const unsubMessage = messagingModule.onMessage
+          ? messagingModule.onMessage(messagingInstance, handleMsg)
+          : messagingInstance.onMessage(handleMsg);
+        if (typeof unsubMessage === 'function') cleanups.push(unsubMessage);
+      }
 
-      // Notification tapped when app in background
-      const unsubOpened = messagingInstance.onNotificationOpenedApp?.((remoteMessage: any) => {
-        if (remoteMessage) {
-          handleNotificationTap(remoteMessage);
-        }
-      });
-      if (typeof unsubOpened === 'function') cleanups.push(unsubOpened);
+      // 6. Notification tapped when app in background
+      const onOpenedFn = messagingModule.onNotificationOpenedApp || messagingInstance.onNotificationOpenedApp;
+      if (typeof onOpenedFn === 'function') {
+        const unsubOpened = messagingModule.onNotificationOpenedApp
+          ? messagingModule.onNotificationOpenedApp(messagingInstance, (remoteMessage: any) => {
+              if (remoteMessage) {
+                handleNotificationTap(remoteMessage);
+              }
+            })
+          : messagingInstance.onNotificationOpenedApp((remoteMessage: any) => {
+              if (remoteMessage) {
+                handleNotificationTap(remoteMessage);
+              }
+            });
+        if (typeof unsubOpened === 'function') cleanups.push(unsubOpened);
+      }
 
-      // Notification tapped causing cold app launch
-      messagingInstance
-        .getInitialNotification?.()
-        .then((remoteMessage: any) => {
-          if (remoteMessage) {
-            console.log('[NotificationService] App launched from cold notification:', remoteMessage);
-            handleNotificationTap(remoteMessage);
-          }
-        })
-        .catch(() => {});
+      // 7. Notification tapped causing cold app launch
+      const getInitialFn = messagingModule.getInitialNotification
+        ? messagingModule.getInitialNotification(messagingInstance)
+        : (typeof messagingInstance.getInitialNotification === 'function'
+          ? messagingInstance.getInitialNotification()
+          : null);
+      if (getInitialFn && typeof getInitialFn.then === 'function') {
+        getInitialFn
+          .then((remoteMessage: any) => {
+            if (remoteMessage) {
+              console.log('[NotificationService] App launched from cold notification:', remoteMessage);
+              handleNotificationTap(remoteMessage);
+            }
+          })
+          .catch(() => {});
+      }
     }
   } catch {
     // @react-native-firebase/messaging not installed in current dependencies;
@@ -485,6 +632,7 @@ export const NotificationService = {
   dispatchNotification,
   simulateNotification,
   postNativeNotification,
+  postProductPromoNotification,
   channels: NOTIFICATION_CHANNELS,
 };
 

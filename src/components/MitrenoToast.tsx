@@ -4,9 +4,9 @@ import {
   Text,
   StyleSheet,
   Animated,
-  Pressable,
-  TouchableOpacity,
   Platform,
+  PanResponder,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -18,6 +18,8 @@ export interface ToastPayload {
   title: string;
   message?: string;
   duration?: number;
+  icon?: string;
+  image?: string;
   onPress?: () => void;
 }
 
@@ -31,54 +33,58 @@ export const showToast = (payload: ToastPayload): void => {
 
 export const MitrenoToast = showToast;
 
-const getToastConfig = (type: ToastType) => {
+interface ToastVisualConfig {
+  iconName: string;
+  iconColor: string;
+  iconBg: string;
+  accentBorder: string;
+}
+
+const getToastConfig = (type: ToastType, customIcon?: string): ToastVisualConfig => {
   switch (type) {
     case 'error':
       return {
-        glowBorder: 'rgba(239, 68, 68, 0.40)',
-        iconName: 'alert-circle',
+        iconName: customIcon || 'alert-circle-outline',
         iconColor: '#F87171',
-        iconBg: 'rgba(239, 68, 68, 0.18)',
-        indicatorColor: '#EF4444',
+        iconBg: 'rgba(239, 68, 68, 0.16)',
+        accentBorder: 'rgba(239, 68, 68, 0.22)',
       };
     case 'success':
       return {
-        glowBorder: 'rgba(16, 185, 129, 0.40)',
-        iconName: 'check-circle',
+        iconName: customIcon || 'check-circle-outline',
         iconColor: '#34D399',
-        iconBg: 'rgba(16, 185, 129, 0.18)',
-        indicatorColor: '#10B981',
+        iconBg: 'rgba(16, 185, 129, 0.16)',
+        accentBorder: 'rgba(16, 185, 129, 0.22)',
       };
     case 'warning':
       return {
-        glowBorder: 'rgba(245, 158, 11, 0.40)',
-        iconName: 'alert-decagram',
+        iconName: customIcon || 'alert-circle-outline',
         iconColor: '#FBBF24',
-        iconBg: 'rgba(245, 158, 11, 0.18)',
-        indicatorColor: '#F59E0B',
+        iconBg: 'rgba(245, 158, 11, 0.16)',
+        accentBorder: 'rgba(245, 158, 11, 0.22)',
       };
     case 'info':
     default:
       return {
-        glowBorder: 'rgba(59, 130, 246, 0.40)',
-        iconName: 'information',
-        iconColor: '#60A5FA',
-        iconBg: 'rgba(59, 130, 246, 0.18)',
-        indicatorColor: '#3B82F6',
+        iconName: customIcon || 'bell-ring-outline',
+        iconColor: '#38BDF8',
+        iconBg: 'rgba(56, 189, 248, 0.16)',
+        accentBorder: 'rgba(56, 189, 248, 0.22)',
       };
   }
 };
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export const MitrenoToastContainer: React.FC = () => {
   const insets = useSafeAreaInsets();
   const [toast, setToast] = useState<ToastPayload | null>(null);
 
-  const translateY = useRef(new Animated.Value(-120)).current;
+  const translateY = useRef(new Animated.Value(-140)).current;
   const opacity = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(0.88)).current;
+  const scale = useRef(new Animated.Value(0.92)).current;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeToastRef = useRef<ToastPayload | null>(null);
+
+  activeToastRef.current = toast;
 
   const handleDismiss = useCallback(() => {
     if (timerRef.current) {
@@ -88,18 +94,18 @@ export const MitrenoToastContainer: React.FC = () => {
 
     Animated.parallel([
       Animated.timing(translateY, {
-        toValue: -120,
-        duration: 220,
+        toValue: -140,
+        duration: 240,
         useNativeDriver: true,
       }),
       Animated.timing(opacity, {
         toValue: 0,
-        duration: 180,
+        duration: 200,
         useNativeDriver: true,
       }),
       Animated.timing(scale, {
         toValue: 0.90,
-        duration: 200,
+        duration: 220,
         useNativeDriver: true,
       }),
     ]).start(({ finished }) => {
@@ -108,6 +114,28 @@ export const MitrenoToastContainer: React.FC = () => {
       }
     });
   }, [opacity, translateY, scale]);
+
+  // Touch and Swipe-Up to Dismiss Gesture Recognizer
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dy) > 4;
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        // If swiped upwards or flicked up, dismiss immediately
+        if (gestureState.dy < -12 || gestureState.vy < -0.4) {
+          handleDismiss();
+        } else if (Math.abs(gestureState.dx) < 10 && Math.abs(gestureState.dy) < 10) {
+          // Clean tap without drag
+          if (activeToastRef.current?.onPress) {
+            activeToastRef.current.onPress();
+          }
+          handleDismiss();
+        }
+      },
+    })
+  ).current;
 
   useEffect(() => {
     toastListener = (payload: ToastPayload) => {
@@ -121,17 +149,17 @@ export const MitrenoToastContainer: React.FC = () => {
       scale.stopAnimation();
 
       setToast(payload);
-      translateY.setValue(-100);
+      translateY.setValue(-120);
       opacity.setValue(0);
-      scale.setValue(0.88);
+      scale.setValue(0.92);
 
-      // Apple Dynamic Island fluid spring physics
+      // Apple Dynamic Island luxury fluid spring entrance physics
       Animated.parallel([
         Animated.spring(translateY, {
           toValue: 0,
           useNativeDriver: true,
-          bounciness: 7,
-          speed: 15,
+          bounciness: 6,
+          speed: 14,
         }),
         Animated.timing(opacity, {
           toValue: 1,
@@ -141,7 +169,7 @@ export const MitrenoToastContainer: React.FC = () => {
         Animated.spring(scale, {
           toValue: 1,
           useNativeDriver: true,
-          bounciness: 6,
+          bounciness: 5,
           speed: 15,
         }),
       ]).start();
@@ -165,37 +193,35 @@ export const MitrenoToastContainer: React.FC = () => {
     return null;
   }
 
-  const config = getToastConfig(toast.type);
-  const topSafeOffset = Math.max(insets.top, Platform.OS === 'android' ? 14 : 20) + 6;
+  const config = getToastConfig(toast.type, toast.icon);
+  const topSafeOffset = Math.max(insets.top, Platform.OS === 'android' ? 20 : 24) + 6;
 
   return (
     <View pointerEvents="box-none" style={[styles.absoluteContainer, { top: topSafeOffset }]}>
-      <AnimatedPressable
-        pointerEvents="auto"
-        onPress={() => {
-          if (toast?.onPress) {
-            toast.onPress();
-          }
-          handleDismiss();
-        }}
+      <Animated.View
+        {...panResponder.panHandlers}
         style={[
           styles.pillCapsule,
           {
-            borderColor: config.glowBorder,
             transform: [{ translateY }, { scale }],
             opacity,
           },
         ]}
       >
-        {/* Subtle Indicator Glow Dot */}
-        <View style={[styles.indicatorDot, { backgroundColor: config.indicatorColor }]} />
+        {/* Generous 44x44 Circular Icon Backdrop or Image Thumbnail */}
+        {toast.image ? (
+          <Image
+            source={{ uri: toast.image }}
+            style={styles.thumbnailImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={[styles.iconCircle, { backgroundColor: config.iconBg }]}>
+            <Icon name={config.iconName} size={22} color={config.iconColor} />
+          </View>
+        )}
 
-        {/* Minimalist Rounded Icon */}
-        <View style={[styles.iconCircle, { backgroundColor: config.iconBg }]}>
-          <Icon name={config.iconName} size={16} color={config.iconColor} />
-        </View>
-
-        {/* Content Column */}
+        {/* High-Clarity Typography Column */}
         <View style={styles.textColumn}>
           <Text style={styles.titleText} numberOfLines={1}>
             {toast.title}
@@ -206,17 +232,7 @@ export const MitrenoToastContainer: React.FC = () => {
             </Text>
           )}
         </View>
-
-        {/* Minimal Close Target */}
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={handleDismiss}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          style={styles.closeBtn}
-        >
-          <Icon name="close" size={14} color="#71717A" />
-        </TouchableOpacity>
-      </AnimatedPressable>
+      </Animated.View>
     </View>
   );
 };
@@ -233,60 +249,51 @@ const styles = StyleSheet.create({
   pillCapsule: {
     flexDirection: 'row',
     alignItems: 'center',
-    maxWidth: 390,
-    width: '100%',
-    backgroundColor: '#09090B', // Deep Obsidian Velvet Glass
-    borderRadius: 26,
+    width: '94%',
+    maxWidth: 500, // Luxury balanced proportion on tablets & wide screens
+    backgroundColor: '#181A20', // Matte Obsidian Charcoal (Benchmark Reference)
+    borderRadius: 24,
     borderWidth: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    // Modern Floating Ambient Shadow
+    borderColor: 'rgba(255, 255, 255, 0.09)', // Crisp razor-thin luxury edge
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    // Deep diffused ambient drop shadow
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 10 },
+    shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.38,
-    shadowRadius: 18,
-    elevation: 14,
+    shadowRadius: 22,
+    elevation: 16,
   },
-  indicatorDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginLeft: 2,
-    marginRight: 8,
+  thumbnailImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    marginRight: 14,
+    backgroundColor: '#262A34',
   },
   iconCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
+    marginRight: 14,
   },
   textColumn: {
     flex: 1,
     justifyContent: 'center',
-    marginRight: 8,
   },
   titleText: {
-    fontSize: 12.5,
+    fontSize: 15.5,
     fontWeight: '700',
-    color: '#FAFAFA', // Crisp Snow White
-    letterSpacing: 0.2,
+    color: '#FFFFFF', // High-contrast crisp pure white
+    letterSpacing: -0.2,
   },
   messageText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#A1A1AA', // Subtle Luxury Silver-Grey
-    marginTop: 1.5,
-    lineHeight: 15,
-  },
-  closeBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 4,
+    fontSize: 13.5,
+    fontWeight: '400',
+    color: '#94A3B8', // Legible Slate-400
+    lineHeight: 18.5,
+    marginTop: 3,
   },
 });

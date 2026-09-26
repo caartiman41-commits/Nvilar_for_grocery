@@ -1,4 +1,4 @@
-import React, { useState, useRef, memo } from 'react';
+import React, { useState, useRef, memo, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -27,27 +27,27 @@ export const ProductImageGallery: React.FC<ProductImageGalleryProps> = memo(({
   // 3:4 Luxury Fashion Portrait Ratio (Standard across Flipkart & Luxury Boutiques)
   const galleryHeight = Math.round(width * 1.28);
 
-  const handleScroll = (event: any) => {
+  const handleScroll = useCallback((event: any) => {
     const scrollOffset = event.nativeEvent.contentOffset.x;
     const index = Math.round(scrollOffset / width);
     if (index !== activeIndex && index >= 0 && index < images.length) {
       setActiveIndex(index);
     }
-  };
+  }, [width, activeIndex, images.length]);
 
-  const scrollToNext = () => {
+  const scrollToNext = useCallback(() => {
     if (activeIndex < images.length - 1) {
       flatListRef.current?.scrollToIndex({ index: activeIndex + 1, animated: true });
     }
-  };
+  }, [activeIndex, images.length]);
 
-  const scrollToPrev = () => {
+  const scrollToPrev = useCallback(() => {
     if (activeIndex > 0) {
       flatListRef.current?.scrollToIndex({ index: activeIndex - 1, animated: true });
     }
-  };
+  }, [activeIndex]);
 
-  const handleShare = async () => {
+  const handleShare = useCallback(async () => {
     try {
       await Share.share({
         message: `Check out ${productTitle} on Mitreno! Handcrafted boutique drops.`,
@@ -55,7 +55,29 @@ export const ProductImageGallery: React.FC<ProductImageGalleryProps> = memo(({
     } catch {
       // Ignore dismiss
     }
-  };
+  }, [productTitle]);
+
+  const keyExtractor = useCallback((_: any, index: number) => index.toString(), []);
+
+  const getItemLayout = useCallback((_: any, index: number) => ({
+    length: width,
+    offset: width * index,
+    index,
+  }), [width]);
+
+  const renderImageItem = useCallback(({ item, index }: { item: string; index: number }) => (
+    <View style={{ width, height: galleryHeight, backgroundColor: '#FFFFFF' }}>
+      <FastImage
+        source={{
+          uri: item,
+          priority: index === 0 ? FastImage.priority.high : FastImage.priority.normal,
+          cache: FastImage.cacheControl.immutable,
+        }}
+        style={styles.image as any}
+        resizeMode={FastImage.resizeMode.cover}
+      />
+    </View>
+  ), [width, galleryHeight]);
 
   return (
     <View style={[styles.container, { height: galleryHeight, width }]}>
@@ -67,20 +89,12 @@ export const ProductImageGallery: React.FC<ProductImageGalleryProps> = memo(({
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={handleScroll}
-        keyExtractor={(_, index) => index.toString()}
-        renderItem={({ item, index }) => (
-          <View style={{ width, height: galleryHeight, backgroundColor: '#FFFFFF' }}>
-            <FastImage
-              source={{
-                uri: item,
-                priority: index === 0 ? FastImage.priority.high : FastImage.priority.normal,
-                cache: FastImage.cacheControl.immutable,
-              }}
-              style={styles.image as any}
-              resizeMode={FastImage.resizeMode.cover}
-            />
-          </View>
-        )}
+        keyExtractor={keyExtractor}
+        getItemLayout={getItemLayout}
+        renderItem={renderImageItem}
+        windowSize={3}
+        maxToRenderPerBatch={2}
+        initialNumToRender={1}
       />
 
       {/* Floating Vertical Actions Stack (Top-Right Corner matching Flipkart Screenshot 2) */}

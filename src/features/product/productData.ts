@@ -2851,10 +2851,44 @@ export const getProductDetailById = (
   fallbackImage?: string,
   fallbackBoutique?: string
 ): ProductDetailItem => {
-  if (SAMPLE_PRODUCTS[id]) {
+  if (id && SAMPLE_PRODUCTS[id]) {
     return SAMPLE_PRODUCTS[id];
   }
-  
+
+  // Intelligent keyword matching for fashion catalogue items
+  const query = `${id || ''} ${fallbackName || ''}`.toLowerCase();
+  if (query.includes('poplin') || query.includes('overshirt') || query.includes('sarojini')) {
+    return SAMPLE_PRODUCTS['p1'];
+  }
+  if (query.includes('chikankari') || query.includes('kurta')) {
+    return SAMPLE_PRODUCTS['p2'];
+  }
+  if (query.includes('silver') || query.includes('ring')) {
+    return SAMPLE_PRODUCTS['p3'];
+  }
+  if (query.includes('hoodie') || query.includes('streetwear')) {
+    return SAMPLE_PRODUCTS['p4'];
+  }
+  if (query.includes('chambray') || query.includes('denim')) {
+    return SAMPLE_PRODUCTS['p5'];
+  }
+  if (query.includes('linen')) {
+    return SAMPLE_PRODUCTS['p6'] || SAMPLE_PRODUCTS['p1'];
+  }
+
+  // Check if fallbackName matches any sample product name
+  if (fallbackName) {
+    const fnLower = fallbackName.toLowerCase();
+    for (const key of Object.keys(SAMPLE_PRODUCTS)) {
+      if (
+        SAMPLE_PRODUCTS[key].name.toLowerCase().includes(fnLower) ||
+        fnLower.includes(SAMPLE_PRODUCTS[key].name.toLowerCase())
+      ) {
+        return SAMPLE_PRODUCTS[key];
+      }
+    }
+  }
+
   // Dynamic fallback generator preserving whatever user tapped from HomeScreen
   return {
     id: id || 'p1',
