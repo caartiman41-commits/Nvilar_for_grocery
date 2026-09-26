@@ -379,6 +379,9 @@ export function initialize(): () => void {
       // Register device for remote messages
       messagingInstance
         .registerDeviceForRemoteMessages?.()
+        .then(() => {
+          messagingInstance.subscribeToTopic?.('all_users').catch(() => {});
+        })
         .catch(() => {});
 
       // Get FCM Token and sync to backend
@@ -388,9 +391,15 @@ export function initialize(): () => void {
           console.log('[NotificationService] FCM Device Token acquired:', token?.substring(0, 16) + '...');
           if (token) {
             try {
-              const { default: apiClient } = require('../api/client');
-              await apiClient.post('/auth/sync', { fcm_token: token });
-              console.log('[NotificationService] FCM Token synced to backend');
+              const { apiClient } = require('../api/client');
+              const { useAuthStore } = require('../features/auth/authStore');
+              const currentUser = useAuthStore.getState()?.user;
+              await apiClient.post('/auth/device-token', {
+                fcm_token: token,
+                user_id: currentUser?.uid || '',
+                phone: currentUser?.phoneNumber || '',
+              });
+              console.log('[NotificationService] FCM Token registered on backend');
             } catch (syncErr: any) {
               console.warn('[NotificationService] Token backend sync failed:', syncErr?.message);
             }
@@ -405,8 +414,14 @@ export function initialize(): () => void {
         console.log('[NotificationService] FCM Token refreshed:', newToken?.substring(0, 16) + '...');
         if (newToken) {
           try {
-            const { default: apiClient } = require('../api/client');
-            apiClient.post('/auth/sync', { fcm_token: newToken }).catch(() => {});
+            const { apiClient } = require('../api/client');
+            const { useAuthStore } = require('../features/auth/authStore');
+            const currentUser = useAuthStore.getState()?.user;
+            apiClient.post('/auth/device-token', {
+              fcm_token: newToken,
+              user_id: currentUser?.uid || '',
+              phone: currentUser?.phoneNumber || '',
+            }).catch(() => {});
           } catch {}
         }
       });

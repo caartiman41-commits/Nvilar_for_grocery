@@ -2,12 +2,14 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 import { useAuthStore } from '../features/auth/authStore';
 
-// In Android Emulator, localhost is reached via 10.0.2.2.
-// In iOS Simulator, it is localhost:8080.
-// For physical devices on local network, developers can configure their local machine's IP.
-const DEFAULT_DEV_URL = Platform.OS === 'android' ? 'http://10.0.2.2:8080/api' : 'http://localhost:8080/api';
+// PC Host IP on local Wi-Fi network so physical Android phones connected to Wi-Fi can reach the backend.
+const PC_DEV_IP = '10.121.102.31';
 
-export const BASE_URL = DEFAULT_DEV_URL;
+// For Android physical devices on Wi-Fi, use PC_DEV_IP:8080.
+// For Android Emulator, 10.0.2.2:8080 works.
+export const BASE_URL = Platform.OS === 'android'
+  ? `http://${PC_DEV_IP}:8080/api`
+  : 'http://localhost:8080/api';
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,
@@ -17,6 +19,8 @@ export const apiClient = axios.create({
     'Accept': 'application/json',
   },
 });
+
+export default apiClient;
 
 // Request Interceptor: Attach Auth Token and User ID if available
 apiClient.interceptors.request.use(
