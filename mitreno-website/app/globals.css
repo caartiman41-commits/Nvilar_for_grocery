@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --brand-blue: #1246B8;
+    --brand-blue-hover: #0E3692;
+    --brand-blue-light: #EEF4FF;
+    --brand-dark: #0A0F1D;
+  }
+
+  body {
+    font-family: var(--font-jakarta), system-ui, -apple-system, sans-serif;
+  }
+
+  h1, .font-serif-editorial {
+    font-family: var(--font-playfair), Georgia, serif;
+  }
+
+  h2, h3, h4, h5, h6 {
+    font-family: var(--font-jakarta), system-ui, -apple-system, sans-serif;
+  }
+}
+
+/* Custom minimal luxury scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #FAFAFA;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #1246B8;
+}
+
+/* Luxury animations & utility classes */
+.backdrop-blur-luxury {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Force hide Next.js development indicator */
+nextjs-portal {
+  display: none !important;
+}
+
+@keyframes marquee {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.animate-marquee {
+  animation: marquee 20s linear infinite;
+}
+
+

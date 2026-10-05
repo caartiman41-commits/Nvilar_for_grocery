@@ -1,0 +1,7 @@
+{
+  "name": "MITRENO — AI-First Luxury Fashion Platform",
+  "description": "Style Yourself Before You Buy. AI Virtual Try-On, Runway Discovery, Smart Fit Engine, and Curated Digital Wardrobe.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

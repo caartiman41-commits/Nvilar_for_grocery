@@ -294,14 +294,17 @@ type Negotiation struct {
 
 // ChatMessage represents a bargaining interaction message
 type ChatMessage struct {
-	ID             string     `gorm:"primaryKey" json:"id"`
-	NegotiationID  string     `gorm:"size:255;not null" json:"negotiation_id"`
-	SenderID       string     `gorm:"size:255;not null" json:"sender_id"`
-	MessageText    string     `gorm:"type:text" json:"message_text"`
-	IsCounterOffer bool       `gorm:"default:false" json:"is_counter_offer"`
-	OfferedPrice   *int       `json:"offered_price"`
-	SeenAt         *time.Time `gorm:"column:seen_at" json:"seen_at"` // Set when receiver reads the message (drives blue ✓✓)
-	CreatedAt      time.Time  `json:"created_at"`
+	ID              string     `gorm:"primaryKey" json:"id"`
+	ClientMessageID string     `gorm:"size:255;index" json:"client_message_id,omitempty"`
+	NegotiationID   string     `gorm:"size:255;not null" json:"negotiation_id"`
+	SenderID        string     `gorm:"size:255;not null" json:"sender_id"`
+	SenderRole      string     `gorm:"size:50;not null;default:'buyer'" json:"sender_role"`
+	Role            string     `gorm:"size:50;default:'buyer'" json:"role,omitempty"`
+	MessageText     string     `gorm:"type:text" json:"message_text"`
+	IsCounterOffer  bool       `gorm:"default:false" json:"is_counter_offer"`
+	OfferedPrice    *int       `json:"offered_price"`
+	SeenAt          *time.Time `gorm:"column:seen_at" json:"seen_at"` // Set when receiver reads the message (drives blue ✓✓)
+	CreatedAt       time.Time  `json:"created_at"`
 }
 
 // Order represents a confirmed e-commerce transaction (With 24h Free Cancellation)

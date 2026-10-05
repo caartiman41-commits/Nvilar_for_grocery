@@ -1,97 +1,53 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Mitreno Unified Commerce Monorepo
 
-# Getting Started
+Official production monorepo for **Mitreno** (`mitreno.com`) — Hyperlocal & Pan-India Fashion E-Commerce Ecosystem.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Architecture & Modules
 
-## Step 1: Start Metro
+| Directory | Module | Stack | Default Port / Target |
+| :--- | :--- | :--- | :--- |
+| [`GreztoApp/`](./GreztoApp) | **Mitreno Mobile Application** (`com.mitreno.app`) | React Native 0.87, TypeScript, Zustand, Hermes AOT | Android / iOS |
+| [`backend/`](./backend) | **Centralized Go Native API & WebSocket Hub** | Go (Fiber v2, GORM, PostgreSQL, Firebase Admin, Cloudflare R2) | `:8080` (`api.mitreno.com`) |
+| [`mitreno-website/`](./mitreno-website) | **Customer E-Commerce Website** | Next.js 15, React 19, Tailwind CSS v4 | `:3000` (`mitreno.com`) |
+| [`mitreno-seller/`](./mitreno-seller) | **Standalone Seller Studio & KYC Portal** | Next.js 15, React 19, Tailwind CSS v4 | `:3002` (`seller.mitreno.com`) |
+| [`mitreno-admin/`](./mitreno-admin) | **Super Admin & Governance Console** | Next.js, TypeScript, Tailwind CSS | `:3001` (`admin.mitreno.com`) |
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## Quick Start
 
-To start the Metro dev server, run the following command from the root of your React Native project:
-
-```sh
-# Using npm
-npm start
-
-# OR using Yarn
-yarn start
+### 1. Go Backend (`backend/`)
+```bash
+cd backend
+cp .env.example .env
+go run ./cmd/api
 ```
 
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+### 2. Customer Website (`mitreno-website/`)
+```bash
+cd mitreno-website
+cp .env.example .env.local
+npm install
+npm run dev
 ```
 
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
+### 3. Seller Portal (`mitreno-seller/`)
+```bash
+cd mitreno-seller
+cp .env.example .env.local
+npm install
+npm run dev
 ```
 
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
+### 4. Super Admin Console (`mitreno-admin/`)
+```bash
+cd mitreno-admin
+cp .env.example .env.local
+npm install
+npm run dev
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
+### 5. Mobile App (`GreztoApp/`)
+```bash
+cd GreztoApp
+npm install
+npx react-native run-android
 ```
-
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
-
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.

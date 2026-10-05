@@ -6,10 +6,12 @@ import (
 	"os"
 
 	firebase "firebase.google.com/go/v4"
+	"firebase.google.com/go/v4/messaging"
 	"google.golang.org/api/option"
 )
 
 var FirebaseApp *firebase.App
+var FirebaseMessaging *messaging.Client
 
 // InitFirebase initializes the Firebase Admin App with multi-source credential resolution
 func InitFirebase() {
@@ -68,6 +70,10 @@ func InitFirebase() {
 				return
 			}
 			FirebaseApp = app
+			if client, err := app.Messaging(context.Background()); err == nil {
+				FirebaseMessaging = client
+				log.Println("⚡ [Firebase] Reusable HTTP/2 Persistent Messaging Client warmed up and ready!")
+			}
 			log.Printf("✅ Firebase Admin SDK initialized via ADC (Project: %s)", projectID)
 			return
 		}
@@ -83,5 +89,9 @@ func InitFirebase() {
 		return
 	}
 	FirebaseApp = app
+	if client, err := app.Messaging(context.Background()); err == nil {
+		FirebaseMessaging = client
+		log.Println("⚡ [Firebase] Reusable HTTP/2 Persistent Messaging Client warmed up and ready!")
+	}
 	log.Printf("✅ Firebase Admin SDK initialized successfully via %s", credSource)
 }

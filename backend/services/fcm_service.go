@@ -142,19 +142,27 @@ func (fs *FCMService) SendPushNotification(payload FCMNotificationPayload) error
 
 	log.Printf("🔔 [FCM Dispatcher] Channel: %s | Sending push to %d devices: %s - %s", channelID, len(payload.Tokens), payload.Title, payload.Body)
 
-	// Attempt real delivery via Firebase Admin SDK if configured
-	var msgClient *messaging.Client
-	if config.FirebaseApp != nil {
+	// Fast-path: Reusable persistent HTTP/2 messaging client with cached OAuth2 tokens
+	msgClient := config.FirebaseMessaging
+	if msgClient == nil && config.FirebaseApp != nil {
 		if c, err := config.FirebaseApp.Messaging(context.Background()); err == nil {
 			msgClient = c
-		} else {
-			log.Printf("⚠️ [FCM Dispatcher] Failed to get Firebase Messaging client: %v", err)
+			config.FirebaseMessaging = c
 		}
 	}
 
 	for _, token := range payload.Tokens {
 		if token == "" {
 			continue
+		}
+
+		tag := ""
+		if payload.Data != nil {
+			if t, ok := payload.Data["tag"]; ok && t != "" {
+				tag = t
+			} else if oid, ok := payload.Data["order_id"]; ok && oid != "" {
+				tag = "order_" + oid
+			}
 		}
 
 		if msgClient != nil {
@@ -169,6 +177,7 @@ func (fs *FCMService) SendPushNotification(payload FCMNotificationPayload) error
 				ImageURL:            payload.ImageURL,
 				Icon:                "ic_notification",
 				Color:               "#E11D48",
+				Tag:                 tag,
 				ChannelID:           channelID,
 				Sound:               sound,
 				ClickAction:         clickAction,
@@ -193,7 +202,7 @@ func (fs *FCMService) SendPushNotification(payload FCMNotificationPayload) error
 			if sendErr != nil {
 				log.Printf("⚠️ [FCM Dispatcher] Firebase API Send error for token %s: %v", token[:min(len(token), 15)]+"...", sendErr)
 			} else {
-				log.Printf("✅ [FCM Dispatcher] Push delivered to token %s (ID: %s)", token[:min(len(token), 15)]+"...", resp)
+				log.Printf("✅ [FCM Dispatcher] Push delivered to token %s (ID: %s | Tag: %s)", token[:min(len(token), 15)]+"...", resp, tag)
 			}
 		}
 
@@ -208,6 +217,9 @@ func (fs *FCMService) SendPushNotification(payload FCMNotificationPayload) error
 			"visibility":              "PUBLIC",
 			"default_sound":           false,
 			"default_vibrate_timings": false,
+		}
+		if tag != "" {
+			androidNotification["tag"] = tag
 		}
 		if len(vibrateTimings) > 0 {
 			androidNotification["vibrate_timings"] = vibrateTimings

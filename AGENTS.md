@@ -18,9 +18,11 @@
 - Supervise and verify every subagent's output against the user's exact requirements before accepting changes.
 - Catch and reject any deviations or sloppy changes immediately.
 
-## 5. Mandatory Verification
+## 5. Mandatory Verification & Zero Token Waste
 - Always run TypeScript check (`tsc --noEmit`) to guarantee 0 compile errors.
 - Always rebuild the Android offline bundle (`android/app/src/main/assets/index.android.bundle`) and clear stale build assets when code changes are made.
+- **App Identity & Focus Verification**: The official application name is strictly **Mitreno** (`applicationId`: `com.mitreno.app`, activity: `com.mitreno.app/com.greztoapp.MainActivity`), NOT Grezto. After installing or updating the build, ALWAYS launch the app and verify via `adb shell dumpsys window | grep mCurrentFocus` that `com.mitreno.app` is actually opened and focused on the user's tablet.
+- **Tablet Manual Testing & Verification**: Manual testing on tablet authorized by user via `adb shell input tap`, `adb shell input text`, and `screencap` to test user/seller flows and fix any issues on device.
 
 ## 6. Language Standard
 - Strictly communicate in **Hinglish (Roman English script)** at all times. Never use Devanagari script.

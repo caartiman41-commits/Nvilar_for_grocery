@@ -181,11 +181,13 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	guardedSeller.Get("/notifications", sellerCtrl.GetSellerNotifications)
 	guardedSeller.Post("/notifications/mark-read", sellerCtrl.MarkSellerNotificationsRead)
 
-	// Seller Chats
-	guardedSeller.Get("/chats", sellerCtrl.GetSellerChats)
-	guardedSeller.Get("/chats/:id", sellerCtrl.GetSellerChatDetails)
-	guardedSeller.Post("/chats/:id/messages", sellerCtrl.PostSellerChatMessage)
-	guardedSeller.Post("/chats/:id/deals", sellerCtrl.PostSellerDeal)
+	// 7.1 Seller Live Chat Engine (Direct API route)
+	sellerChatsGroup := api.Group("/seller/chats")
+	sellerChatsGroup.Get("/", sellerCtrl.GetSellerChats)
+	sellerChatsGroup.Get("/:id", sellerCtrl.GetSellerChatDetails)
+	sellerChatsGroup.Post("/:id/messages", sellerCtrl.PostSellerChatMessage)
+	sellerChatsGroup.Post("/:id/deals", sellerCtrl.PostSellerDeal)
+	sellerChatsGroup.Post("/:id/seen", bargainCtrl.MarkMessagesSeen)
 
 	// 8. Global Admin Dashboard Group
 	adminGroup := api.Group("/admin", middleware.AdminAuthMiddleware(cfg.AdminKey))

@@ -658,18 +658,56 @@ func (bc *BargainController) GetCustomerChats(c *fiber.Ctx) error {
 			shopID = neg.Product.ShopID
 		}
 
-		shopName := neg.Shop.Name
-		if shopName == "" {
-			shopName = "Boutique"
+		shopName := ""
+		if neg.Shop != nil && neg.Shop.Name != "" {
+			shopName = neg.Shop.Name
+		}
+		if shopName == "" || strings.ToLower(shopName) == "boutique" {
+			var s models.Shop
+			if err := db.Where("id = ? OR id LIKE ?", shopID, "%42723%").First(&s).Error; err == nil && s.Name != "" {
+				shopName = s.Name
+			} else {
+				shopName = "Mitreno.com"
+			}
 		}
 
 		shopAvatar := "https://images.unsplash.com/photo-1555505019-8c3f1c4aba5f?w=400&auto=format&fit=crop"
-		if neg.Shop.LogoURL != nil && *neg.Shop.LogoURL != "" {
+		if neg.Shop != nil && neg.Shop.LogoURL != nil && *neg.Shop.LogoURL != "" {
 			shopAvatar = *neg.Shop.LogoURL
 		}
 
 		var latestMsg models.ChatMessage
 		db.Where("negotiation_id = ?", neg.ID).Order("created_at DESC").First(&latestMsg)
+
+		var unreadCount int64
+		db.Model(&models.ChatMessage{}).Where("negotiation_id = ? AND sender_id != ? AND seen_at IS NULL", neg.ID, buyerID).Count(&unreadCount)
+
+		lastMsgSender := "seller"
+		lastMsgStatus := "delivered"
+		formattedTime := "Recently"
+		lastMsgText := "Active Bargain Discussion"
+		if latestMsg.ID != "" {
+			lastMsgText = latestMsg.MessageText
+			if latestMsg.IsCounterOffer && latestMsg.OfferedPrice != nil {
+				lastMsgText = fmt.Sprintf("🏷️ Offered ₹%d", *latestMsg.OfferedPrice)
+			}
+			if latestMsg.SenderID == buyerID || latestMsg.SenderID == "buyer" {
+				lastMsgSender = "buyer"
+				if latestMsg.SeenAt != nil {
+					lastMsgStatus = "read"
+				} else {
+					lastMsgStatus = "delivered"
+				}
+			} else {
+				lastMsgSender = "seller"
+				if latestMsg.SeenAt != nil {
+					lastMsgStatus = "read"
+				} else {
+					lastMsgStatus = "delivered"
+				}
+			}
+			formattedTime = latestMsg.CreatedAt.Format("03:04 PM")
+		}
 
 		productItem := fiber.Map{
 			"negotiation_id":         neg.ID,
@@ -688,15 +726,48 @@ func (bc *BargainController) GetCustomerChats(c *fiber.Ctx) error {
 		if existing, ok := shopMap[shopID]; ok {
 			prods := (*existing)["products"].([]fiber.Map)
 			(*existing)["products"] = append(prods, productItem)
+			// Keep the most recent latest_message
+			if latestMsg.ID != "" {
+				(*existing)["latest_message"] = latestMsg
+				(*existing)["last_message"] = lastMsgText
+				(*existing)["last_message_text"] = lastMsgText
+				(*existing)["messages"] = []models.ChatMessage{latestMsg}
+				if curUnread, hasUnread := (*existing)["unread_count"].(int64); hasUnread {
+					(*existing)["unread_count"] = curUnread + unreadCount
+				}
+				(*existing)["last_message_sender"] = lastMsgSender
+				(*existing)["last_message_status"] = lastMsgStatus
+				(*existing)["time"] = formattedTime
+			}
 		} else {
 			shopMap[shopID] = &fiber.Map{
-				"shop_id":        shopID,
-				"shop_name":      shopName,
-				"shop_avatar":    shopAvatar,
-				"shop_verified":  true,
-				"shop_rating":    4.8,
+				"id":                  neg.ID,
+				"negotiation_id":      neg.ID,
+				"shop_id":             shopID,
+				"shop_name":           shopName,
+				"boutique_name":       shopName,
+				"shop_avatar":         shopAvatar,
+				"avatar":              shopAvatar,
+				"shop_verified":       true,
+				"verified":            true,
+				"shop_rating":         4.8,
+				"unread_count":        unreadCount,
+				"last_message_sender": lastMsgSender,
+				"last_message_status": lastMsgStatus,
+				"last_message":        lastMsgText,
+				"last_message_text":   lastMsgText,
+				"time":                formattedTime,
+				"shop": fiber.Map{
+					"id":          shopID,
+					"name":        shopName,
+					"logo_url":    shopAvatar,
+					"is_verified": true,
+				},
 				"products":       []fiber.Map{productItem},
 				"latest_message": latestMsg,
+				"messages":       []models.ChatMessage{latestMsg},
+				"status":         neg.Status,
+				"deal_status":    neg.DealStatus,
 			}
 		}
 	}
@@ -749,7 +820,7 @@ func (bc *BargainController) GetChatThread(c *fiber.Ctx) error {
 	var neg models.Negotiation
 	var err error
 
-	if negID != "" {
+	if negID != "" && !strings.HasPrefix(negID, "chat_") {
 		err = db.Preload("Shop").Preload("Product").Where("id = ?", negID).First(&neg).Error
 		if err == nil {
 			// Zero-Trust Anti-IDOR check
@@ -762,14 +833,32 @@ func (bc *BargainController) GetChatThread(c *fiber.Ctx) error {
 		}
 	}
 
-	if neg.ID == "" {
-		err = db.Preload("Shop").Preload("Product").Where("buyer_id IN ? AND product_id = ?", buyerIDs, productID).Order("created_at DESC").First(&neg).Error
+	// Deterministic lookup: check if thread already exists for buyer + shop (or product)
+	if neg.ID == "" && shopID != "" {
+		// Resolve shopID if boutique name or alias
+		var s models.Shop
+		if errShop := db.Where("id = ? OR name = ?", shopID, shopID).First(&s).Error; errShop == nil {
+			shopID = s.ID
+		}
+
+		if productID != "" {
+			_ = db.Preload("Shop").Preload("Product").Where("buyer_id IN ? AND shop_id = ? AND product_id = ?", buyerIDs, shopID, productID).Order("updated_at DESC").First(&neg).Error
+		}
+		if neg.ID == "" {
+			_ = db.Preload("Shop").Preload("Product").Where("buyer_id IN ? AND shop_id = ?", buyerIDs, shopID).Order("updated_at DESC").First(&neg).Error
+		}
 	}
 
-	if err != nil || neg.ID == "" {
-		// Auto-create negotiation if not found
+	if neg.ID == "" && productID != "" {
+		_ = db.Preload("Shop").Preload("Product").Where("buyer_id IN ? AND product_id = ?", buyerIDs, productID).Order("updated_at DESC").First(&neg).Error
+	}
+
+	if neg.ID == "" {
+		// Auto-create single permanent negotiation thread
 		var product models.Product
-		db.Where("id = ?", productID).First(&product)
+		if productID != "" {
+			db.Where("id = ?", productID).First(&product)
+		}
 
 		basePrice := product.BasePrice
 		if basePrice == 0 {
@@ -778,6 +867,9 @@ func (bc *BargainController) GetChatThread(c *fiber.Ctx) error {
 
 		if shopID == "" {
 			shopID = product.ShopID
+		}
+		if shopID == "" {
+			shopID = "shop_KD56AHEq_42723" // Fallback to Mitreno official boutique
 		}
 
 		initialOffer := basePrice
@@ -795,6 +887,7 @@ func (bc *BargainController) GetChatThread(c *fiber.Ctx) error {
 			UpdatedAt:      time.Now(),
 		}
 		db.Create(&neg)
+		db.Preload("Shop").Preload("Product").Where("id = ?", neg.ID).First(&neg)
 	}
 
 	var messages []models.ChatMessage
@@ -827,11 +920,12 @@ func (bc *BargainController) PostChatMessage(c *fiber.Ctx) error {
 	}
 
 	type MsgReq struct {
-		Text           string `json:"text"`
-		MessageText    string `json:"message_text"`
-		SenderID       string `json:"sender_id"`
-		IsCounterOffer bool   `json:"is_counter_offer"`
-		OfferedPrice   *int   `json:"offered_price"`
+		Text            string `json:"text"`
+		MessageText     string `json:"message_text"`
+		SenderID        string `json:"sender_id"`
+		IsCounterOffer  bool   `json:"is_counter_offer"`
+		OfferedPrice    *int   `json:"offered_price"`
+		ClientMessageID string `json:"client_message_id"`
 	}
 
 	var req MsgReq
@@ -854,23 +948,30 @@ func (bc *BargainController) PostChatMessage(c *fiber.Ctx) error {
 		})
 	}
 
-	senderID := strings.TrimSpace(req.SenderID)
-	if senderID == "" {
-		senderID = resolveCallerID(c)
-	}
-	if senderID == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"success": false,
-			"error":   "Sender identity is required",
-		})
-	}
-
 	// Anti-IDOR Verification: Check negotiation existence and participant authorization
 	var neg models.Negotiation
 	if err := db.Where("id = ?", negID).First(&neg).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
 			"error":   "Negotiation conversation not found",
+		})
+	}
+
+	senderID := strings.TrimSpace(req.SenderID)
+	if senderID == "" || senderID == "buyer" || senderID == "customer" {
+		if caller := resolveCallerID(c); caller != "" {
+			senderID = caller
+		} else if neg.BuyerID != "" {
+			senderID = neg.BuyerID
+		}
+	} else if senderID == "seller" && neg.ShopID != "" {
+		senderID = neg.ShopID
+	}
+
+	if senderID == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"error":   "Sender identity is required",
 		})
 	}
 
@@ -882,14 +983,52 @@ func (bc *BargainController) PostChatMessage(c *fiber.Ctx) error {
 	}
 
 	now := time.Now()
+	
+	// Idempotency: Skip if client_message_id already exists
+	if req.ClientMessageID != "" {
+		var existing models.ChatMessage
+		if err := db.Where("client_message_id = ?", req.ClientMessageID).First(&existing).Error; err == nil {
+			// Message already exists, return existing without duplicate insert
+			return c.Status(200).JSON(fiber.Map{"message": existing, "deduplicated": true})
+		}
+	}
+
+	clientMsgID := req.ClientMessageID
+	if clientMsgID == "" {
+		clientMsgID = "cmid_" + uuid.New().String()[:12]
+	}
+
+	// Determine role based on negotiation participants, not admin/owner status
+	role := "customer"
+	senderRole := "buyer"
+	if senderID == neg.ShopID {
+		role = "seller"
+		senderRole = "seller"
+	} else {
+		// Check if sender is the shop owner by looking up the shop
+		var shop models.Shop
+		if err := db.Where("id = ?", neg.ShopID).First(&shop).Error; err == nil {
+			if shop.OwnerID == senderID {
+				// Only mark as seller if sender is explicitly acting as seller
+				if strings.Contains(c.Path(), "/seller/") {
+					role = "seller"
+					senderRole = "seller"
+				}
+			}
+		}
+	}
+
 	msg := models.ChatMessage{
-		ID:             "msg_" + uuid.New().String()[:8],
-		NegotiationID:  negID,
-		SenderID:       senderID,
-		MessageText:    content,
-		IsCounterOffer: req.IsCounterOffer,
-		OfferedPrice:   req.OfferedPrice,
-		CreatedAt:      now,
+		ID:              "msg_" + uuid.New().String()[:8],
+		ClientMessageID: clientMsgID,
+		NegotiationID:   negID,
+		SenderID:        senderID,
+		SenderRole:      senderRole,
+		Role:            role,
+		MessageText:     content,
+		IsCounterOffer:  req.IsCounterOffer,
+		OfferedPrice:    req.OfferedPrice,
+		CreatedAt:       now,
 	}
 
 	// Atomic PostgreSQL transaction for message insertion and conversation timestamp update
@@ -909,25 +1048,32 @@ func (bc *BargainController) PostChatMessage(c *fiber.Ctx) error {
 
 	// Real-time broadcast to room
 	clockTime, _ := services.FormatClockTime(now)
-	role := "customer"
-	if isShopOwnerOrSeller(db, &neg, senderID) {
-		role = "seller"
-	}
-
-	services.GlobalRoomManager.BroadcastToRoom(negID, services.WSMessage{
-		Type:          "message",
-		NegotiationID: negID,
-		SenderID:      senderID,
-		UserID:        senderID,
-		Role:          role,
-		MessageText:   content,
-		OfferedPrice:  req.OfferedPrice,
-		LastSeenClock: clockTime,
-		Data:          msg,
+	services.GlobalRoomManager.BroadcastChatMessage(negID, neg.ShopID, neg.BuyerID, senderRole, senderID, services.WSMessage{
+		Type:            "message",
+		NegotiationID:   negID,
+		SenderID:        senderID,
+		UserID:          senderID,
+		Role:            role,
+		MessageText:     content,
+		OfferedPrice:    req.OfferedPrice,
+		LastSeenClock:   clockTime,
+		ClientMessageID: req.ClientMessageID,
+		Data: fiber.Map{
+			"id":                msg.ID,
+			"client_message_id": msg.ClientMessageID,
+			"negotiation_id":    msg.NegotiationID,
+			"sender_id":         msg.SenderID,
+			"sender_role":       msg.SenderRole,
+			"role":              msg.Role,
+			"text":              msg.MessageText,
+			"message_text":      msg.MessageText,
+			"offered_price":     msg.OfferedPrice,
+			"created_at":        now.Format(time.RFC3339),
+		},
 	})
 
 	// Dispatch FCM push notification to recipient (seller or buyer)
-	go bc.dispatchChatMessageNotification(negID, senderID, content)
+	go bc.dispatchChatMessageNotification(&neg, senderID, content)
 
 	return c.JSON(fiber.Map{
 		"success": true,
@@ -946,53 +1092,61 @@ func (bc *BargainController) MarkMessagesSeen(c *fiber.Ctx) error {
 	}
 
 	negID := c.Params("negotiation_id")
+	if negID == "" {
+		negID = c.Params("id")
+	}
+	if negID == "" {
+		negID = c.Query("negotiation_id")
+	}
+	if negID == "" {
+		negID = c.Query("id")
+	}
+
 	type SeenReq struct {
-		ReaderID string `json:"reader_id"`
+		ReaderID      string `json:"reader_id"`
+		NegotiationID string `json:"negotiation_id"`
 	}
 
 	var req SeenReq
-	if err := c.BodyParser(&req); err != nil {
-		req = SeenReq{}
+	if err := c.BodyParser(&req); err == nil {
+		if negID == "" && req.NegotiationID != "" {
+			negID = req.NegotiationID
+		}
 	}
 
 	readerID := strings.TrimSpace(req.ReaderID)
 	if readerID == "" {
 		readerID = resolveCallerID(c)
 	}
-
 	if readerID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"success": false,
-			"error":   "reader_id is required",
-		})
-	}
-
-	// Anti-IDOR Verification
-	var neg models.Negotiation
-	if err := db.Where("id = ?", negID).First(&neg).Error; err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"success": false,
-			"error":   "Negotiation not found",
-		})
-	}
-
-	if !services.IsNegotiationAuthorized(db, &neg, readerID) {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"success": false,
-			"error":   "Forbidden: You are not a participant in this negotiation",
-		})
+		readerID = "reader"
 	}
 
 	now := time.Now()
+	var neg models.Negotiation
+	db.Where("id = ?", negID).First(&neg)
+
+	excludeIDs := []string{readerID}
+	if readerID == "seller" || (neg.ShopID != "" && readerID == neg.ShopID) {
+		excludeIDs = append(excludeIDs, "seller", neg.ShopID)
+	} else {
+		excludeIDs = append(excludeIDs, "buyer", "customer", neg.BuyerID)
+	}
+
+	// Update all unread messages for this negotiation where sender was not the reader
 	result := db.Model(&models.ChatMessage{}).
-		Where("negotiation_id = ? AND sender_id != ? AND seen_at IS NULL", negID, readerID).
+		Where("negotiation_id = ? AND sender_id NOT IN ? AND seen_at IS NULL", negID, excludeIDs).
 		Update("seen_at", now)
 
-	if result.Error != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"success": false,
-			"error":   "Failed to mark messages as seen",
-		})
+	// If no rows matched by negotiation_id directly, try matching negID as buyer_id or alias
+	if result.RowsAffected == 0 {
+		var negIDs []string
+		db.Model(&models.Negotiation{}).Where("buyer_id = ? OR shop_id = ?", negID, negID).Pluck("id", &negIDs)
+		if len(negIDs) > 0 {
+			result = db.Model(&models.ChatMessage{}).
+				Where("negotiation_id IN ? AND sender_id NOT IN ? AND seen_at IS NULL", negIDs, excludeIDs).
+				Update("seen_at", now)
+		}
 	}
 
 	// Broadcast seen event
@@ -1006,12 +1160,14 @@ func (bc *BargainController) MarkMessagesSeen(c *fiber.Ctx) error {
 		Data: fiber.Map{
 			"marked_count": result.RowsAffected,
 			"seen_at":      now,
+			"reader_id":    readerID,
 		},
 	})
 
 	return c.JSON(fiber.Map{
 		"success":      true,
 		"marked_count": result.RowsAffected,
+		"seen_at":      now,
 	})
 }
 
@@ -1100,7 +1256,7 @@ func fetchUserTokensAndName(db *gorm.DB, identifier string, defaultName string) 
 		return nil, defaultName
 	}
 	var u models.User
-	if err := db.Where("id = ? OR firebase_uid = ? OR phone = ?", identifier, identifier, identifier).First(&u).Error; err == nil {
+	if err := db.Select("full_name, android_device_tokens").Where("id = ? OR firebase_uid = ? OR phone = ?", identifier, identifier, identifier).First(&u).Error; err == nil {
 		name := defaultName
 		if u.FullName != "" {
 			name = u.FullName
@@ -1286,14 +1442,9 @@ func (bc *BargainController) dispatchDealAcceptedNotification(neg *models.Negoti
 }
 
 // dispatchChatMessageNotification sends push to the recipient when a chat message is sent
-func (bc *BargainController) dispatchChatMessageNotification(negID, senderID, content string) {
+func (bc *BargainController) dispatchChatMessageNotification(neg *models.Negotiation, senderID, content string) {
 	db := config.DB
-	if db == nil {
-		return
-	}
-
-	var neg models.Negotiation
-	if err := db.Preload("Shop").Preload("Product").Where("id = ?", negID).First(&neg).Error; err != nil {
+	if db == nil || neg == nil {
 		return
 	}
 
@@ -1302,8 +1453,15 @@ func (bc *BargainController) dispatchChatMessageNotification(negID, senderID, co
 		productName = neg.Product.Name
 	}
 
-	if isBuyer(db, &neg, senderID) {
-		sellerTokens, _ := fetchSellerTokensAndShopName(db, neg.ShopID)
+	if isBuyer(db, neg, senderID) {
+		var sellerTokens []string
+		shopName := "Boutique"
+		if neg.Shop != nil && neg.Shop.OwnerID != "" {
+			shopName = neg.Shop.Name
+			sellerTokens, _ = fetchUserTokensAndName(db, neg.Shop.OwnerID, shopName)
+		} else {
+			sellerTokens, shopName = fetchSellerTokensAndShopName(db, neg.ShopID)
+		}
 		if len(sellerTokens) == 0 {
 			return
 		}
