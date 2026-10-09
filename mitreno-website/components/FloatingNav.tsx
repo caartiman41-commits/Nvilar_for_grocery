@@ -57,7 +57,7 @@ export const FloatingNav: React.FC<FloatingNavProps> = ({
             className="flex items-center gap-2 group cursor-pointer focus:outline-none"
           >
             <span className="font-serif-editorial text-2xl font-bold tracking-widest text-[#0A0F1D] group-hover:text-[#1246B8] transition-colors">
-              MITRENO
+              NVILAR
             </span>
             <span className="w-1.5 h-1.5 rounded-full bg-[#1246B8]"></span>
           </button>
@@ -157,11 +157,11 @@ export const FloatingNav: React.FC<FloatingNavProps> = ({
             <button
               id="nav-ai-concierge-trigger"
               onClick={onOpenAIChat}
-              title="MITRENO AI Stylist"
+              title="NVILAR AI Stylist"
               className="px-3 py-1.5 rounded-full bg-[#1246B8]/10 text-[#1246B8] hover:bg-[#1246B8] hover:text-white transition-all text-xs font-semibold flex items-center gap-1.5 cursor-pointer border border-[#1246B8]/20"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>MITRENO AI</span>
+              <span>NVILAR AI</span>
             </button>
 
             <button
@@ -197,7 +197,7 @@ export const FloatingNav: React.FC<FloatingNavProps> = ({
           className="flex items-center gap-1.5 focus:outline-none"
         >
           <span className="font-serif-editorial text-xl font-bold tracking-widest text-[#0A0F1D]">
-            MITRENO
+            NVILAR
           </span>
           <span className="w-1.5 h-1.5 rounded-full bg-[#1246B8]"></span>
         </button>
@@ -206,7 +206,7 @@ export const FloatingNav: React.FC<FloatingNavProps> = ({
           <button
             onClick={onOpenAIChat}
             className="p-2 rounded-full text-[#1246B8] bg-blue-50 border border-blue-100"
-            title="MITRENO AI"
+            title="NVILAR AI"
           >
             <Sparkles className="w-4 h-4" />
           </button>

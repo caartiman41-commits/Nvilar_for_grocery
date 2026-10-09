@@ -9,25 +9,29 @@ export interface ProductSpecificationsProps {
   specifications: ProductSpecificationItem[];
   productStory: string;
   sku?: string;
+  minOrder?: number;
+  setRatio?: string;
 }
 
 export const ProductSpecifications: React.FC<ProductSpecificationsProps> = memo(({
   specifications,
   productStory,
   sku = 'AFZ-005',
+  minOrder = 6,
+  setRatio = 'S:1, M:2, L:2, XL:1',
 }) => {
   return (
     <View style={styles.container}>
-      {/* 1. Header: PRODUCT SPECIFICATIONS + SKU */}
+      {/* 1. Header: WHOLESALE B2B SPECIFICATIONS + SKU */}
       <View style={styles.headerRow}>
         <View style={styles.titleRow}>
-          <Icon name="tshirt-crew-outline" size={20} color="#2563EB" style={{ marginRight: 6 }} />
-          <Text style={styles.sectionTitle}>PRODUCT SPECIFICATIONS</Text>
+          <Icon name="tag-multiple-outline" size={18} color="#2563EB" style={{ marginRight: 6 }} />
+          <Text style={styles.sectionTitle}>WHOLESALE B2B SPECIFICATIONS</Text>
         </View>
         <Text style={styles.skuText}>SKU: {sku}</Text>
       </View>
 
-      {/* 2. 2-Column Grid of 8 Rounded Spec Boxes (Exact Match with Screenshot 4) */}
+      {/* 2. 2-Column Grid of Rounded Spec Boxes */}
       <View style={styles.grid}>
         {specifications.map((item, index) => (
           <View key={item.key || index.toString()} style={styles.specBoxWrapper}>
@@ -51,10 +55,10 @@ export const ProductSpecifications: React.FC<ProductSpecificationsProps> = memo(
         ))}
       </View>
 
-      {/* 3. PRODUCT STORY Section */}
+      {/* 3. WHOLESALE RESALE & PRODUCTION STORY Section */}
       {productStory ? (
         <View style={styles.storySection}>
-          <Text style={styles.storyHeaderTitle}>PRODUCT STORY</Text>
+          <Text style={styles.storyHeaderTitle}>WHOLESALE RESALE & PRODUCTION STORY</Text>
           <Text style={styles.storyParagraph}>{productStory}</Text>
         </View>
       ) : null}

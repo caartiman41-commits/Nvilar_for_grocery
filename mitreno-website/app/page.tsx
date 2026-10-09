@@ -138,15 +138,12 @@ export default function HomePage() {
           };
         });
         
-        setLiveProducts(mapped.length > 0 ? mapped : [...PRODUCTS]);
+        setLiveProducts(mapped);
       } else {
-        // API didn't return success/products, fallback to local
-        setLiveProducts([...PRODUCTS]);
+        setLiveProducts([]);
       }
     } catch (err) {
       console.error('Failed to fetch public products', err);
-      // Fallback on error
-      setLiveProducts([...PRODUCTS]);
     } finally {
       setIsLoadingProducts(false);
     }
@@ -165,9 +162,14 @@ export default function HomePage() {
     };
     window.addEventListener('focus', handleWindowFocus);
 
+    const pollInterval = setInterval(() => {
+      fetchLiveProducts();
+    }, 15000);
+
     return () => {
       window.removeEventListener('mitreno:products-updated', handleProductsUpdated);
       window.removeEventListener('focus', handleWindowFocus);
+      clearInterval(pollInterval);
     };
   }, []);
 
@@ -438,7 +440,7 @@ export default function HomePage() {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center">
         <h1 className="text-3xl font-black tracking-tight text-neutral-900 mb-2 animate-pulse" style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}>
-          <span className="text-[#C5963A]">M</span>ITRENO
+          <span className="text-[#C5963A]">N</span>VILAR
         </h1>
         <p className="text-neutral-300 text-xs font-medium tracking-widest uppercase">Loading...</p>
       </div>
@@ -908,7 +910,7 @@ export default function HomePage() {
         }}
       />
 
-      {/* 5. MITRENO AI Concierge Chat */}
+      {/* 5. NVILAR AI Concierge Chat */}
       <MitrenoAIChat
         isOpen={isAIChatOpen}
         onClose={() => setIsAIChatOpen(false)}

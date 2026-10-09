@@ -2,12 +2,13 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 import { useAuthStore } from '../features/auth/authStore';
 
-// Uses localhost:8080/api which bridges seamlessly via 'adb reverse tcp:8080 tcp:8080'
+// Primary connection via adb reverse (localhost:8080) + direct Wi-Fi fallback
 export const BASE_URL = 'http://localhost:8080/api';
+const FALLBACK_BASE_URL = 'http://192.168.29.55:8080/api';
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,
-  timeout: 15000,
+  timeout: 6000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -36,13 +37,25 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor: Graceful fallback and error formatting
+// Response Interceptor: Automatic route failover & error formatting
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
-    // If backend is unreachable (offline development resilience)
+  async (error) => {
+    const originalConfig = error.config;
+    if (
+      originalConfig &&
+      !originalConfig._retriedWithFallback &&
+      (error.code === 'ECONNABORTED' || error.message?.includes('Network Error'))
+    ) {
+      originalConfig._retriedWithFallback = true;
+      const altBase =
+        originalConfig.baseURL === BASE_URL ? FALLBACK_BASE_URL : BASE_URL;
+      originalConfig.baseURL = altBase;
+      apiClient.defaults.baseURL = altBase;
+      return apiClient.request(originalConfig);
+    }
     if (error.code === 'ECONNABORTED' || error.message?.includes('Network Error')) {
-      console.warn(`[API NETWORK NOTICE] Go backend at ${BASE_URL} unreachable. Operating in resilient offline mode.`);
+      console.warn(`[API NETWORK NOTICE] Go backend at ${BASE_URL} unreachable.`);
     }
     return Promise.reject(error);
   }

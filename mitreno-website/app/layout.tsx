@@ -15,16 +15,16 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'MITRENO — AI-First Luxury Fashion Platform',
+  title: 'NVILAR — AI-First Luxury Fashion Platform',
   description: 'Style Yourself Before You Buy. AI Virtual Try-On, Runway Discovery, Smart Fit Engine, and Curated Digital Wardrobe.',
   openGraph: {
-    title: 'MITRENO — AI-First Luxury Fashion Platform',
+    title: 'NVILAR — AI-First Luxury Fashion Platform',
     description: 'Style Yourself Before You Buy. AI Virtual Try-On, Runway Discovery, Smart Fit Engine, and Curated Digital Wardrobe.',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'MITRENO — AI-First Luxury Fashion Platform',
+    title: 'NVILAR — AI-First Luxury Fashion Platform',
     description: 'Style Yourself Before You Buy. AI Virtual Try-On, Runway Discovery, Smart Fit Engine, and Curated Digital Wardrobe.',
   },
 };

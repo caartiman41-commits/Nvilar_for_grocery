@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StatusBar, StyleSheet, View, Platform, LogBox } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -8,9 +8,12 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { colors } from './src/theme/colors';
 import { MitrenoToastContainer } from './src/components/MitrenoToast';
+import { MitrenoBootSplash } from './src/components/MitrenoBootSplash';
 import { NotificationService } from './src/services/NotificationService';
 
 const App = () => {
+  const [showBootSplash, setShowBootSplash] = useState(true);
+
   useEffect(() => {
     if (Platform.OS === 'android') {
       (StatusBar as any).setTranslucent?.(true);
@@ -34,6 +37,9 @@ const App = () => {
         <View style={styles.container}>
           <AppNavigator />
         </View>
+        {showBootSplash && (
+          <MitrenoBootSplash onAnimationComplete={() => setShowBootSplash(false)} />
+        )}
         <MitrenoToastContainer />
       </GestureHandlerRootView>
     </SafeAreaProvider>

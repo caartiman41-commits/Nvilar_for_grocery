@@ -318,11 +318,11 @@ export const BoutiqueStoreScreen: React.FC = memo(() => {
   // Handle Share Store Link
   const handleShareStore = useCallback(async () => {
     if (!shop) return;
-    const storeLink = `https://mitreno.com/store/${shop.username || shop.id}`;
+    const storeLink = `https://nvilar.com/store/${shop.username || shop.id}`;
     try {
       await Share.share({
-        title: `${shop.name} on Mitreno`,
-        message: `Explore luxury fashion, handcrafted silks & streetwear from ${shop.name} on Mitreno!\n${storeLink}`,
+        title: `${shop.name} on Nvilar`,
+        message: `Explore luxury fashion, handcrafted silks & streetwear from ${shop.name} on Nvilar!\n${storeLink}`,
       });
     } catch {
       // User cancelled
@@ -351,7 +351,7 @@ export const BoutiqueStoreScreen: React.FC = memo(() => {
   }, []);
 
   // Boutique Details Fallbacks
-  const boutiqueName = shop?.name || passedParams.seller?.name || 'Mitreno Boutique';
+  const boutiqueName = shop?.name || passedParams.seller?.name || 'Nvilar Boutique';
   const boutiqueUsername = shop?.username || passedParams.seller?.handle?.replace('@', '') || 'mitreno_official';
   const boutiqueAvatar = shop?.logo_url || passedParams.seller?.avatar || 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=300&auto=format&fit=crop&q=80';
   const boutiqueCity = shop?.city || 'Guwahati, Assam';
@@ -540,7 +540,7 @@ export const BoutiqueStoreScreen: React.FC = memo(() => {
 
               <View style={[styles.metaBadge, styles.verifiedStoreBadge]}>
                 <Icon name="shield-check-outline" size={13} color="#047857" style={{ marginRight: 4 }} />
-                <Text style={[styles.metaBadgeText, styles.verifiedStoreBadgeText]}>Mitreno Verified Store</Text>
+                <Text style={[styles.metaBadgeText, styles.verifiedStoreBadgeText]}>Nvilar Verified Store</Text>
               </View>
             </View>
           </View>

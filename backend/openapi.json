@@ -1,8 +1,8 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Mitreno High-Performance Native Go Backend API",
-    "description": "Production-grade REST and WebSocket API for Mitreno Social-Commerce Native Android App, React Native, and Global Admin Dashboard.",
+    "title": "Nvilar High-Performance Native Go Backend API",
+    "description": "Production-grade REST and WebSocket API for Nvilar Social-Commerce Native Android App, React Native, and Global Admin Dashboard.",
     "version": "1.0.0"
   },
   "servers": [
@@ -11,7 +11,7 @@
       "description": "Local Development Server"
     },
     {
-      "url": "https://api.mitreno.com/api",
+      "url": "https://api.nvilar.com/api",
       "description": "Production Cloud Run Cluster"
     }
   ],

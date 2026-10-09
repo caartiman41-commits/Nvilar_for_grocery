@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
 
     const ai = getGeminiClient();
 
-    const prompt = `You are Mitreno's Senior Editorial Stylist and AI Outfit Architect.
+    const prompt = `You are Nvilar's Senior Editorial Stylist and AI Outfit Architect.
 Anchor Garment:
 ${JSON.stringify(anchorProduct, null, 2)}
 

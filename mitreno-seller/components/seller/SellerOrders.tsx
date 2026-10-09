@@ -251,7 +251,7 @@ export const SellerOrders: React.FC<SellerOrdersProps> = ({
         <!-- Top Brand & Dispatch Info Header -->
         <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #0f172a; padding-bottom: 8px; margin-bottom: 10px;">
           <div>
-            <div style="font-size: 20px; font-weight: 900; letter-spacing: -0.5px; color: #000; text-transform: uppercase;">MITRENO LUXURY BOUTIQUE</div>
+            <div style="font-size: 20px; font-weight: 900; letter-spacing: -0.5px; color: #000; text-transform: uppercase;">NVILAR LUXURY BOUTIQUE</div>
             <div style="font-size: 11px; font-weight: 700; color: #475569; margin-top: 1px;">Official Dispatch Manifest & Tax Invoice ${totalCount ? `(${index! + 1} of ${totalCount})` : ''}</div>
           </div>
           <div style="text-align: right;">
@@ -318,7 +318,7 @@ export const SellerOrders: React.FC<SellerOrdersProps> = ({
         <!-- Footer & Settlement -->
         <div style="border-top: 2px solid #0f172a; padding-top: 6px; display: flex; justify-content: space-between; align-items: center;">
           <div>
-            <div style="font-size: 11px; font-weight: 900; color: #0f172a;">Mitreno Direct Delivery Guarantee</div>
+            <div style="font-size: 11px; font-weight: 900; color: #0f172a;">Nvilar Direct Delivery Guarantee</div>
             <div style="font-size: 9px; font-weight: 600; color: #64748b;">Verified boutique merchandise • Official Tax Invoice & Packing Slip</div>
           </div>
           <div style="text-align: right;">
@@ -440,7 +440,7 @@ export const SellerOrders: React.FC<SellerOrdersProps> = ({
 <html>
 <head>
   <meta charset="utf-8"/>
-  <title>Mitreno Shipping Manifest - #${order.id.toUpperCase()}</title>
+  <title>Nvilar Shipping Manifest - #${order.id.toUpperCase()}</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 24px; color: #111; max-width: 800px; margin: 0 auto; line-height: 1.4; background: #fff; }
   </style>

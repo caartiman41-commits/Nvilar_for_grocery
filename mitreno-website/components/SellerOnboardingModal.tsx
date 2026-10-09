@@ -464,7 +464,7 @@ export const SellerOnboardingModal: React.FC<SellerOnboardingModalProps> = ({
 }) => {
   const { user } = useAuth();
   const [step, setStep] = useState(1);
-  const actualPrefillName = prefillName === 'Mitreno Member' ? '' : prefillName;
+  const actualPrefillName = prefillName === 'Nvilar Member' ? '' : prefillName;
   const rawPrefillPhone = prefillPhone ? prefillPhone.replace('+91', '').replace(/\s|-/g, '').trim() : '';
 
   const [form, setForm] = useState<SellerFormData>({
@@ -668,7 +668,7 @@ export const SellerOnboardingModal: React.FC<SellerOnboardingModalProps> = ({
       // In production: Upload to R2 via presigned URL
       // For now, simulate upload with a mock URL
       try {
-        const mockUrl = `https://r2.mitreno.com/seller-docs/mock/${docType}_${Date.now()}.${file.name.split('.').pop() || 'jpg'}`;
+        const mockUrl = `https://r2.nvilar.com/seller-docs/mock/${docType}_${Date.now()}.${file.name.split('.').pop() || 'jpg'}`;
         const photoKey = `${docType}Photo` as keyof SellerFormData;
         updateField(photoKey, mockUrl);
       } catch {
@@ -2502,7 +2502,7 @@ export const SellerOnboardingModal: React.FC<SellerOnboardingModalProps> = ({
                   />
                   <div className="flex-1 min-w-0">
                     <label htmlFor="check-merchant" className="text-xs font-semibold text-neutral-800 cursor-pointer block leading-snug">
-                      Mitreno Seller Merchant Agreement
+                      Nvilar Seller Merchant Agreement
                     </label>
                     <p className="text-[11px] text-neutral-400 font-normal mt-0.5 leading-snug">
                       Commercial contract, SLA, commissions, T+2/T+3 payouts, TCS/TDS deductions & anti-counterfeiting policy.
@@ -2704,7 +2704,7 @@ export const SellerOnboardingModal: React.FC<SellerOnboardingModalProps> = ({
 
           <div className="text-center">
             <div className="flex items-center justify-center gap-1.5">
-              <h1 className="text-[15px] font-black text-neutral-900 tracking-tight">Mitreno Seller</h1>
+              <h1 className="text-[15px] font-black text-neutral-900 tracking-tight">Nvilar Seller</h1>
               <span className="text-[9.5px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
                 Partner
               </span>

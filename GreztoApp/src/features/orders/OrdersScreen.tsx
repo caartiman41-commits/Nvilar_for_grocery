@@ -14,7 +14,7 @@ import {
 import FastImage from 'react-native-fast-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useOrderStore, Order, OrderStatus, OrderItem } from './orderStore';
 import { SAMPLE_PRODUCTS } from '../product/productData';
 import { showToast } from '../../components/MitrenoToast';
@@ -33,6 +33,7 @@ export const CANCELLATION_REASONS = [
 
 export const OrdersScreen: React.FC = memo(() => {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const insets = useSafeAreaInsets();
   const orders = useOrderStore((s) => s.orders);
   const cancelOrder = useOrderStore((s) => s.cancelOrder);
@@ -48,6 +49,31 @@ export const OrdersScreen: React.FC = memo(() => {
     // Default expand the first order tracking for immediate luxury UX
     'ORD-20260923-01': true,
   });
+
+  const lastConsumedOrderTapRef = React.useRef<string | null>(null);
+
+  useEffect(() => {
+    const deepLinkOrderId = route.params?.order_id || route.params?.orderId;
+    if (deepLinkOrderId) {
+      const tapKey = `${deepLinkOrderId}_${route.params?._tapTs || 'init'}`;
+      if (lastConsumedOrderTapRef.current === tapKey) return;
+      lastConsumedOrderTapRef.current = tapKey;
+
+      fetchOrdersFromBackend();
+      setExpandedTrackingOrderIds((prev) => ({
+        ...prev,
+        [deepLinkOrderId]: true,
+      }));
+
+      try {
+        navigation.setParams({
+          order_id: undefined,
+          orderId: undefined,
+          _tapTs: undefined,
+        });
+      } catch {}
+    }
+  }, [route.params?.order_id, route.params?.orderId, route.params?._tapTs, fetchOrdersFromBackend, navigation]);
 
   // Support Modal State
   const [supportOrder, setSupportOrder] = useState<Order | null>(null);
@@ -316,7 +342,7 @@ export const OrdersScreen: React.FC = memo(() => {
               {/* Seller Name & Status Tag Row */}
               <View style={styles.sellerStatusRow}>
                 <Text style={styles.sellerNameText}>
-                  Sold by: {primaryItem?.boutiqueName || 'Mitreno.com'}
+                  Sold by: {primaryItem?.boutiqueName || 'Nvilar.com'}
                 </Text>
                 <View
                   style={[

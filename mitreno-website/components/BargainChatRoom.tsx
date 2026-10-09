@@ -39,6 +39,8 @@ interface ChatMessage {
   id: string;
   negotiation_id: string;
   sender_id: string;
+  sender_role?: string;
+  role?: string;
   message_text: string;
   is_counter_offer: boolean;
   offered_price: number | null;
@@ -158,8 +160,8 @@ export const BargainChatRoom: React.FC<BargainChatRoomProps> = ({
   buyerId: propBuyerId,
   isEmbedded = false,
 }) => {
-  const { user } = useAuth();
-  const buyerId = propBuyerId || user?.uid || '';
+  const { user, dbUser } = useAuth();
+  const buyerId = propBuyerId || dbUser?.id || user?.uid || 'guest_web_buyer';
 
   // Current active product & negotiation
   const [currentProduct, setCurrentProduct] = useState<Product | null>(product);
@@ -326,6 +328,21 @@ export const BargainChatRoom: React.FC<BargainChatRoomProps> = ({
     }
   }, [negotiationId, initialPrefillMessage, currentProduct, backendUrl, buyerId, messages, fetchAllCustomerChats]);
 
+  const isBuyerMessage = useCallback(
+    (msg: { sender_id?: string; sender_role?: string; role?: string } | null | undefined) => {
+      if (!msg || msg.sender_id === 'system') return false;
+      if (msg.sender_role === 'seller' || msg.role === 'seller' || msg.sender_id === 'seller') return false;
+      if (msg.sender_role === 'buyer' || msg.role === 'customer' || msg.sender_id === 'buyer' || msg.sender_id === 'customer') return true;
+      const shopId = (currentProduct?.shop as { id?: string })?.id || (currentProduct as any)?.shop_id || '';
+      if (shopId && msg.sender_id === shopId) return false;
+      if (buyerId && msg.sender_id === buyerId) return true;
+      if (user?.uid && msg.sender_id === user.uid) return true;
+      if (dbUser?.id && msg.sender_id === dbUser.id) return true;
+      return false;
+    },
+    [buyerId, currentProduct, user?.uid, dbUser?.id]
+  );
+
   // 3. Supabase Realtime Dual Engine (CDC + Broadcast Channel for <20ms instant delivery)
   useEffect(() => {
     if (!negotiationId) return;
@@ -343,8 +360,8 @@ export const BargainChatRoom: React.FC<BargainChatRoomProps> = ({
         });
         fetchAllCustomerChats();
         
-        // Auto-mark incoming messages as seen if we are actively in the chat
-        if (newMsg.sender_id !== buyerId && !newMsg.seen_at) {
+        // Auto-mark incoming seller messages as seen if we are actively in the chat
+        if (!isBuyerMessage(newMsg) && !newMsg.seen_at) {
           apiClient.post(`/api/customer/chats/${negotiationId}/seen`, { reader_id: buyerId }).catch(() => {});
           broadcastSeen(negotiationId, buyerId);
         }
@@ -383,7 +400,7 @@ export const BargainChatRoom: React.FC<BargainChatRoomProps> = ({
       onSeen: (_readerUserId, _seenAt) => {
         setMessages((prev) =>
           prev.map((m) =>
-            m.sender_id === buyerId && !m.seen_at
+            isBuyerMessage(m) && !m.seen_at
               ? { ...m, seen_at: _seenAt }
               : m
           )
@@ -395,7 +412,7 @@ export const BargainChatRoom: React.FC<BargainChatRoomProps> = ({
       unsubscribe();
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, [negotiationId, fetchAllCustomerChats, buyerId]);
+  }, [negotiationId, fetchAllCustomerChats, buyerId, isBuyerMessage]);
 
   // 4. Fallback Reactive Polling (2.5s interval to ensure zero message loss even on network sleep)
   useEffect(() => {
@@ -508,8 +525,9 @@ export const BargainChatRoom: React.FC<BargainChatRoomProps> = ({
             product_id: currentProduct.id,
             shop_id: shopId,
           });
-          if (provData.success && provData.negotiation_id) {
-            activeNegId = provData.negotiation_id;
+          const resolvedNegId = provData.negotiation_id || provData.negotiation?.id;
+          if (provData.success && resolvedNegId) {
+            activeNegId = resolvedNegId;
             setNegotiationId(activeNegId);
           } else {
             console.error('Failed to provision negotiation thread');
@@ -1117,7 +1135,7 @@ export const BargainChatRoom: React.FC<BargainChatRoomProps> = ({
           <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3 scrollbar-thin scrollbar-thumb-neutral-200">
             {/* Messages Stream */}
             {messages.map((msg) => {
-              const isUser = msg.sender_id === buyerId;
+              const isUser = isBuyerMessage(msg);
               const isSystem = msg.sender_id === 'system';
               const isInquiry = msg.message_text.includes('🏷️ Product Inquiry') || msg.message_text.includes('Product Inquiry');
 

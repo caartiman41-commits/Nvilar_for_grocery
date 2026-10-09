@@ -46,11 +46,11 @@ interface RatedStoreStory {
   product: Product;
 }
 
-// Custom Signature Mitreno Verified Badge (100% Mathematically Symmetrical Luxury Seal)
-const MitrenoVerifiedBadge: React.FC<{ size?: number; className?: string }> = ({ size = 16, className = '' }) => (
+// Custom Signature Nvilar Verified Badge (100% Mathematically Symmetrical Luxury Seal)
+const NvilarVerifiedBadge: React.FC<{ size?: number; className?: string }> = ({ size = 16, className = '' }) => (
   <span 
     className={`inline-flex items-center justify-center shrink-0 relative ${className}`} 
-    title="Mitreno Certified Luxury Boutique"
+    title="Nvilar Certified Luxury Boutique"
     style={{ width: size, height: size }}
   >
     <svg viewBox="0 0 24 24" fill="none" className="w-full h-full drop-shadow-[0_1px_3px_rgba(18,70,184,0.35)]">
@@ -237,9 +237,18 @@ export const NegotiationInbox: React.FC<NegotiationInboxProps> = ({ onOpenChat }
 
       const hasAgreed = rc.products?.some((p: any) => p.status === 'agreed') || rc.status === 'agreed';
 
-      const lastMsgSenderId = rc.latest_message?.sender_id || rc.last_message?.sender_id;
-      const isCustomerLastMsg = lastMsgSenderId === buyerId;
-      const lastMsgSeen = rc.latest_message?.seen_at || rc.last_message?.seen_at;
+      const lastMsgObj = rc.latest_message || rc.last_message;
+      const lastMsgSenderId = lastMsgObj?.sender_id;
+      const isCustomerLastMsg =
+        rc.last_message_sender === 'buyer' ||
+        lastMsgObj?.sender_role === 'buyer' ||
+        lastMsgObj?.role === 'customer' ||
+        (Boolean(lastMsgSenderId) &&
+          lastMsgSenderId !== 'seller' &&
+          lastMsgObj?.sender_role !== 'seller' &&
+          lastMsgObj?.role !== 'seller' &&
+          (lastMsgSenderId === buyerId || lastMsgSenderId === 'buyer' || lastMsgSenderId === 'customer'));
+      const lastMsgSeen = lastMsgObj?.seen_at;
       
       let readStatus: 'seen' | 'delivered' | 'sent' | 'none' = 'none';
       if (isCustomerLastMsg) {
@@ -514,7 +523,7 @@ export const NegotiationInbox: React.FC<NegotiationInboxProps> = ({ onOpenChat }
                     {store.name.split(' ')[0]}
                   </span>
                   {store.verified && (
-                    <MitrenoVerifiedBadge size={13} className="shrink-0 -mt-0.5" />
+                    <NvilarVerifiedBadge size={13} className="shrink-0 -mt-0.5" />
                   )}
                 </div>
                 <div className="flex items-center gap-0.5 mt-0.5 text-[10px] text-neutral-500 font-bold">
@@ -540,7 +549,7 @@ export const NegotiationInbox: React.FC<NegotiationInboxProps> = ({ onOpenChat }
         </button>
       </div>
 
-      {/* 4. Instagram Clean DM List with Signature Mitreno Badge & Subtle Classy Deal Tags */}
+      {/* 4. Instagram Clean DM List with Signature Nvilar Badge & Subtle Classy Deal Tags */}
       <div className="divide-y divide-neutral-100 bg-white shadow-2xs">
         {filteredChats.map((chat) => {
           const isStoryViewed = viewedStoryIds.includes(chat.storeId);
@@ -586,15 +595,15 @@ export const NegotiationInbox: React.FC<NegotiationInboxProps> = ({ onOpenChat }
                 )}
               </div>
 
-              {/* Center: Store Name + Signature Mitreno Badge + Exact Instagram Status Line */}
+              {/* Center: Store Name + Signature Nvilar Badge + Exact Instagram Status Line */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 mb-0.5">
                   <h3 className="text-[15.5px] font-bold text-neutral-950 truncate tracking-tight font-sans">
                     {chat.shopName}
                   </h3>
-                  {/* Mitreno Unique Luxury Certified Rosette Badge */}
+                  {/* Nvilar Unique Luxury Certified Rosette Badge */}
                   {chat.verified && (
-                    <MitrenoVerifiedBadge size={16} />
+                    <NvilarVerifiedBadge size={16} />
                   )}
                 </div>
 
@@ -699,7 +708,7 @@ export const NegotiationInbox: React.FC<NegotiationInboxProps> = ({ onOpenChat }
                       <h4 className="text-base font-extrabold text-neutral-950 font-sans">
                         {activeNoteStore.name}
                       </h4>
-                      {activeNoteStore.verified && <MitrenoVerifiedBadge size={15} />}
+                      {activeNoteStore.verified && <NvilarVerifiedBadge size={15} />}
                     </div>
                     <div className="flex items-center gap-1.5 text-xs text-neutral-500 mt-0.5">
                       <div className="flex items-center gap-0.5 text-amber-500 font-bold">
@@ -793,7 +802,7 @@ export const NegotiationInbox: React.FC<NegotiationInboxProps> = ({ onOpenChat }
                   <div>
                     <div className="flex items-center gap-1.5">
                       <span className="text-white text-xs font-bold">{activeStory.name}</span>
-                      {activeStory.verified && <MitrenoVerifiedBadge size={13} />}
+                      {activeStory.verified && <NvilarVerifiedBadge size={13} />}
                       <span className="text-white/60 text-[10px]">{activeStory.storyTimeAgo}</span>
                     </div>
                     <div className="flex items-center gap-1 text-[10px] text-emerald-400 font-medium">

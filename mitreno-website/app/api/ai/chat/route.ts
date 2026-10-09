@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
 
     const ai = getGeminiClient();
 
-    const systemPrompt = `You are Mitreno AI — the Private Style Concierge and Fashion House Director for Mitreno.
+    const systemPrompt = `You are Nvilar AI — the Private Style Concierge and Fashion House Director for Nvilar.
 Brand Identity:
 - Luxury / Minimalist / Editorial / High-Craft
 - Primary colors: Royal Blue & White. Clean lines, zero discount hype.

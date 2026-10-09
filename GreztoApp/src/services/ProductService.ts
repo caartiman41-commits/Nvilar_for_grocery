@@ -28,6 +28,8 @@ export interface BackendProduct {
   fabric?: string;
   gsm?: number;
   fit?: string;
+  min_order_quantity?: number;
+  set_ratio?: string;
   is_active: boolean;
   shop?: BackendShop;
   variants?: Array<{

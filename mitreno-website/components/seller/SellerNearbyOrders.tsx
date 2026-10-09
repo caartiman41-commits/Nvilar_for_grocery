@@ -161,7 +161,7 @@ export const SellerNearbyOrders: React.FC<SellerNearbyOrdersProps> = ({
       <div class="slip-card" style="border: 2px solid #0f172a; border-radius: 12px; padding: 18px; margin-bottom: 16px; background: #ffffff; page-break-inside: avoid;">
         <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 12px;">
           <div>
-            <div style="font-size: 22px; font-weight: 900; letter-spacing: -0.5px; color: #000;">MITRENO</div>
+            <div style="font-size: 22px; font-weight: 900; letter-spacing: -0.5px; color: #000;">NVILAR</div>
             <div style="font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase;">Direct Hyperlocal Same-Day Dispatch</div>
           </div>
           <div style="text-align: right;">
@@ -187,7 +187,7 @@ export const SellerNearbyOrders: React.FC<SellerNearbyOrdersProps> = ({
 
           <div style="flex: 0.9; border: 2px solid #94a3b8; border-radius: 10px; padding: 10px 12px; background: #f8fafc;">
             <div style="font-size: 10px; font-weight: 900; text-transform: uppercase; color: #475569; letter-spacing: 0.5px; margin-bottom: 3px;">SAME-DAY RIDER DISPATCH</div>
-            <div style="font-size: 15px; font-weight: 900; color: #000; margin-bottom: 3px;">⚡ ${order.rider_name || 'Mitreno Express Rider'}</div>
+            <div style="font-size: 15px; font-weight: 900; color: #000; margin-bottom: 3px;">⚡ ${order.rider_name || 'Nvilar Express Rider'}</div>
             <div style="font-size: 12px; font-weight: 700; color: #0f172a; line-height: 1.5;">
               <strong>Pickup OTP:</strong> <span style="font-family: monospace; font-size: 14px; font-weight: 900; background: #fef08a; padding: 2px 6px; border-radius: 4px; color: #0f172a;">${order.pickup_otp || 'VERIFIED'}</span><br/>
               <div style="margin-top: 4px;">
@@ -217,7 +217,7 @@ export const SellerNearbyOrders: React.FC<SellerNearbyOrdersProps> = ({
 
         <div style="border-top: 2px solid #0f172a; padding-top: 6px; display: flex; justify-content: space-between; align-items: center;">
           <div>
-            <div style="font-size: 11px; font-weight: 900; color: #0f172a;">Mitreno Hyperlocal Direct Delivery</div>
+            <div style="font-size: 11px; font-weight: 900; color: #0f172a;">Nvilar Hyperlocal Direct Delivery</div>
             <div style="font-size: 9px; font-weight: 600; color: #64748b;">Verified boutique merchandise • Official Tax Invoice & Packing Slip</div>
           </div>
           <div style="text-align: right;">
@@ -234,7 +234,7 @@ export const SellerNearbyOrders: React.FC<SellerNearbyOrdersProps> = ({
 <html>
 <head>
   <meta charset="utf-8"/>
-  <title>Mitreno Hyperlocal Packing Slip - #${formatOrderId(order.id)}</title>
+  <title>Nvilar Hyperlocal Packing Slip - #${formatOrderId(order.id)}</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 24px; color: #111; max-width: 800px; margin: 0 auto; line-height: 1.4; background: #fff; }
   </style>
@@ -297,7 +297,7 @@ export const SellerNearbyOrders: React.FC<SellerNearbyOrdersProps> = ({
       };
 
       if (selectedPartner === 'platform_fleet') {
-        payload.rider_name = 'Bikram Sarma (Mitreno Fleet Rider)';
+        payload.rider_name = 'Bikram Sarma (Nvilar Fleet Rider)';
         payload.rider_phone = '+91 98640 12845';
         payload.rider_vehicle_no = 'Hero Splendor (AS-01-EF-4821)';
       } else {
@@ -841,7 +841,7 @@ export const SellerNearbyOrders: React.FC<SellerNearbyOrdersProps> = ({
                   >
                     <div className="flex items-center gap-1.5">
                       <Bike className="w-4 h-4 text-amber-600" />
-                      <span className="text-xs font-black text-neutral-950">Mitreno Fleet</span>
+                      <span className="text-xs font-black text-neutral-950">Nvilar Fleet</span>
                     </div>
                     <div className="text-[10px] text-amber-700 font-bold mt-0.5">Dedicated Rider</div>
                     <div className="text-[11px] text-neutral-500 mt-1 font-semibold">12–15 min pickup</div>

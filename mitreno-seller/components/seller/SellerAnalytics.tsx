@@ -50,6 +50,17 @@ interface TimelinePoint {
 interface SummaryData {
   total_sales: number;
   total_orders: number;
+  delivered_orders?: number;
+  delivered_revenue?: number;
+  cancelled_orders?: number;
+  cancelled_value?: number;
+  rto_orders?: number;
+  rto_value?: number;
+  active_orders?: number;
+  new_orders?: number;
+  packaging_orders?: number;
+  shipped_orders?: number;
+  pipeline_revenue?: number;
   average_order_value: number;
   chat_deal_rate: number;
   total_units_sold: number;
@@ -59,6 +70,7 @@ interface PayoutsData {
   net_earnings: number;
   gross_revenue: number;
   platform_fee: number;
+  pending_pipeline_revenue?: number;
   next_payout_date: string;
   payout_upi_id: string;
   prepaid_orders: number;
@@ -67,9 +79,13 @@ interface PayoutsData {
 }
 
 interface LogisticsData {
+  new_orders?: number;
+  packaging_orders?: number;
   pending_dispatch: number;
   in_transit: number;
   delivered_count: number;
+  cancelled_count?: number;
+  rto_count?: number;
   on_time_rate_pct: number;
   avg_dispatch_hrs: number;
 }
@@ -142,10 +158,10 @@ export const SellerAnalytics: React.FC<SellerAnalyticsProps> = ({
   onNavigateToTab,
 }) => {
   const { user } = useAuth();
-  const userId = propUserId || user?.uid || '';
+  const userId = propUserId || user?.uid || (typeof window !== 'undefined' ? (localStorage.getItem('mitreno_user_id') || localStorage.getItem('mitreno_seller_user_id') || 'KD56AHEqvOWX322JKlVB4jkMoju2') : 'KD56AHEqvOWX322JKlVB4jkMoju2');
   const [data, setData] = useState<AnalyticsPayload | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [timeframe, setTimeframe] = useState<'7d' | '30d' | 'all'>('7d');
+  const [timeframe, setTimeframe] = useState<'7d' | '30d' | 'all'>('all');
   const [chartMetric, setChartMetric] = useState<'sales' | 'orders' | 'units'>('sales');
   const [isExporting, setIsExporting] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -499,98 +515,106 @@ export const SellerAnalytics: React.FC<SellerAnalyticsProps> = ({
       {/* BODY CONTENT */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-5 pb-12 space-y-6">
 
-        {/* 1. TOP 5 CORE KPI CARDS (NORMAL MODERN FONTS) */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-          {/* Card 1: Total Sales */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-neutral-200/90 shadow-xs relative overflow-hidden group hover:border-neutral-300 transition-all">
-            <div className="flex items-center justify-between text-neutral-500 mb-2">
-              <span className="text-xs font-medium">Total Net Sales</span>
-              <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
-                <DollarSign className="w-3.5 h-3.5" />
+        {/* 1. TOP 6 CORE KPI CARDS (DELIVERED-ONLY REVENUE & FULL ORDER BREAKDOWN) */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-3.5">
+          {/* Card 1: Total Net Sales (Delivered Only) */}
+          <div className="p-4 rounded-2xl bg-white border border-emerald-200/90 shadow-xs relative overflow-hidden group hover:border-emerald-400 transition-all antialiased">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-extrabold text-neutral-900 tracking-tight">Total Net Sales</span>
+              <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0">
+                <DollarSign className="w-4 h-4 stroke-[2.5]" />
               </div>
             </div>
-            <div className="text-xl sm:text-2xl font-bold text-neutral-950 tracking-tight">
+            <div className="text-2xl sm:text-[26px] font-black text-neutral-950 tracking-tight leading-tight">
               ₹{summary.total_sales.toLocaleString('en-IN')}
             </div>
-            <div className="text-xs text-emerald-600 font-semibold mt-1 flex items-center gap-1">
-              <TrendingUp className="w-3 h-3" />
-              <span>Confirmed revenue</span>
+            <div className="text-xs text-emerald-700 font-bold mt-1.5 flex items-center gap-1">
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0 stroke-[2.5]" />
+              <span className="truncate">From {summary.delivered_orders ?? logistics.delivered_count} delivered</span>
             </div>
           </div>
 
           {/* Card 2: Total Orders */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-neutral-200/90 shadow-xs relative overflow-hidden group hover:border-neutral-300 transition-all">
-            <div className="flex items-center justify-between text-neutral-500 mb-2">
-              <span className="text-xs font-medium">Total Orders</span>
-              <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100">
-                <Package className="w-3.5 h-3.5" />
+          <div className="p-4 rounded-2xl bg-white border border-neutral-200/90 shadow-xs relative overflow-hidden group hover:border-neutral-300 transition-all antialiased">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-extrabold text-neutral-900 tracking-tight">Total Orders</span>
+              <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100 shrink-0">
+                <Package className="w-4 h-4 stroke-[2.5]" />
               </div>
             </div>
-            <div className="text-xl sm:text-2xl font-bold text-neutral-950 tracking-tight">
+            <div className="text-2xl sm:text-[26px] font-black text-neutral-950 tracking-tight leading-tight">
               {summary.total_orders}
             </div>
-            <div className="text-xs text-purple-600 font-semibold mt-1 flex items-center gap-1">
-              <span>{summary.total_units_sold} garments sold</span>
+            <div className="text-xs text-purple-700 font-bold mt-1.5 flex items-center gap-1">
+              <span className="truncate">Avg ₹{summary.average_order_value.toLocaleString('en-IN')} / order</span>
             </div>
           </div>
 
-          {/* Card 3: Average Order Value */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-neutral-200/90 shadow-xs relative overflow-hidden group hover:border-neutral-300 transition-all">
-            <div className="flex items-center justify-between text-neutral-500 mb-2">
-              <span className="text-xs font-medium">Average Order Value</span>
-              <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
-                <ShoppingBag className="w-3.5 h-3.5" />
+          {/* Card 3: Pending Orders */}
+          <div className="p-4 rounded-2xl bg-white border border-amber-200/90 shadow-xs relative overflow-hidden group hover:border-amber-400 transition-all antialiased">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-extrabold text-neutral-900 tracking-tight">Pending Orders</span>
+              <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100 shrink-0">
+                <Clock className="w-4 h-4 stroke-[2.5]" />
               </div>
             </div>
-            <div className="text-xl sm:text-2xl font-bold text-neutral-950 tracking-tight">
-              ₹{summary.average_order_value.toLocaleString('en-IN')}
+            <div className="text-2xl sm:text-[26px] font-black text-amber-700 tracking-tight leading-tight">
+              {summary.active_orders ?? (logistics.pending_dispatch + logistics.in_transit)}
             </div>
-            <div className="text-xs text-amber-600 font-semibold mt-1">
-              <span>Per customer basket</span>
+            <div className="text-xs text-amber-700 font-bold mt-1.5 flex items-center gap-1">
+              <span className="truncate">₹{(summary.pipeline_revenue ?? payouts.pending_pipeline_revenue ?? 0).toLocaleString('en-IN')} in pipeline</span>
             </div>
           </div>
 
-          {/* Card 4: Chat Deal Success Rate */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-neutral-200/90 shadow-xs relative overflow-hidden group hover:border-neutral-300 transition-all">
-            <div className="flex items-center justify-between text-neutral-500 mb-2">
-              <span className="text-xs font-medium">Chat Deal Success</span>
-              <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
-                <Zap className="w-3.5 h-3.5" />
+          {/* Card 4: Total Delivered */}
+          <div className="p-4 rounded-2xl bg-white border border-neutral-200/90 shadow-xs relative overflow-hidden group hover:border-neutral-300 transition-all antialiased">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-extrabold text-neutral-900 tracking-tight">Total Delivered</span>
+              <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0">
+                <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
               </div>
             </div>
-            <div className="text-xl sm:text-2xl font-bold text-neutral-950 tracking-tight">
-              {summary.chat_deal_rate}%
+            <div className="text-2xl sm:text-[26px] font-black text-emerald-700 tracking-tight leading-tight">
+              {summary.delivered_orders ?? logistics.delivered_count}
             </div>
-            <div className="text-xs text-blue-600 font-semibold mt-1">
-              <span>Bargaining closures</span>
+            <div className="text-xs text-emerald-700 font-bold mt-1.5">
+              <span className="truncate">{summary.total_units_sold} garments delivered</span>
             </div>
           </div>
 
-          {/* Card 5: Returns & RTO Rate */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-white border border-neutral-200/90 shadow-xs relative overflow-hidden group hover:border-neutral-300 transition-all">
-            <div className="flex items-center justify-between text-neutral-500 mb-2">
-              <span className="text-xs font-medium">Returns & RTO</span>
-              <div className={`w-7 h-7 rounded-lg flex items-center justify-center border ${
+          {/* Card 5: Cancelled Orders */}
+          <div className="p-4 rounded-2xl bg-white border border-neutral-200/90 shadow-xs relative overflow-hidden group hover:border-neutral-300 transition-all antialiased">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-extrabold text-neutral-900 tracking-tight">Cancelled</span>
+              <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-100 shrink-0">
+                <AlertTriangle className="w-4 h-4 stroke-[2.5]" />
+              </div>
+            </div>
+            <div className="text-2xl sm:text-[26px] font-black text-rose-600 tracking-tight leading-tight">
+              {summary.cancelled_orders ?? logistics.cancelled_count ?? 0}
+            </div>
+            <div className="text-xs text-rose-600 font-bold mt-1.5">
+              <span className="truncate">₹{(summary.cancelled_value ?? 0).toLocaleString('en-IN')} cancelled</span>
+            </div>
+          </div>
+
+          {/* Card 6: Returns & RTO */}
+          <div className="p-4 rounded-2xl bg-white border border-neutral-200/90 shadow-xs relative overflow-hidden group hover:border-neutral-300 transition-all antialiased">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-extrabold text-neutral-900 tracking-tight">RTO & Returns</span>
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center border shrink-0 ${
                 returns.risk_level === 'high'
                   ? 'bg-rose-50 text-rose-600 border-rose-100'
-                  : 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                  : 'bg-blue-50 text-blue-600 border-blue-100'
               }`}>
-                <RotateCcw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-4 h-4 stroke-[2.5]" />
               </div>
             </div>
-            <div className="text-xl sm:text-2xl font-bold text-neutral-950 tracking-tight">
-              {returns.return_rate_pct}%
+            <div className="text-2xl sm:text-[26px] font-black text-neutral-950 tracking-tight leading-tight">
+              {summary.rto_orders ?? returns.total_returns} <span className="text-xs font-bold text-neutral-600">({returns.return_rate_pct}%)</span>
             </div>
-            <div className="text-xs font-semibold mt-1 flex items-center gap-1">
-              {returns.risk_level === 'high' ? (
-                <span className="text-rose-600 flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" /> High Return Rate
-                </span>
-              ) : (
-                <span className="text-emerald-600 flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> Low Return Risk
-                </span>
-              )}
+            <div className="text-xs text-blue-700 font-bold mt-1.5 flex items-center gap-1">
+              <span className="truncate">₹{returns.return_value.toLocaleString('en-IN')} returned</span>
             </div>
           </div>
         </div>
@@ -607,7 +631,7 @@ export const SellerAnalytics: React.FC<SellerAnalyticsProps> = ({
                 </span>
               </h3>
               <p className="text-xs text-neutral-500 mt-0.5">
-                Switch between daily sales revenue, order count, or garment pieces sold.
+                Switch between daily delivered revenue, order count, or garment pieces delivered.
               </p>
             </div>
 
@@ -620,7 +644,7 @@ export const SellerAnalytics: React.FC<SellerAnalyticsProps> = ({
                     : 'text-neutral-600 hover:text-neutral-950 font-medium'
                 }`}
               >
-                Revenue (₹)
+                Delivered Revenue (₹)
               </button>
               <button
                 onClick={() => setChartMetric('orders')}
@@ -678,7 +702,7 @@ export const SellerAnalytics: React.FC<SellerAnalyticsProps> = ({
                     Live Payout & Money Balance
                   </h3>
                   <div className="text-xs text-neutral-500">
-                    Direct Bank & UPI Settlements
+                    Strictly Calculated from Delivered Orders
                   </div>
                 </div>
               </div>
@@ -694,7 +718,7 @@ export const SellerAnalytics: React.FC<SellerAnalyticsProps> = ({
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-neutral-600 flex items-center gap-1.5">
                   <DollarSign className="w-4 h-4 text-emerald-600" />
-                  Net Payable Earnings
+                  Net Payable Earnings (Delivered)
                 </span>
                 <span className="text-xs font-semibold text-emerald-700 bg-emerald-100/80 px-2.5 py-0.5 rounded-full">
                   Ready for Transfer
@@ -704,18 +728,18 @@ export const SellerAnalytics: React.FC<SellerAnalyticsProps> = ({
                 ₹{payouts.net_earnings.toLocaleString('en-IN')}
               </div>
               <p className="text-xs text-neutral-500">
-                Calculated after standard platform fee deduction. Transferred automatically on schedule.
+                95% of delivered order sales (₹{payouts.gross_revenue.toLocaleString('en-IN')}) after 5% platform fee.
               </p>
             </div>
 
             {/* 3-Column Financial Breakdown Ledger */}
             <div className="grid grid-cols-3 gap-2.5">
               <div className="p-3 rounded-2xl bg-neutral-50 border border-neutral-200/80">
-                <div className="text-xs text-neutral-500 font-medium">Gross Sales</div>
+                <div className="text-xs text-neutral-500 font-medium">Delivered Sales</div>
                 <div className="text-base font-bold text-neutral-950 mt-0.5">
                   ₹{payouts.gross_revenue.toLocaleString('en-IN')}
                 </div>
-                <div className="text-xs text-neutral-400">Total customer paid</div>
+                <div className="text-xs text-neutral-400">{summary.delivered_orders ?? logistics.delivered_count} delivered</div>
               </div>
 
               <div className="p-3 rounded-2xl bg-neutral-50 border border-neutral-200/80">
@@ -726,12 +750,12 @@ export const SellerAnalytics: React.FC<SellerAnalyticsProps> = ({
                 <div className="text-xs text-neutral-400">5% standard fee</div>
               </div>
 
-              <div className="p-3 rounded-2xl bg-neutral-50 border border-neutral-200/80">
-                <div className="text-xs text-neutral-500 font-medium">Payout Cycle</div>
-                <div className="text-base font-bold text-emerald-700 mt-0.5">
-                  Weekly
+              <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200/80">
+                <div className="text-xs text-amber-800 font-medium">Active Pipeline</div>
+                <div className="text-base font-bold text-amber-700 mt-0.5">
+                  ₹{(payouts.pending_pipeline_revenue ?? summary.pipeline_revenue ?? 0).toLocaleString('en-IN')}
                 </div>
-                <div className="text-xs text-neutral-400">Automated UPI/Bank</div>
+                <div className="text-xs text-amber-700/80">{summary.active_orders ?? 0} in-progress</div>
               </div>
             </div>
 
@@ -1107,7 +1131,7 @@ export const SellerAnalytics: React.FC<SellerAnalyticsProps> = ({
           <div className="flex items-center justify-between pb-3 border-b border-purple-100">
             <div className="flex items-center gap-2 text-xs font-bold text-purple-700">
               <Sparkles className="w-4 h-4 text-purple-600" />
-              <span>Mitreno AI Growth Advisor</span>
+              <span>Nvilar AI Growth Advisor</span>
             </div>
             <span className="px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 text-xs font-semibold border border-purple-200">
               Smart Advisor

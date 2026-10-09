@@ -4,6 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface CartItem {
   id: string;
+  productId?: string;
+  size?: string;
   name: string;
   price: number;
   quantity: number;

@@ -217,7 +217,7 @@ export const SellerBottomNav: React.FC<SellerBottomNavProps> = ({
               })}
             </div>
 
-            {/* Exit Mitreno app */}
+            {/* Exit Nvilar app */}
             <div className="mt-5 pt-3 border-t border-neutral-100">
               <button
                 onClick={() => {
@@ -227,7 +227,7 @@ export const SellerBottomNav: React.FC<SellerBottomNavProps> = ({
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-neutral-100 border border-neutral-200 text-xs font-semibold text-neutral-700 hover:bg-neutral-200 hover:text-neutral-950"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span>Exit to Mitreno Customer App</span>
+                <span>Exit to Nvilar Customer App</span>
               </button>
             </div>
           </div>

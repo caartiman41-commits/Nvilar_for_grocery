@@ -24,8 +24,8 @@ export async function POST(req: NextRequest) {
       description: p.description,
     }));
 
-    const systemPrompt = `You are Mitreno's Luxury AI Fashion Search Engine.
-Mitreno is an ultra-premium, minimalist fashion brand (Royal Blue & White theme, editorial, high-craft).
+    const systemPrompt = `You are Nvilar's Luxury AI Fashion Search Engine.
+Nvilar is an ultra-premium, minimalist fashion brand (Royal Blue & White theme, editorial, high-craft).
 Analyze the user's natural language search query. Extract:
 1. Intent & Occasion (e.g., sunset dinner, gallery opening, travel, formal)
 2. Aesthetic Vibe (e.g., relaxed, minimal, structured, oversized, nocturne)

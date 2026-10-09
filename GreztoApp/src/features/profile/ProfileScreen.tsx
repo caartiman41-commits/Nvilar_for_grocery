@@ -61,9 +61,9 @@ export const ProfileScreen = () => {
     try {
       const code = user?.displayName
         ? user.displayName.toUpperCase().replace(/\s+/g, '').substring(0, 6) + '500'
-        : 'MITRENO500';
+        : 'NVILAR500';
       await Share.share({
-        message: `Join Mitreno Boutique Marketplace! Use code ${code} to get ₹500 in your Mitreno Vault on referrals.`,
+        message: `Join Nvilar Boutique Marketplace! Use code ${code} to get ₹500 in your Nvilar Vault on referrals.`,
       });
     } catch {
       // Ignore
@@ -89,7 +89,7 @@ export const ProfileScreen = () => {
     }
     Alert.alert(
       'Edit Profile',
-      `Member Name: ${displayName}\nContact: ${displayPhone}\nStatus: Verified Mitreno Privilege Member.`,
+      `Member Name: ${displayName}\nContact: ${displayPhone}\nStatus: Verified Nvilar Privilege Member.`,
       [{ text: 'Close', style: 'cancel' }]
     );
   };
@@ -146,7 +146,7 @@ export const ProfileScreen = () => {
         ? 'Boutique Studio (Seller)'
         : isUnderReview
         ? 'Application Status'
-        : 'Become Mitreno Seller',
+        : 'Become Nvilar Seller',
       subtitle: isSeller
         ? 'Manage live boutique inventory, orders & discounts'
         : isUnderReview
@@ -171,12 +171,12 @@ export const ProfileScreen = () => {
     },
     {
       id: 'about',
-      title: 'About Mitreno Studio',
+      title: 'About Nvilar Studio',
       subtitle: 'Curated boutique vision, craft heritage & story',
       iconName: 'compass-outline',
       iconColor: '#475569',
       iconBg: '#F1F5F9',
-      onPress: () => Alert.alert('About Mitreno', 'Curated Boutique Marketplace connecting indie designers directly with discerning buyers.'),
+      onPress: () => Alert.alert('About Nvilar', 'Curated Boutique Marketplace connecting indie designers directly with discerning buyers.'),
     },
     {
       id: 'privacy',
@@ -254,7 +254,7 @@ export const ProfileScreen = () => {
 
             <View style={styles.profileDetailsCol}>
               <View style={styles.nameRow}>
-                <Text style={styles.userName}>Welcome to Mitreno</Text>
+                <Text style={styles.userName}>Welcome to Nvilar</Text>
               </View>
               <Text style={styles.guestSubtitle} numberOfLines={1}>
                 Login or create account to access profile
@@ -374,7 +374,7 @@ export const ProfileScreen = () => {
                   ? 'Already Registered • Active Seller'
                   : isUnderReview
                   ? 'Application Under Review'
-                  : 'Become Mitreno Seller'}
+                  : 'Become Nvilar Seller'}
               </Text>
               <Text style={styles.sellerHeroSubtitle} numberOfLines={1}>
                 {isSeller
@@ -415,7 +415,7 @@ export const ProfileScreen = () => {
           <View style={styles.inviteTextCol}>
             <Text style={styles.inviteTitle}>Invite Friends & Earn</Text>
             <Text style={styles.inviteSubtitle}>
-              Get ₹500 store credits in your Mitreno Vault on referrals.
+              Get ₹500 store credits in your Nvilar Vault on referrals.
             </Text>
           </View>
           <TouchableOpacity style={styles.inviteBtn} onPress={handleInvite} activeOpacity={0.85}>
@@ -473,7 +473,7 @@ export const ProfileScreen = () => {
         {/* Footer Brand Label */}
         <View style={styles.footerContainer}>
           <Text style={styles.footerText}>
-            MITRENO V1.2.0 — CURATED BOUTIQUE MARKETPLACE ✦
+            NVILAR V1.2.0 — CURATED BOUTIQUE MARKETPLACE ✦
           </Text>
         </View>
       </ScrollView>

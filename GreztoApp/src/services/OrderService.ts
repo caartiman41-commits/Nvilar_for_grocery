@@ -41,7 +41,7 @@ export const OrderService = {
   ): Promise<any> => {
     try {
       const authUser = useAuthStore.getState().user;
-      const resolvedBuyerId = buyerId || authUser?.uid || 'usr_ashraf_01';
+      const resolvedBuyerId = buyerId || authUser?.uid || '';
 
       const payload: CreateOrderPayload = {
         buyer_id: resolvedBuyerId,
@@ -54,19 +54,16 @@ export const OrderService = {
           pincode: address.pincode || '781005',
         },
         items: items.map((it) => {
-          let resolvedShopId = it.shop_id || it.shopId;
-          if (!resolvedShopId && (it.boutiqueName === 'Mitreno.com' || !it.boutiqueName)) {
-            resolvedShopId = 'shop_KD56AHEq_42723';
-          }
+          const resolvedShopId = it.shop_id || it.shopId || undefined;
           return {
-            product_id: it.id,
+            product_id: (it as any).productId || it.id,
             name: it.name,
             thumbnail: it.image,
             quantity: it.quantity,
             size: it.size || 'M',
             price: it.price,
             shop_id: resolvedShopId,
-            shop_name: it.boutiqueName || 'Mitreno.com',
+            shop_name: it.boutiqueName || 'Nvilar.com',
           };
         }),
         paymentMethod,
@@ -85,9 +82,9 @@ export const OrderService = {
   listOrders: async (buyerId?: string): Promise<any[]> => {
     try {
       const authUser = useAuthStore.getState().user;
-      const resolvedBuyerId = buyerId || authUser?.uid || 'usr_ashraf_01';
+      const resolvedBuyerId = buyerId || authUser?.uid || '';
       const res = await apiClient.get('/orders', {
-        params: { buyer_id: resolvedBuyerId },
+        params: resolvedBuyerId ? { buyer_id: resolvedBuyerId } : {},
       });
       return res.data?.orders || [];
     } catch (err) {

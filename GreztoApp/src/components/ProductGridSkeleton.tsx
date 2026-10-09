@@ -12,8 +12,8 @@ interface ProductGridSkeletonProps {
  */
 export const ProductGridSkeleton: React.FC<ProductGridSkeletonProps> = memo(({ count = 6 }) => {
   const { width } = useWindowDimensions();
-  const SIDE_PADDING = 12;
-  const GAP = 10;
+  const SIDE_PADDING = 8;
+  const GAP = 8;
   const cardWidth = Math.floor((width - (SIDE_PADDING * 2) - GAP) / 2);
 
   const items = Array.from({ length: count }, (_, i) => i);
@@ -57,21 +57,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     paddingTop: 8,
   },
   cardWrapper: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
-    marginBottom: 12,
+    borderColor: '#EFEBE8',
+    marginBottom: 8,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
   },
   imageBox: {
     width: '100%',

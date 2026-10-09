@@ -71,7 +71,7 @@ export const SellerWelcomeModal: React.FC<SellerWelcomeModalProps> = ({
         <div className="flex items-center gap-2 mb-4">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-50 to-emerald-50 border border-amber-300 text-amber-800 text-xs font-semibold tracking-wide">
             <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-            Verified Mitreno Partner
+            Verified Nvilar Partner
           </span>
           <span className="text-xs text-neutral-500 font-medium">Live in {cityName}</span>
         </div>

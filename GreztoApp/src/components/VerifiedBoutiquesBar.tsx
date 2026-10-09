@@ -28,7 +28,7 @@ const BOUTIQUES: BoutiqueItem[] = [
   },
   {
     id: 'b3',
-    name: 'Mitreno.com',
+    name: 'Nvilar.com',
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
     rating: 5.0,
   },

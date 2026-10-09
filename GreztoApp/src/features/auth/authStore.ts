@@ -75,7 +75,7 @@ export const useAuthStore = create<AuthState>()(
 
         const uid = targetUser.uid || `usr_${Date.now()}`;
         const phone = targetUser.phoneNumber || '';
-        const name = targetUser.displayName || 'Mitreno Member';
+        const name = targetUser.displayName || 'Nvilar Member';
         const action = (userData as any)?.action || 'login';
 
         try {
@@ -156,7 +156,7 @@ export const useAuthStore = create<AuthState>()(
       loginWithTruecaller: async ({ phoneNumber, displayName, authCode, action }) => {
         const cleanPhone = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
         const uid = `tc_${cleanPhone.replace('+', '')}`;
-        const name = displayName || 'Mitreno Member';
+        const name = displayName || 'Nvilar Member';
 
         const user = await get().syncUserWithBackend({
           uid,
@@ -173,7 +173,7 @@ export const useAuthStore = create<AuthState>()(
 
       loginWithFirebase: async ({ uid, phoneNumber, displayName, action }) => {
         const cleanPhone = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
-        const name = displayName || 'Mitreno Member';
+        const name = displayName || 'Nvilar Member';
 
         const user = await get().syncUserWithBackend({
           uid,

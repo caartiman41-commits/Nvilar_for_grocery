@@ -17,7 +17,7 @@ import (
 )
 
 func main() {
-	log.Println("🚀 Initializing Mitreno High-Power Native Go Backend...")
+	log.Println("🚀 Initializing Nvilar High-Power Native Go Backend...")
 
 	// 1. Load Configurations
 	cfg := config.LoadConfig()
@@ -33,8 +33,8 @@ func main() {
 
 	// 3. Initialize Fiber App with Performance Optimizations
 	app := fiber.New(fiber.Config{
-		AppName:      "Mitreno High-Performance Native API v1.0",
-		ServerHeader: "Mitreno-Engine",
+		AppName:      "Nvilar High-Performance Native API v1.0",
+		ServerHeader: "Nvilar-Engine",
 		Prefork:      false,
 		BodyLimit:    50 * 1024 * 1024, // 50MB for video/media uploads
 	})
@@ -60,7 +60,7 @@ func main() {
 
 	go func() {
 		<-shutdownChan
-		log.Println("🛑 Shutting down Mitreno server gracefully...")
+		log.Println("🛑 Shutting down Nvilar server gracefully...")
 		_ = app.Shutdown()
 	}()
 

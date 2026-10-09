@@ -110,7 +110,7 @@ export default function BannersPage() {
       setBanners(prev => [res.banner!, ...prev]);
       setIsModalOpen(false);
       resetForm();
-      showToast('success', 'New banner published to Mitreno app hero carousel!');
+      showToast('success', 'New banner published to Nvilar app hero carousel!');
     } else {
       showToast('error', res.error || 'Failed to create banner');
     }
@@ -157,7 +157,7 @@ export default function BannersPage() {
                 </span>
               </h1>
               <p className="text-xs text-neutral-500 mt-1 font-medium">
-                Control the top promotional carousel slides, seasonal campaigns, and curated boutique spotlights in the Mitreno user app.
+                Control the top promotional carousel slides, seasonal campaigns, and curated boutique spotlights in the Nvilar user app.
               </p>
             </div>
 

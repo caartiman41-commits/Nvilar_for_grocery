@@ -95,14 +95,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   });
 
   // --- USER PROFILE STATE ---
-  const [fullName, setFullName] = useState(user ? (dbUser?.full_name || user.displayName || 'Mitreno Member') : '');
+  const [fullName, setFullName] = useState(user ? (dbUser?.full_name || user.displayName || 'Nvilar Member') : '');
   const [phone, setPhone] = useState(user ? (dbUser?.phone || user.phoneNumber || '') : '');
   const [email, setEmail] = useState(user ? (dbUser?.email || user.email || '') : '');
 
   useEffect(() => {
     if (user) {
       const p = dbUser?.phone || user.phoneNumber || '';
-      const n = dbUser?.full_name || user.displayName || (p ? `Member (${p.slice(-4)})` : 'Mitreno Member');
+      const n = dbUser?.full_name || user.displayName || (p ? `Member (${p.slice(-4)})` : 'Nvilar Member');
       setFullName(n);
       setPhone(p);
       setEmail(dbUser?.email || user.email || '');
@@ -624,7 +624,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               <div className="space-y-0.5 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="font-sans text-base sm:text-lg font-extrabold text-neutral-950 tracking-tight leading-tight truncate">
-                    {fullName || 'Mitreno Member'}
+                    {fullName || 'Nvilar Member'}
                   </h2>
                   <span className="px-2 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-[#1246B8] text-[9px] font-sans font-extrabold uppercase tracking-wider">
                     MEMBER
@@ -768,7 +768,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </h4>
           </div>
           <p className="text-[11.5px] text-neutral-400 font-normal leading-snug">
-            Get ₹500 store credits in your Mitreno Vault on referrals.
+            Get ₹500 store credits in your Nvilar Vault on referrals.
           </p>
         </div>
 
@@ -874,7 +874,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           <ChevronRight className="w-4 h-4 text-neutral-300 group-hover:text-neutral-500 group-hover:translate-x-0.5 transition-all" />
         </button>
 
-        {/* Become a Mitreno Seller CTA */}
+        {/* Become a Nvilar Seller CTA */}
         {sellerAppStatus === 'none' && (
           <button
             onClick={() => {
@@ -888,10 +888,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               </div>
               <div>
                 <h4 className="text-[13.5px] font-bold text-neutral-900 tracking-tight leading-tight">
-                  Become a Mitreno Seller
+                  Become a Nvilar Seller
                 </h4>
                 <p className="text-[11.5px] text-amber-700/60 mt-0.5 font-medium leading-normal">
-                  Start your boutique &amp; sell on Mitreno &bull; Dedicated Portal ↗
+                  Start your boutique &amp; sell on Nvilar &bull; Dedicated Portal ↗
                 </p>
               </div>
             </div>
@@ -1028,7 +1028,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </div>
         )}
 
-        {/* About Mitreno */}
+        {/* About Nvilar */}
         <button
           onClick={() => setActiveSubModal('about')}
           className="w-full py-2.5 px-4 hover:bg-neutral-50 flex items-center justify-between group transition-all text-left cursor-pointer border-b border-neutral-100"
@@ -1039,7 +1039,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </div>
             <div>
               <h4 className="text-[13.5px] font-semibold text-neutral-900 tracking-tight leading-tight">
-                About Mitreno
+                About Nvilar
               </h4>
               <p className="text-[11.5px] text-neutral-400 mt-0.5 font-normal leading-normal">
                 Know about boutique, collection materials & craft vision
@@ -1110,7 +1110,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 Admin Dashboard
               </h4>
               <p className="text-[11.5px] text-indigo-400 mt-0.5 font-normal leading-normal">
-                Open Mitreno admin control panel
+                Open Nvilar admin control panel
               </p>
             </div>
           </div>
@@ -1163,7 +1163,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
       {/* 5. BRAND FOOTER LOGO STATUS */}
       <div className="text-center py-4 font-sans font-extrabold text-[10px] tracking-widest text-neutral-400 uppercase select-none">
-        MITRENO V1.2.0 — DELIVERING HAPPINESS 🌿
+        NVILAR V1.2.0 — DELIVERING HAPPINESS 🌿
       </div>
 
       {/* Full Closing Button (if modal mode) */}
@@ -1257,7 +1257,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   {activeSubModal === 'edit-profile' && '✏️ Edit Profile Details'}
                   {activeSubModal === 'fit-profile' && '📐 Tailor Sizing Recalibrator'}
                   {activeSubModal === 'address' && '📍 Edit Delivery Address'}
-                  {activeSubModal === 'about' && 'ℹ️ About Mitreno'}
+                  {activeSubModal === 'about' && 'ℹ️ About Nvilar'}
                   {activeSubModal === 'privacy' && '🔒 Secure Privacy Policy'}
                   {activeSubModal === 'terms' && '⚖️ Terms & Platform Conditions'}
                   {activeSubModal === 'logout-confirm' && '🔒 Secure Logout'}
@@ -1458,7 +1458,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             </span>
                           </div>
                           <p className="text-xs text-neutral-600 font-medium leading-relaxed">
-                            Your seller application has been submitted and is currently being audited by the Mitreno compliance team.
+                            Your seller application has been submitted and is currently being audited by the Nvilar compliance team.
                           </p>
                           <div className="pt-1 flex items-center gap-2 text-[11px] text-amber-800 font-bold">
                             <span>⏱️ Estimated Review Time: 24 - 48 hours</span>
@@ -1842,11 +1842,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 </div>
               )}
 
-              {/* 3. About Mitreno Overlay */}
+              {/* 3. About Nvilar Overlay */}
               {activeSubModal === 'about' && (
                 <div className="space-y-2 text-neutral-700 font-sans text-xs leading-relaxed">
                   <p>
-                    <strong>Mitreno</strong> is an elite, high-performance social commerce ecosystem built entirely for high-quality native platforms.
+                    <strong>Nvilar</strong> is an elite, high-performance social commerce ecosystem built entirely for high-quality native platforms.
                   </p>
                   <p>
                     We bring curated designer products directly from premier ateliers across Bengaluru, Mumbai, and Delhi. Our key core innovations include:
@@ -1857,7 +1857,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <li>Physics-based interactive sizing simulations</li>
                   </ul>
                   <p className="text-[9px] text-neutral-400 pt-2 border-t border-neutral-100 font-sans font-black">
-                    Build Version: 1.2.0-Native-PROD • © 2026 Mitreno Atelier
+                    Build Version: 1.2.0-Native-PROD • © 2026 Nvilar Atelier
                   </p>
                 </div>
               )}
@@ -1883,7 +1883,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               {activeSubModal === 'terms' && (
                 <div className="space-y-2 text-neutral-700 font-sans text-xs leading-relaxed">
                   <p>
-                    Welcome to Mitreno. By operating inside our social-bargain marketplace:
+                    Welcome to Nvilar. By operating inside our social-bargain marketplace:
                   </p>
                   <ul className="list-disc list-inside space-y-1 text-neutral-800 font-bold uppercase tracking-wide text-[10px]">
                     <li>All locks/agreements proposed in bargaining chats are binding for checkout</li>
@@ -1905,7 +1905,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   <div>
                     <h4 className="text-[15px] font-extrabold text-neutral-900 mb-2 font-sans">End Current Session?</h4>
                     <p className="text-neutral-500 text-xs font-medium px-4 leading-relaxed">
-                      You will need to verify your phone number via OTP the next time you wish to access your secure Mitreno dashboard and orders.
+                      You will need to verify your phone number via OTP the next time you wish to access your secure Nvilar dashboard and orders.
                     </p>
                   </div>
                   <div className="space-y-3 mt-6">

@@ -43,11 +43,16 @@ const FILTER_OPTIONS: FilterOption[] = [
   { key: 'cancelled', label: 'Cancelled' },
 ];
 
-export const StudioOrdersTab: React.FC = memo(() => {
+export interface StudioOrdersTabProps {
+  initialOrderId?: string;
+}
+
+export const StudioOrdersTab: React.FC<StudioOrdersTabProps> = memo(({ initialOrderId }) => {
   const insets = useSafeAreaInsets();
   const orders = useSellerStore((state) => state.orders);
   const updateOrderStatus = useSellerStore((state) => state.updateOrderStatus);
   const assignRider = useSellerStore((state) => state.assignRider);
+  const fetchSellerStudioDataFromBackend = useSellerStore((state) => state.fetchSellerStudioDataFromBackend);
 
   const [viewMode, setViewMode] = useState<OrdersViewMode>('standard');
   const [activeFilter, setActiveFilter] = useState<OrderFilterStatus>('all');
@@ -55,6 +60,13 @@ export const StudioOrdersTab: React.FC = memo(() => {
   const [selectedOrderForModal, setSelectedOrderForModal] = useState<StudioOrderItem | null>(null);
   const [bulkPrintModalVisible, setBulkPrintModalVisible] = useState(false);
   const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialOrderId) {
+      setActiveFilter('all');
+      fetchSellerStudioDataFromBackend();
+    }
+  }, [initialOrderId, fetchSellerStudioDataFromBackend]);
 
   // Filter orders according to view mode
   const currentOrders = useMemo(() => {
@@ -1040,7 +1052,7 @@ export const StudioOrdersTab: React.FC = memo(() => {
                       </Text>
                       <Text style={styles.awbCarrierText}>
                         {selectedOrderForModal.fulfillmentType === 'hyperlocal'
-                          ? 'Mitreno Intra-City Hyperlocal Express'
+                          ? 'Nvilar Intra-City Hyperlocal Express'
                           : 'Delhivery Surface & Air Express'}
                       </Text>
                     </View>
@@ -1135,7 +1147,7 @@ export const StudioOrdersTab: React.FC = memo(() => {
               <Text style={styles.bulkModalHeading}>Ready for Batch Printing</Text>
               <Text style={styles.bulkModalText}>
                 All packing slips include customer addresses, verified item SKUs, and official
-                Mitreno tamper-proof QR security seals.
+                Nvilar tamper-proof QR security seals.
               </Text>
             </View>
 

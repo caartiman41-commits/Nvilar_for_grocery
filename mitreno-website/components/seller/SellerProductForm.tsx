@@ -344,7 +344,7 @@ export const SellerProductForm: React.FC<SellerProductFormProps> = ({
     } catch (err: any) {
       console.error("Product submission error:", err);
       if (err.message === 'Failed to fetch') {
-        setErrorMsg('Network Error: Cannot connect to the Mitreno backend. Please ensure the backend server is running (go run cmd/api/main.go) and try again.');
+        setErrorMsg('Network Error: Cannot connect to the Nvilar backend. Please ensure the backend server is running (go run cmd/api/main.go) and try again.');
       } else {
         setErrorMsg(err.message || 'Network error occurred while saving.');
       }
@@ -435,7 +435,7 @@ export const SellerProductForm: React.FC<SellerProductFormProps> = ({
               <div className="space-y-6 animate-in slide-in-from-right-4 fade-in duration-300 max-w-2xl mx-auto">
                 <div className="text-center mb-8">
                   <h4 className="text-xl font-black text-neutral-900">Garment Identity</h4>
-                  <p className="text-sm text-neutral-500 mt-1">What are you listing on Mitreno?</p>
+                  <p className="text-sm text-neutral-500 mt-1">What are you listing on Nvilar?</p>
                 </div>
 
                 <div className="space-y-2">

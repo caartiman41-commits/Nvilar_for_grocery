@@ -26,19 +26,17 @@ class MainActivity : ReactActivity() {
    */
   override fun getMainComponentName(): String = "GreztoApp"
 
+  override fun onCreate(savedInstanceState: android.os.Bundle?) {
+      super.onCreate(savedInstanceState)
+      intent?.let {
+          NotificationChannelModule.sendNotificationEvent(it)
+      }
+  }
+
   override fun onNewIntent(intent: Intent) {
       super.onNewIntent(intent)
       setIntent(intent)
       NotificationChannelModule.sendNotificationEvent(intent)
-  }
-
-  override fun onResume() {
-      super.onResume()
-      intent?.let {
-          if (it.hasExtra("conversation_id") || it.hasExtra("conversationId")) {
-              NotificationChannelModule.sendNotificationEvent(it)
-          }
-      }
   }
 
   /**

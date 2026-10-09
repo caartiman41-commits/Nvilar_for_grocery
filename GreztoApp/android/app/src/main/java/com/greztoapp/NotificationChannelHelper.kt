@@ -98,7 +98,7 @@ object NotificationChannelHelper {
                 enableVibration(true)
                 vibrationPattern = SELLER_VIBRATION_PATTERN
                 enableLights(true)
-                lightColor = Color.parseColor("#E11D48") // Mitreno Crimson Brand Accent
+                lightColor = Color.parseColor("#28488A") // Mitreno Crimson Brand Accent
                 setShowBadge(true)
                 lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
                 setSound(sellerSoundUri, audioAttributes)
@@ -172,7 +172,9 @@ object NotificationChannelHelper {
         }
 
         val intent = Intent(context, MainActivity::class.java).apply {
-            this.flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            this.action = "com.mitreno.app.NOTIFICATION_TAP_${System.currentTimeMillis()}"
+            this.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("from_notification_tap", "true")
             extras?.forEach { (key, value) ->
                 putExtra(key, value)
             }
@@ -180,7 +182,7 @@ object NotificationChannelHelper {
 
         val pendingIntent = PendingIntent.getActivity(
             context,
-            (System.currentTimeMillis() % 10000).toInt(),
+            (System.currentTimeMillis() % 100000).toInt(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -189,7 +191,7 @@ object NotificationChannelHelper {
             .let { if (it != 0) it else android.R.drawable.ic_dialog_info }
 
         val colorResId = context.resources.getIdentifier("notification_color", "color", context.packageName)
-        val accentColor = if (colorResId != 0) ContextCompat.getColor(context, colorResId) else Color.parseColor("#E11D48")
+        val accentColor = if (colorResId != 0) ContextCompat.getColor(context, colorResId) else Color.parseColor("#28488A")
 
         val largeIconResId = context.resources.getIdentifier("ic_notification_large", "drawable", context.packageName)
             .let { if (it != 0) it else context.resources.getIdentifier("ic_launcher", "mipmap", context.packageName) }

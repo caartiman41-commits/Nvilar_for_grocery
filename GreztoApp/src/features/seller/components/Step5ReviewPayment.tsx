@@ -438,7 +438,7 @@ export const Step5ReviewPayment: React.FC<Step5ReviewPaymentProps> = memo(({
           </View>
         </View>
 
-        {/* Row 1: Mitreno Seller Merchant Agreement */}
+        {/* Row 1: Nvilar Seller Merchant Agreement */}
         <View style={styles.agreementRow}>
           <TouchableOpacity
             style={[
@@ -451,7 +451,7 @@ export const Step5ReviewPayment: React.FC<Step5ReviewPaymentProps> = memo(({
             {legalAgreements.merchantAgreement && <Icon name="check" size={14} color="#FFFFFF" />}
           </TouchableOpacity>
           <View style={styles.agreementInfoCol}>
-            <Text style={styles.agreementTitle}>Mitreno Seller Merchant Agreement</Text>
+            <Text style={styles.agreementTitle}>Nvilar Seller Merchant Agreement</Text>
             <Text style={styles.agreementSubtitle}>
               Commercial contract, SLA, commissions, T+2/T+3 payouts, TCS/TDS deductions & anti-counterfeiting policy.
             </Text>
@@ -666,8 +666,8 @@ export const Step5ReviewPayment: React.FC<Step5ReviewPaymentProps> = memo(({
             {/* End of Document Seal */}
             <View style={styles.readerFooterSeal}>
               <Icon name="seal" size={28} color="#059669" />
-              <Text style={styles.readerSealText}>Official Legal Document • Mitreno Marketplace</Text>
-              <Text style={styles.readerSealSub}>Mitreno Technologies Private Limited</Text>
+              <Text style={styles.readerSealText}>Official Legal Document • Nvilar Marketplace</Text>
+              <Text style={styles.readerSealSub}>Nvilar Technologies Private Limited</Text>
             </View>
           </ScrollView>
 
@@ -772,7 +772,7 @@ export const Step5ReviewPayment: React.FC<Step5ReviewPaymentProps> = memo(({
             >
               <Text style={styles.successTitle}>Application Submitted! 🎉</Text>
               <Text style={styles.successSubtitle}>
-                Welcome to the Mitreno Boutique Partner Network. Your boutique profile is currently under review.
+                Welcome to the Nvilar Boutique Partner Network. Your boutique profile is currently under review.
               </Text>
 
               <View style={styles.refBox}>

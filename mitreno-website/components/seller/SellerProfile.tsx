@@ -378,7 +378,7 @@ export const SellerProfile: React.FC<SellerProfileProps> = ({
   const displayCategory = shop?.category || localApp?.business_category || 'Streetwear & Traditional Fusion';
 
   const hasActiveStories = Array.isArray(stories) && stories.length > 0;
-  const hasCustomBio = displayBio && displayBio !== 'Local fashion artisan store on Mitreno.';
+  const hasCustomBio = displayBio && displayBio !== 'Local fashion artisan store on Nvilar.';
   const hasCustomLogo = !!shop?.logo_url;
   let healthScore = 50;
   if (hasCustomBio) healthScore += 25;
@@ -796,10 +796,10 @@ export const SellerProfile: React.FC<SellerProfileProps> = ({
                     @{shop.username}
                   </span>
                 )}
-                {/* Mitreno Verified Store Badge */}
+                {/* Nvilar Verified Store Badge */}
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Mitreno Verified Store</span>
+                  <span>Nvilar Verified Store</span>
                 </span>
                 <span className="px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-bold uppercase tracking-wider">
                   Store Live
@@ -1184,7 +1184,7 @@ export const SellerProfile: React.FC<SellerProfileProps> = ({
             <div className="space-y-1 text-center sm:text-left">
               <h3 className="text-lg font-black text-neutral-950">Edit Store Profile</h3>
               <p className="text-xs text-neutral-500">
-                Update how your store appears on Mitreno search, city maps, and storefront feed.
+                Update how your store appears on Nvilar search, city maps, and storefront feed.
               </p>
             </div>
 

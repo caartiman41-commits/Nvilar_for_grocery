@@ -166,7 +166,7 @@ export default function SecuritySettingsPage() {
               <div className="text-xs space-y-1.5 pt-2 border-t border-neutral-100">
                 <div className="flex justify-between">
                   <span className="text-neutral-400">Host:</span>
-                  <code className="text-neutral-800 font-bold font-mono">{process.env.NEXT_PUBLIC_BACKEND_URL || 'https://api.mitreno.com'}</code>
+                  <code className="text-neutral-800 font-bold font-mono">{process.env.NEXT_PUBLIC_BACKEND_URL || 'https://api.nvilar.com'}</code>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-neutral-400">Latency:</span>

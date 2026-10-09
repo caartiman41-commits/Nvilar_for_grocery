@@ -6,9 +6,26 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"gorm.io/gorm"
 	"mitreno-backend/config"
 	"mitreno-backend/models"
 )
+
+// ResolveCanonicalUserID maps any raw user identifier (internal ID, Firebase UID, or phone)
+// to the single canonical internal users.id in PostgreSQL.
+func ResolveCanonicalUserID(db *gorm.DB, rawID string) string {
+	clean := strings.TrimSpace(rawID)
+	if clean == "" || db == nil {
+		return clean
+	}
+	var user models.User
+	if err := db.Where("id = ? OR firebase_uid = ? OR phone = ?", clean, clean, clean).
+		Order("CASE WHEN id LIKE 'usr_%' THEN 0 ELSE 1 END").
+		First(&user).Error; err == nil && user.ID != "" {
+		return user.ID
+	}
+	return clean
+}
 
 // NormalizePhone ensures phone is formatted cleanly as E.164: +91XXXXXXXXXX
 func NormalizePhone(rawPhone string) string {
@@ -121,14 +138,14 @@ func FirebaseAuthMiddleware() fiber.Handler {
 				query = query.Where("firebase_uid = ? OR id = ?", rawUID, rawUID)
 			}
 
-			if err := query.First(&user).Error; err == nil {
+			if err := query.Order("CASE WHEN id LIKE 'usr_%' THEN 0 ELSE 1 END").First(&user).Error; err == nil {
 				// Successfully resolved the permanent internal user record
 				resolvedUserID = user.ID
 				userRole = user.Role
 				c.Locals("user", user)
 
-				// Keep firebase_uid in sync without changing internal users.id
-				if rawUID != "" && (user.FirebaseUID == nil || *user.FirebaseUID != rawUID) {
+				// Keep firebase_uid in sync without changing internal users.id (never overwrite with internal usr_, shop_, or guest_ IDs)
+				if rawUID != "" && !strings.HasPrefix(rawUID, "usr_") && !strings.HasPrefix(rawUID, "shop_") && !strings.HasPrefix(rawUID, "guest_") && (user.FirebaseUID == nil || *user.FirebaseUID != rawUID) {
 					config.DB.Model(&models.User{}).Where("id = ?", user.ID).Update("firebase_uid", rawUID)
 				}
 			}
@@ -170,36 +187,39 @@ func SellerGuard() fiber.Handler {
 			})
 		}
 
-		// Find shop by shop_id query, or owner_id, or direct shop id
+		userID = ResolveCanonicalUserID(db, userID)
+		c.Locals("userID", userID)
+
+		// Find shop by shop_id query (verified by owner_id), or owner_id, or direct shop id
 		var shop models.Shop
 		shopFound := false
 
 		if shopIDQuery := c.Query("shop_id"); shopIDQuery != "" {
-			if err := db.Where("id = ?", shopIDQuery).First(&shop).Error; err == nil {
+			if err := db.Where("id = ? AND owner_id = ?", shopIDQuery, userID).First(&shop).Error; err == nil {
 				shopFound = true
 			}
 		}
 
 		if !shopFound {
-			if err := db.Where("owner_id = ? OR id = ?", userID, userID).First(&shop).Error; err == nil {
+			if err := db.Where("owner_id = ? OR id = ?", userID, userID).Order("created_at ASC").First(&shop).Error; err == nil {
 				shopFound = true
 			}
 		}
 
 		if !shopFound {
-			// Check if this user has an approved application and auto-provision active shop
+			// Check if this user has an approved application and auto-provision active shop (1 User = 1 Shop)
 			var app models.SellerApplication
 			if err := db.Where("user_id = ? AND status = 'approved'", userID).Order("created_at DESC").First(&app).Error; err == nil {
 				newShopID := "shop_" + app.ID
 				shop = models.Shop{
-					ID:         newShopID,
-					OwnerID:    userID,
-					Name:       app.BusinessName,
-					Bio:        app.BusinessDescription,
-					Rating:     5.00,
+					ID:          newShopID,
+					OwnerID:     userID,
+					Name:        app.BusinessName,
+					Bio:         app.BusinessDescription,
+					Rating:      5.00,
 					ReviewCount: 1,
-					IsVerified: true,
-					Status:     "active",
+					IsVerified:  true,
+					Status:      "active",
 				}
 				db.Create(&shop)
 				shopFound = true

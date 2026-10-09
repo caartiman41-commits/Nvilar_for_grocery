@@ -23,7 +23,7 @@ func NewEmailService() *EmailService {
 		SMTPPort:    getEnvOrDefault("SMTP_PORT", "587"),
 		SenderEmail: getEnvOrDefault("SMTP_EMAIL", ""),
 		SenderPass:  getEnvOrDefault("SMTP_PASSWORD", ""),
-		SenderName:  getEnvOrDefault("SMTP_SENDER_NAME", "Mitreno"),
+		SenderName:  getEnvOrDefault("SMTP_SENDER_NAME", "Nvilar"),
 	}
 }
 
@@ -37,13 +37,13 @@ func getEnvOrDefault(key, defaultVal string) string {
 
 // SendSellerApproved sends an approval email to the seller
 func (es *EmailService) SendSellerApproved(toEmail, sellerName, businessName string) error {
-	subject := "🎉 Your Mitreno Seller Application is Approved!"
+	subject := "🎉 Your Nvilar Seller Application is Approved!"
 	body := fmt.Sprintf(`
 <!DOCTYPE html>
 <html>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #f9fafb;">
   <div style="background: #000; border-radius: 16px; padding: 32px; text-align: center; margin-bottom: 24px;">
-    <h1 style="color: #fbbf24; font-size: 24px; margin: 0;">MITRENO</h1>
+    <h1 style="color: #fbbf24; font-size: 24px; margin: 0;">NVILAR</h1>
     <p style="color: #9ca3af; font-size: 12px; margin-top: 4px; letter-spacing: 2px;">SELLER PLATFORM</p>
   </div>
   
@@ -53,13 +53,13 @@ func (es *EmailService) SendSellerApproved(toEmail, sellerName, businessName str
       Your seller application for <strong>%s</strong> has been <span style="color: #059669; font-weight: 700;">approved</span>.
     </p>
     <p style="color: #4b5563; line-height: 1.6;">
-      You can now start listing your products on Mitreno and reach thousands of fashion-conscious buyers.
+      You can now start listing your products on Nvilar and reach thousands of fashion-conscious buyers.
     </p>
     <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin: 24px 0;">
-      <p style="color: #166534; font-weight: 600; margin: 0;">✅ Your boutique is now live on Mitreno!</p>
+      <p style="color: #166534; font-weight: 600; margin: 0;">✅ Your boutique is now live on Nvilar!</p>
     </div>
     <p style="color: #9ca3af; font-size: 12px; margin-top: 24px;">
-      If you have any questions, reach out to us at support@mitreno.com
+      If you have any questions, reach out to us at support@nvilar.com
     </p>
   </div>
 </body>
@@ -70,20 +70,20 @@ func (es *EmailService) SendSellerApproved(toEmail, sellerName, businessName str
 
 // SendSellerRejected sends a rejection email with reason
 func (es *EmailService) SendSellerRejected(toEmail, sellerName, businessName, reason string) error {
-	subject := "Update on Your Mitreno Seller Application"
+	subject := "Update on Your Nvilar Seller Application"
 	body := fmt.Sprintf(`
 <!DOCTYPE html>
 <html>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #f9fafb;">
   <div style="background: #000; border-radius: 16px; padding: 32px; text-align: center; margin-bottom: 24px;">
-    <h1 style="color: #fbbf24; font-size: 24px; margin: 0;">MITRENO</h1>
+    <h1 style="color: #fbbf24; font-size: 24px; margin: 0;">NVILAR</h1>
     <p style="color: #9ca3af; font-size: 12px; margin-top: 4px; letter-spacing: 2px;">SELLER PLATFORM</p>
   </div>
   
   <div style="background: white; border-radius: 12px; padding: 32px; border: 1px solid #e5e7eb;">
     <h2 style="color: #111; margin: 0 0 16px 0;">Hello %s,</h2>
     <p style="color: #4b5563; line-height: 1.6;">
-      Thank you for your interest in selling on Mitreno. After reviewing your application for <strong>%s</strong>, 
+      Thank you for your interest in selling on Nvilar. After reviewing your application for <strong>%s</strong>, 
       we were unable to approve it at this time.
     </p>
     <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px; margin: 24px 0;">
@@ -95,7 +95,7 @@ func (es *EmailService) SendSellerRejected(toEmail, sellerName, businessName, re
       If you believe this was in error, please contact our support team.
     </p>
     <p style="color: #9ca3af; font-size: 12px; margin-top: 24px;">
-      Contact us at support@mitreno.com
+      Contact us at support@nvilar.com
     </p>
   </div>
 </body>

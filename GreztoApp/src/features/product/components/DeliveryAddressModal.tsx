@@ -149,7 +149,7 @@ export const DeliveryAddressModal: React.FC<DeliveryAddressModalProps> = memo(({
         showToast({
           type: 'warning',
           title: 'Location Error',
-          message: 'Please enable location services so Mitreno can detect your delivery address.',
+          message: 'Please enable location services so Nvilar can detect your delivery address.',
         });
         setIsLocating(false);
         return;

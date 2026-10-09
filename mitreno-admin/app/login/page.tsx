@@ -65,11 +65,11 @@ export default function AdminLoginPage() {
         {/* Brand Card */}
         <div className="bg-white border border-neutral-200 backdrop-blur-xl rounded-3xl p-8 shadow-xl space-y-6">
           <div className="text-center space-y-2">
-            <div className="inline-flex w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 items-center justify-center text-white font-black text-2xl shadow-lg shadow-indigo-500/25 mb-2">
-              M
+            <div className="inline-flex w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 items-center justify-center text-white font-black text-xl shadow-lg shadow-indigo-500/25 mb-2">
+              NV
             </div>
             <h1 className="text-2xl font-black tracking-tight text-neutral-900">
-              Mitreno Admin Console
+              Nvilar Admin Console
             </h1>
             <p className="text-xs text-neutral-500">
               Authorized Personnel & Seller Verification Gateway

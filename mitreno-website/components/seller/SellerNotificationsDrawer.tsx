@@ -344,7 +344,7 @@ export const SellerNotificationsDrawer: React.FC<SellerNotificationsDrawerProps>
 
         {/* Footer */}
         <div className="p-4 border-t border-neutral-200 bg-white/95 backdrop-blur-md shrink-0 flex items-center justify-between text-[11px] text-neutral-500">
-          <span>Mitreno Seller Alert Engine</span>
+          <span>Nvilar Seller Alert Engine</span>
           <span className="text-emerald-600 font-medium">● Connected live</span>
         </div>
       </div>

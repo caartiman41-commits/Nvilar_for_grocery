@@ -41,7 +41,7 @@ func GetCampaignController() *CampaignController {
 			viewersCount: 1280,
 			activeCampaign: models.BargainCampaignConfig{
 				ID:                       "camp_live_bargain_main",
-				Title:                    "Mitreno High-Volume Live Bargain Drop",
+				Title:                    "Nvilar High-Volume Live Bargain Drop",
 				IsActive:                 true,
 				StartTime:                now,
 				EndTime:                  endTime,

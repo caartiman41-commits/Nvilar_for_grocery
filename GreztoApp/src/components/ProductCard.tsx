@@ -11,6 +11,7 @@ export interface ProductCardProps {
   name: string;
   price: number;
   originalPrice?: number;
+  minOrder?: number;
   image: string;
   boutiqueName?: string;
   rating?: number;
@@ -23,29 +24,31 @@ export interface ProductCardProps {
   onBuy?: () => void;
   onAdd?: () => void;
   cartQuantity?: number;
+  onIncrement?: () => void;
+  onDecrement?: () => void;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = memo(({
+  id,
   name,
   price,
   originalPrice,
+  minOrder = 6,
   image,
   boutiqueName = 'Mitreno.com',
   rating = 4.8,
   reviewCount,
   freeDelivery = true,
   inStock = true,
+  cartQuantity = 0,
   onPress,
   onBoutiquePress,
   onBargain,
   onBuy,
   onAdd,
+  onIncrement,
+  onDecrement,
 }) => {
-  const [isFavorite, setIsFavorite] = useState(false);
-
-  // Derive original price if not explicitly provided
-  const strikethroughPrice = originalPrice || Math.round(price * 1.4);
-
   // Deterministic review count fallback if not provided
   const displayReviewCount = reviewCount || Math.floor(((price % 400) + 72) * 1.5);
 
@@ -67,22 +70,9 @@ export const ProductCard: React.FC<ProductCardProps> = memo(({
           resizeMode={FastImage.resizeMode.cover}
         />
 
-        {/* Top-Right Floating Wishlist / Heart Button */}
-        <TouchableOpacity 
-          style={styles.heartBtn} 
-          onPress={() => setIsFavorite(!isFavorite)}
-          activeOpacity={0.8}
-        >
-          <Icon 
-            name={isFavorite ? 'heart' : 'heart-outline'} 
-            size={18} 
-            color={isFavorite ? '#DC2626' : '#2B1D1D'} 
-          />
-        </TouchableOpacity>
-
-        {/* Bottom-Left Dark Rating & Reviews Pill Badge */}
+        {/* Bottom-Left Clean White Rating & Reviews Pill Badge */}
         <View style={styles.ratingBadge}>
-          <Icon name="star" size={10} color="#FBBF24" style={{ marginRight: 3 }} />
+          <Icon name="star" size={10} color="#F59E0B" style={{ marginRight: 3 }} />
           <Text style={styles.ratingBadgeText}>
             {Number(rating).toFixed(1)} <Text style={styles.reviewCountText}>({displayReviewCount})</Text>
           </Text>
@@ -126,20 +116,15 @@ export const ProductCard: React.FC<ProductCardProps> = memo(({
           {name}
         </Text>
 
-        {/* Price Row: Deal Price + Original Strike-through */}
+        {/* Price Row: Deal Price + Inline Pieces Count (e.g. ₹1,899 /pc • 6 pcs) */}
         <View style={styles.priceRow}>
-          <Text style={styles.dealPrice}>{formatINR(price)}</Text>
-          <Text style={styles.strikethroughPrice}>{formatINR(strikethroughPrice)}</Text>
+          <Text style={styles.dealPrice}>
+            {formatINR(price)} <Text style={styles.unitText}>/pc</Text>
+          </Text>
+          <Text style={styles.piecesText}>• {minOrder} pcs</Text>
         </View>
 
-        {/* Free Delivery Label (without redundant Deal Price pill) */}
-        {freeDelivery && (
-          <View style={styles.deliveryRow}>
-            <Text style={styles.freeDeliveryText}>Free Delivery</Text>
-          </View>
-        )}
-
-        {/* Actions Row: If Out of Stock, display disabled pill; otherwise BARGAIN & BUY buttons */}
+        {/* Actions Row: If Out of Stock, display disabled pill; otherwise BARGAIN & ADD / STEPPER buttons */}
         {!inStock ? (
           <View style={styles.outOfStockActionRow}>
             <View style={styles.outOfStockActionBtn}>
@@ -151,20 +136,42 @@ export const ProductCard: React.FC<ProductCardProps> = memo(({
           <View style={styles.actionsRow}>
             <TouchableOpacity 
               style={styles.bargainBtn} 
-              onPress={onBargain || onAdd}
-              activeOpacity={0.85}
+              onPress={onBargain}
+              activeOpacity={0.8}
             >
-              <Icon name="message-text-outline" size={11} color="#0F172A" style={{ marginRight: 3.5 }} />
+              <Icon name="message-text-outline" size={11.5} color="#334155" style={{ marginRight: 4 }} />
               <Text style={styles.bargainBtnText}>BARGAIN</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.buyBtn} 
-              onPress={onBuy || onAdd}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.buyBtnText}>BUY</Text>
-            </TouchableOpacity>
+            {cartQuantity > 0 ? (
+              <View style={styles.addedStepperPill}>
+                <TouchableOpacity
+                  style={styles.stepperActionBtn}
+                  onPress={onDecrement}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Icon name="minus" size={13} color="#FFFFFF" />
+                </TouchableOpacity>
+                <Text style={styles.stepperQtyText}>{cartQuantity}</Text>
+                <TouchableOpacity
+                  style={styles.stepperActionBtn}
+                  onPress={onIncrement || onAdd}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Icon name="plus" size={13} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity 
+                style={styles.buyBtn} 
+                onPress={onAdd || onBuy}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.buyBtnText}>ADD</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </View>
@@ -174,44 +181,28 @@ export const ProductCard: React.FC<ProductCardProps> = memo(({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
+    backgroundColor: '#F6F5F1', // Warm Studio Cream (Exact Nvilar Wall Print tone)
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E6E2D8', // Soft Linen Hairline
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
     width: '100%',
+    shadowColor: '#1E1B18',
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1.5,
   },
   imageContainer: {
     width: '100%',
-    aspectRatio: 0.84, // ~3:4 Portrait vertical ratio
+    aspectRatio: 1.1, // Balanced ratio for expansive horizontal cards
     position: 'relative',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#EDEAE4',
     overflow: 'hidden',
   },
   image: {
     width: '100%',
     height: '100%',
-  },
-  heartBtn: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: 'rgba(255, 255, 255, 0.92)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    elevation: 2,
   },
   ratingBadge: {
     position: 'absolute',
@@ -219,19 +210,21 @@ const styles = StyleSheet.create({
     left: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(18, 14, 14, 0.88)',
-    paddingHorizontal: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderWidth: 1,
+    borderColor: '#E6E2D8',
+    paddingHorizontal: 6.5,
     paddingVertical: 3,
     borderRadius: 6,
   },
   ratingBadgeText: {
-    color: '#FFFFFF',
+    color: '#0F172A',
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.2,
   },
   reviewCountText: {
-    color: '#CBD5E1',
+    color: '#64748B',
     fontSize: 9.5,
     fontWeight: '600',
   },
@@ -239,22 +232,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingTop: 6,
     paddingBottom: 8,
+    backgroundColor: '#F6F5F1',
   },
   boutiqueRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: 3,
   },
   boutiqueName: {
-    fontSize: 11.5,
+    fontSize: 11,
     color: '#64748B',
     fontWeight: '500',
     letterSpacing: 0.1,
     flex: 1,
   },
   productTitle: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '600',
     color: '#0F172A',
     letterSpacing: -0.1,
@@ -266,45 +260,42 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   dealPrice: {
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: '900',
     color: colors.burgundy,
   },
-  strikethroughPrice: {
-    fontSize: 11,
-    color: '#94A3B8',
-    textDecorationLine: 'line-through',
-    marginLeft: 6,
-    fontWeight: '500',
+  unitText: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#64748B',
   },
-  deliveryRow: {
-    marginBottom: 6,
-  },
-  freeDeliveryText: {
-    color: colors.verifiedGreen,
-    fontSize: 10,
-    fontWeight: '700',
+  piecesText: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#64748B', // Same muted intensity as /pc
+    marginLeft: 5,
   },
   actionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
+    marginTop: 2,
   },
   bargainBtn: {
     flex: 1.15,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#EEECE6', // Soft Warm Studio Cream pill
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E2DDD4', // Harmonious warm linen border
     paddingVertical: 6.5,
-    paddingHorizontal: 5,
-    borderRadius: 16,
+    paddingHorizontal: 6,
+    borderRadius: 14,
   },
   bargainBtnText: {
-    color: '#0F172A',
-    fontSize: 9.5,
+    color: '#334155', // Slate-700
+    fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.3,
   },
@@ -312,21 +303,37 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#D97706', // Rich Dark Amber Gold / Royal Warm Saffron
+    backgroundColor: '#E11D48', // Pure Flat Vivid Cherry Red
     paddingVertical: 6.5,
     paddingHorizontal: 6,
-    borderRadius: 16,
-    shadowColor: '#D97706',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.28,
-    shadowRadius: 4,
-    elevation: 3,
+    borderRadius: 14,
   },
   buyBtnText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: '900',
-    letterSpacing: 0.5,
+    letterSpacing: 0.6,
+  },
+  addedStepperPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0D7B48', // Clean Light-Dark Forest Green when item added
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: 16,
+  },
+  stepperActionBtn: {
+    padding: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperQtyText: {
+    color: '#FFFFFF',
+    fontSize: 11.5,
+    fontWeight: '900',
+    letterSpacing: 0.2,
   },
   outOfStockImageOverlay: {
     position: 'absolute',
@@ -357,11 +364,9 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   outOfStockActionBtn: {
-    height: 31,
+    height: 30,
     borderRadius: 16,
     backgroundColor: '#F1F5F9',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

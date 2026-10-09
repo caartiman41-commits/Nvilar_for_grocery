@@ -230,7 +230,7 @@ export default function HyperlocalRadarPage() {
                   </span>
                 </div>
                 <p className="text-xs text-amber-900 leading-relaxed">
-                  Orders within 10 km from merchant are fulfilled intra-city via dedicated 2-wheelers (<strong>Mitreno Dedicated Fleet</strong> or <strong>Store In-House Staff</strong>) with 4-digit Pickup and Delivery OTPs.
+                  Orders within 10 km from merchant are fulfilled intra-city via dedicated 2-wheelers (<strong>Nvilar Dedicated Fleet</strong> or <strong>Store In-House Staff</strong>) with 4-digit Pickup and Delivery OTPs.
                 </p>
               </div>
 

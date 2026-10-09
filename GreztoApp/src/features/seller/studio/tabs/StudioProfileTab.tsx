@@ -18,6 +18,8 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSellerStore } from '../../sellerStore';
 import { RunwayReel, StudioProduct } from '../studioTypes';
+import { StudioAnalyticsModal } from '../components/StudioAnalyticsModal';
+import { StudioBillingModal } from '../components/StudioBillingModal';
 import { showToast } from '../../../../components/MitrenoToast';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -93,7 +95,7 @@ export const RECOMMENDED_BOUTIQUE_AVATARS = [
   },
 ];
 
-// Standard Mitreno Fashion Categories for instant selection
+// Standard Nvilar Fashion Categories for instant selection
 export const MITRENO_FASHION_CATEGORIES = [
   'Designer Streetwear & Ethnic Fusion',
   'Oversized Streetwear & Hoodies',
@@ -121,6 +123,8 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
 
   const [activeSubTab, setActiveSubTab] = useState<ProfileSubTab>('products');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
+  const [isBillingOpen, setIsBillingOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedReel, setSelectedReel] = useState<RunwayReel | null>(null);
 
@@ -168,7 +172,7 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
     showToast({
       type: 'success',
       title: 'Boutique Updated',
-      message: 'Your boutique profile changes are now live across Mitreno.',
+      message: 'Your boutique profile changes are now live across Nvilar.',
     });
   }, [editAvatarUri, editName, editCategory, editCity, editBio, editInstagram, profile, updateProfile]);
 
@@ -199,11 +203,11 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
   const handleShareStore = useCallback(async () => {
     try {
       await Share.share({
-        title: `${profile.name} on Mitreno`,
-        message: `Explore luxury fashion at ${profile.name} (${profile.handle}) on Mitreno: https://mitreno.com/studio/${profile.storeId}`,
+        title: `${profile.name} on Nvilar`,
+        message: `Explore luxury fashion at ${profile.name} (${profile.handle}) on Nvilar: https://nvilar.com/studio/${profile.storeId}`,
       });
     } catch {
-      Alert.alert('Store Link Copied', `https://mitreno.com/studio/${profile.storeId}`);
+      Alert.alert('Store Link Copied', `https://nvilar.com/studio/${profile.storeId}`);
     }
   }, [profile]);
 
@@ -404,7 +408,7 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
         {/* 3. Boutique Info Section */}
         <View style={styles.boutiqueInfoSection}>
           <View style={styles.nameRow}>
-            <Text style={styles.boutiqueName}>{profile.name || 'Mitreno.com'}</Text>
+            <Text style={styles.boutiqueName}>{profile.name || 'Nvilar.com'}</Text>
             {profile.verifiedBadge && (
               <View style={styles.verifiedShieldChip}>
                 <Icon name="shield-check" size={13} color="#059669" />
@@ -1066,7 +1070,7 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
                 style={styles.formInput}
                 value={editName}
                 onChangeText={setEditName}
-                placeholder="e.g. Mitreno.com"
+                placeholder="e.g. Nvilar.com"
                 placeholderTextColor="#94A3B8"
               />
             </View>
@@ -1226,7 +1230,7 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
             <View style={styles.verifiedPartnerBanner}>
               <Icon name="shield-check" size={24} color="#059669" style={{ marginRight: 10 }} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.partnerBannerTitle}>Certified Mitreno Luxury Partner</Text>
+                <Text style={styles.partnerBannerTitle}>Certified Nvilar Luxury Partner</Text>
                 <Text style={styles.partnerBannerSubtitle}>
                   Store #{profile.storeId} • Hyperlocal Verified Hub
                 </Text>
@@ -1265,10 +1269,7 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
                 style={styles.settingsMenuItem}
                 onPress={() => {
                   setIsSettingsOpen(false);
-                  Alert.alert(
-                    'Financial Analytics',
-                    'Total Settlement: ₹6,059\nGST Invoices generated automatically for each dispatched order.'
-                  );
+                  setTimeout(() => setIsAnalyticsOpen(true), 120);
                 }}
                 activeOpacity={0.7}
               >
@@ -1286,19 +1287,16 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
                 style={styles.settingsMenuItem}
                 onPress={() => {
                   setIsSettingsOpen(false);
-                  Alert.alert(
-                    'Payout Details',
-                    'HDFC Bank Account ending in ••4829.\nInstant daily settlement cycle at 11:59 PM.'
-                  );
+                  setTimeout(() => setIsBillingOpen(true), 120);
                 }}
                 activeOpacity={0.7}
               >
                 <View style={[styles.menuIconBox, { backgroundColor: '#ECFDF5' }]}>
-                  <Icon name="bank-outline" size={20} color="#059669" />
+                  <Icon name="credit-card-outline" size={20} color="#059669" />
                 </View>
                 <View style={styles.menuItemTextWrap}>
-                  <Text style={styles.menuItemTitle}>Payout & Bank Accounts</Text>
-                  <Text style={styles.menuItemSubtitle}>HDFC Bank ending in ••4829 - Instant daily settlements</Text>
+                  <Text style={styles.menuItemTitle}>Billing & Plans</Text>
+                  <Text style={styles.menuItemSubtitle}>Commission ledger, payouts, bank/UPI & Pro Pass</Text>
                 </View>
                 <Icon name="chevron-right" size={20} color="#CBD5E1" />
               </TouchableOpacity>
@@ -1319,7 +1317,7 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
                     <Text style={[styles.menuItemTitle, { color: '#EA580C' }]}>
                       Switch to Customer App
                     </Text>
-                    <Text style={styles.menuItemSubtitle}>Browse Mitreno as a shopper</Text>
+                    <Text style={styles.menuItemSubtitle}>Browse Nvilar as a shopper</Text>
                   </View>
                   <Icon name="chevron-right" size={20} color="#EA580C" />
                 </TouchableOpacity>
@@ -1388,6 +1386,18 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
           </View>
         )}
       </Modal>
+
+      {/* 14. Live Sales & Financial Analytics Modal */}
+      <StudioAnalyticsModal
+        visible={isAnalyticsOpen}
+        onClose={() => setIsAnalyticsOpen(false)}
+      />
+
+      {/* 15. Live Billing & Plans Modal */}
+      <StudioBillingModal
+        visible={isBillingOpen}
+        onClose={() => setIsBillingOpen(false)}
+      />
     </View>
   );
 });

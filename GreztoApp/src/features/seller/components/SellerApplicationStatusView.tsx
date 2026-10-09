@@ -146,7 +146,7 @@ export const SellerApplicationStatusView: React.FC<SellerApplicationStatusViewPr
           </View>
 
           <Text style={styles.statusCardDescription}>
-            Your seller application has been submitted and is currently being audited by the Mitreno compliance team.
+            Your seller application has been submitted and is currently being audited by the Nvilar compliance team.
           </Text>
 
           <View style={styles.reviewTimePill}>

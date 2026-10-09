@@ -64,7 +64,10 @@ interface ShopData {
 
 interface DashboardMetrics {
   total_revenue: number;
+  net_earnings?: number;
+  pending_revenue?: number;
   total_orders: number;
+  active_orders?: number;
   new_orders: number;
   processing_orders: number;
   shipped_orders: number;
@@ -400,59 +403,66 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
               )}
 
               {/* KPI Metrics Grid (Compact Height, Crisp 3D Shadow Depth & High Contrast) */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                {/* 1. Total Revenue */}
-                <div className="py-2.5 px-3.5 sm:py-3 sm:px-4 rounded-2xl bg-white border border-neutral-200/90 shadow-[0_4px_16px_-2px_rgba(0,0,0,0.06),0_2px_4px_-1px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_-4px_rgba(0,0,0,0.12),0_4px_8px_-2px_rgba(0,0,0,0.05)] transition-all duration-200 relative overflow-hidden group hover:-translate-y-0.5">
-                  <div className="flex items-center justify-between text-neutral-500 mb-1">
-                    <span className="text-xs font-bold text-neutral-600">Total Revenue</span>
-                    <div className="w-6.5 h-6.5 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 shadow-xs">
-                      <TrendingUp className="w-3.5 h-3.5 stroke-[2.5]" />
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 antialiased">
+                {/* 1. Total Revenue (Synced from Analytics Delivered Net Sales) */}
+                <div
+                  onClick={() => setActiveTab('analytics')}
+                  className="py-3 px-4 rounded-2xl bg-white border border-neutral-200/90 hover:border-emerald-400 shadow-[0_4px_16px_-2px_rgba(0,0,0,0.06),0_2px_4px_-1px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_-4px_rgba(0,0,0,0.12),0_4px_8px_-2px_rgba(0,0,0,0.05)] cursor-pointer transition-all duration-200 relative overflow-hidden group hover:-translate-y-0.5"
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-sm font-extrabold text-neutral-900 tracking-tight">Total Revenue</span>
+                    <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center group-hover:scale-110 transition-transform shrink-0 shadow-xs">
+                      <TrendingUp className="w-4 h-4 stroke-[2.5]" />
                     </div>
                   </div>
-                  <div className="text-lg sm:text-xl font-black text-neutral-950 tracking-tight">
+                  <div className="text-xl sm:text-2xl font-black text-neutral-950 tracking-tight leading-tight">
                     ₹{metrics.total_revenue.toLocaleString('en-IN')}
                   </div>
-                  <div className="text-[10px] text-emerald-700 font-bold mt-0.5 flex items-center gap-1">
+                  <div className="text-xs text-emerald-700 font-bold mt-1 flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    <span>Direct UPI Payouts</span>
+                    <span>{metrics.delivered_orders} Delivered • Direct UPI Payouts</span>
                   </div>
                 </div>
 
                 {/* 2. New Orders */}
                 <div 
                   onClick={() => setActiveTab('orders')}
-                  className="py-2.5 px-3.5 sm:py-3 sm:px-4 rounded-2xl bg-white border border-neutral-200/90 hover:border-amber-400 shadow-[0_4px_16px_-2px_rgba(0,0,0,0.06),0_2px_4px_-1px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_-4px_rgba(0,0,0,0.12),0_4px_8px_-2px_rgba(0,0,0,0.05)] cursor-pointer transition-all duration-200 relative overflow-hidden group hover:-translate-y-0.5"
+                  className="py-3 px-4 rounded-2xl bg-white border border-neutral-200/90 hover:border-amber-400 shadow-[0_4px_16px_-2px_rgba(0,0,0,0.06),0_2px_4px_-1px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_-4px_rgba(0,0,0,0.12),0_4px_8px_-2px_rgba(0,0,0,0.05)] cursor-pointer transition-all duration-200 relative overflow-hidden group hover:-translate-y-0.5"
                 >
-                  <div className="flex items-center justify-between text-neutral-500 mb-1">
-                    <span className="text-xs font-bold text-neutral-600">New Orders</span>
-                    <div className="w-6.5 h-6.5 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center group-hover:scale-110 transition-transform shrink-0 shadow-xs">
-                      <Package className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-sm font-extrabold text-neutral-900 tracking-tight">New Orders</span>
+                    <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center group-hover:scale-110 transition-transform shrink-0 shadow-xs">
+                      <Package className="w-4 h-4 stroke-[2.5]" />
                     </div>
                   </div>
-                  <div className="text-lg sm:text-xl font-black text-neutral-950 tracking-tight">
+                  <div className="text-xl sm:text-2xl font-black text-neutral-950 tracking-tight leading-tight">
                     {metrics.new_orders}
                   </div>
-                  <div className="text-[10px] text-indigo-700 font-bold mt-0.5 flex items-center gap-1">
-                    <span>{metrics.new_orders > 0 ? 'Action required' : 'All clear'}</span>
-                    <ArrowUpRight className="w-3 h-3" />
+                  <div className="text-xs text-indigo-700 font-bold mt-1 flex items-center gap-1">
+                    <span>
+                      {metrics.new_orders > 0
+                        ? `${metrics.active_orders ?? (metrics.new_orders + metrics.processing_orders + metrics.shipped_orders)} pending • Action required`
+                        : 'All clear'}
+                    </span>
+                    <ArrowUpRight className="w-3.5 h-3.5" />
                   </div>
                 </div>
 
                 {/* 3. Total Products */}
                 <div 
                   onClick={() => setActiveTab('products')}
-                  className="py-2.5 px-3.5 sm:py-3 sm:px-4 rounded-2xl bg-white border border-neutral-200/90 hover:border-neutral-300 shadow-[0_4px_16px_-2px_rgba(0,0,0,0.06),0_2px_4px_-1px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_-4px_rgba(0,0,0,0.12),0_4px_8px_-2px_rgba(0,0,0,0.05)] cursor-pointer transition-all duration-200 relative overflow-hidden group hover:-translate-y-0.5"
+                  className="py-3 px-4 rounded-2xl bg-white border border-neutral-200/90 hover:border-neutral-300 shadow-[0_4px_16px_-2px_rgba(0,0,0,0.06),0_2px_4px_-1px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_-4px_rgba(0,0,0,0.12),0_4px_8px_-2px_rgba(0,0,0,0.05)] cursor-pointer transition-all duration-200 relative overflow-hidden group hover:-translate-y-0.5"
                 >
-                  <div className="flex items-center justify-between text-neutral-500 mb-1">
-                    <span className="text-xs font-bold text-neutral-600">Catalog Items</span>
-                    <div className="w-6.5 h-6.5 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 shadow-xs">
-                      <ShoppingBag className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-sm font-extrabold text-neutral-900 tracking-tight">Catalog Items</span>
+                    <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 shadow-xs">
+                      <ShoppingBag className="w-4 h-4 stroke-[2.5]" />
                     </div>
                   </div>
-                  <div className="text-lg sm:text-xl font-black text-neutral-950 tracking-tight">
+                  <div className="text-xl sm:text-2xl font-black text-neutral-950 tracking-tight leading-tight">
                     {metrics.total_products}
                   </div>
-                  <div className="text-[10px] text-neutral-600 font-semibold mt-0.5">
+                  <div className="text-xs text-neutral-600 font-bold mt-1">
                     {metrics.active_products} active in store
                   </div>
                 </div>
@@ -460,18 +470,18 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                 {/* 4. Customer Rating */}
                 <div 
                   onClick={() => setActiveTab('profile')}
-                  className="py-2.5 px-3.5 sm:py-3 sm:px-4 rounded-2xl bg-white border border-neutral-200/90 hover:border-neutral-300 shadow-[0_4px_16px_-2px_rgba(0,0,0,0.06),0_2px_4px_-1px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_-4px_rgba(0,0,0,0.12),0_4px_8px_-2px_rgba(0,0,0,0.05)] cursor-pointer transition-all duration-200 relative overflow-hidden group hover:-translate-y-0.5"
+                  className="py-3 px-4 rounded-2xl bg-white border border-neutral-200/90 hover:border-neutral-300 shadow-[0_4px_16px_-2px_rgba(0,0,0,0.06),0_2px_4px_-1px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_-4px_rgba(0,0,0,0.12),0_4px_8px_-2px_rgba(0,0,0,0.05)] cursor-pointer transition-all duration-200 relative overflow-hidden group hover:-translate-y-0.5"
                 >
-                  <div className="flex items-center justify-between text-neutral-500 mb-1">
-                    <span className="text-xs font-bold text-neutral-600">Store Rating</span>
-                    <div className="w-6.5 h-6.5 rounded-lg bg-yellow-100 text-yellow-800 flex items-center justify-center shrink-0 shadow-xs">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-sm font-extrabold text-neutral-900 tracking-tight">Store Rating</span>
+                    <div className="w-7 h-7 rounded-lg bg-yellow-100 text-yellow-800 flex items-center justify-center shrink-0 shadow-xs">
                       ⭐
                     </div>
                   </div>
-                  <div className="text-lg sm:text-xl font-black text-neutral-950 tracking-tight">
+                  <div className="text-xl sm:text-2xl font-black text-neutral-950 tracking-tight leading-tight">
                     {shop?.rating !== undefined && shop?.rating !== null ? Number(shop.rating).toFixed(1) : '0.0'}
                   </div>
-                  <div className="text-[10px] text-neutral-600 font-semibold mt-0.5">
+                  <div className="text-xs text-neutral-600 font-bold mt-1">
                     {shop?.review_count ?? 0} customer reviews
                   </div>
                 </div>
@@ -760,7 +770,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
         isOpen={showWelcomeModal}
         onClose={() => setShowWelcomeModal(false)}
         shopName={shop?.name || 'Your Boutique'}
-        cityName={shop?.city || 'Mitreno'}
+        cityName={shop?.city || 'Nvilar'}
         onGetStarted={handleFinishOnboarding}
       />
 

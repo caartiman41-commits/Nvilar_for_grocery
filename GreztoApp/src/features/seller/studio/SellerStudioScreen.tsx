@@ -49,17 +49,68 @@ export const SellerStudioScreen: React.FC = memo(() => {
     }
   }, [isAuthenticated, user, fetchSellerStudioDataFromBackend]);
 
-  if (!isAuthenticated || !user) {
-    return null;
-  }
+  const [deepLinkConvId, setDeepLinkConvId] = useState<string | undefined>(
+    route?.params?.conversation_id || route?.params?.conversationId
+  );
+  const [deepLinkTapTs, setDeepLinkTapTs] = useState<number | undefined>(route?.params?._tapTs);
+  const [deepLinkOrderId, setDeepLinkOrderId] = useState<string | undefined>(
+    route?.params?.order_id || route?.params?.orderId
+  );
+  const lastConsumedTapRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
-    if (route.params?.initialTab) {
-      setActiveTab(route.params.initialTab);
-    } else if (route.params?.conversation_id || route.params?.conversationId) {
+    if (!route.params) return;
+    const incomingTab = route.params.initialTab;
+    const incomingOrderId = route.params.order_id || route.params.orderId;
+    const incomingConvId = route.params.conversation_id || route.params.conversationId;
+    const incomingTapTs = route.params._tapTs;
+
+    if (!incomingTab && !incomingOrderId && !incomingConvId) return;
+
+    const tapKey = `${incomingTab || ''}_${incomingConvId || ''}_${incomingOrderId || ''}_${incomingTapTs || 'init'}`;
+    if (lastConsumedTapRef.current === tapKey) return;
+    lastConsumedTapRef.current = tapKey;
+
+    if (incomingConvId) {
+      setDeepLinkConvId(incomingConvId);
+      setDeepLinkTapTs(incomingTapTs || Date.now());
       setActiveTab('chat');
+      fetchSellerStudioDataFromBackend();
+    } else if (incomingOrderId) {
+      setDeepLinkOrderId(incomingOrderId);
+      setActiveTab('orders');
+      fetchSellerStudioDataFromBackend();
+    } else if (incomingTab) {
+      setActiveTab(incomingTab);
+      fetchSellerStudioDataFromBackend();
     }
-  }, [route.params]);
+
+    // Clear route params immediately so pressing Back never re-triggers this deep-link
+    try {
+      navigation.setParams({
+        initialTab: undefined,
+        conversation_id: undefined,
+        conversationId: undefined,
+        order_id: undefined,
+        orderId: undefined,
+        _tapTs: undefined,
+      });
+    } catch {}
+  }, [
+    route.params,
+    route.params?.initialTab,
+    route.params?.order_id,
+    route.params?.orderId,
+    route.params?.conversation_id,
+    route.params?.conversationId,
+    route.params?._tapTs,
+    fetchSellerStudioDataFromBackend,
+    navigation,
+  ]);
+
+  const handleConsumeInitialConversation = useCallback(() => {
+    setDeepLinkConvId(undefined);
+  }, []);
 
   const handleSwitchToBuyerApp = useCallback(() => {
     exitStudioMode();
@@ -86,6 +137,10 @@ export const SellerStudioScreen: React.FC = memo(() => {
     setActiveTab('profile');
   }, []);
 
+  if (!isAuthenticated || !user) {
+    return null;
+  }
+
   // Compute live badges
   const pendingOrdersCount = orders.filter((o) => o.status === 'new').length;
   const unreadMessagesCount = conversations.reduce((acc, c) => acc + c.unreadCount, 0);
@@ -104,14 +159,18 @@ export const SellerStudioScreen: React.FC = memo(() => {
           />
         )}
         {activeTab === 'orders' && (
-          <StudioOrdersTab />
+          <StudioOrdersTab
+            initialOrderId={deepLinkOrderId}
+          />
         )}
         {activeTab === 'catalog' && (
           <StudioCatalogTab />
         )}
         {activeTab === 'chat' && (
           <StudioChatTab
-            initialConversationId={route?.params?.conversation_id || route?.params?.conversationId}
+            initialConversationId={deepLinkConvId}
+            tapTimestamp={deepLinkTapTs}
+            onConsumeInitialConversation={handleConsumeInitialConversation}
           />
         )}
         {activeTab === 'profile' && (

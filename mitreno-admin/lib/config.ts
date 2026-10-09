@@ -12,6 +12,6 @@ export const getBackendUrl = () => {
     }
   }
   // Fallback for production
-  return 'https://api.mitreno.com';
+  return 'https://api.nvilar.com';
 };
 

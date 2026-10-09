@@ -47,7 +47,7 @@ export const SellerStepIndicator: React.FC<SellerStepIndicatorProps> = memo(({
 
         <View style={styles.brandTitleCol}>
           <View style={styles.brandRow}>
-            <Text style={styles.brandName}>Mitreno Seller</Text>
+            <Text style={styles.brandName}>Nvilar Seller</Text>
             <View style={styles.partnerBadge}>
               <Text style={styles.partnerBadgeText}>PARTNER</Text>
             </View>

@@ -123,7 +123,7 @@ func (rc *ReelsController) GetPresignedUploadURL(c *fiber.Ctx) error {
 	// S3/R2 compatible presigned URL format
 	publicURL := rc.cfg.R2PublicURL
 	if publicURL == "" {
-		publicURL = "https://media.mitreno.com"
+		publicURL = "https://media.nvilar.com"
 	}
 
 	destinationURL := fmt.Sprintf("%s/reels/%s", publicURL, req.FileName)

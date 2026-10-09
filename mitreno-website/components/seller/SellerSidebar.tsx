@@ -185,7 +185,7 @@ export const SellerSidebar: React.FC<SellerSidebarProps> = ({
                   className="w-full h-full object-cover"
                 />
               ) : (
-                shop.name?.slice(0, 2).toUpperCase() || 'MT'
+                shop.name?.slice(0, 2).toUpperCase() || 'NV'
               )}
             </div>
             {shop.is_verified && (
@@ -266,7 +266,7 @@ export const SellerSidebar: React.FC<SellerSidebarProps> = ({
                       }
                     }}
                     className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition-all cursor-pointer shadow-2xs active:scale-95"
-                    title="Mitreno Pro Active • Click to Manage Plan"
+                    title="Nvilar Pro Active • Click to Manage Plan"
                   >
                     PRO
                   </div>
@@ -310,7 +310,7 @@ export const SellerSidebar: React.FC<SellerSidebarProps> = ({
           className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-neutral-50 hover:bg-neutral-100 text-neutral-600 hover:text-neutral-950 text-xs font-semibold border border-neutral-200 transition-colors shadow-[0_2px_8px_-7px_rgba(15,23,42,0.45)]"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Back to Mitreno App</span>
+          <span>Back to Nvilar App</span>
         </button>
       </div>
     </aside>

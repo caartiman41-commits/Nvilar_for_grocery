@@ -1117,7 +1117,7 @@ export default function OrdersSettlementsPage() {
                       <span className="font-bold font-mono">₹{selectedOrder.grossAmount.toLocaleString('en-IN')}</span>
                     </div>
                     <div className="flex justify-between text-indigo-700">
-                      <span>Mitreno Platform Fee (Retained 7.5%):</span>
+                      <span>Nvilar Platform Fee (Retained 7.5%):</span>
                       <span className="font-bold font-mono">- ₹{selectedOrder.platformFee.toLocaleString('en-IN')}</span>
                     </div>
                     <div className="border-t border-neutral-200 pt-2 flex justify-between font-bold text-sm text-neutral-900">

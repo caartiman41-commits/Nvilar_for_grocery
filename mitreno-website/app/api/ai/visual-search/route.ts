@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       parts.push({
         text: `Analyze this fashion garment / outfit photo in high detail.
 1. Identify garment category, silhouette, collar type, color tone, fabric weave estimation, and stylistic mood.
-2. Compare with Mitreno's catalog items and return the most similar matches.
+2. Compare with Nvilar's catalog items and return the most similar matches.
 
 Catalog:
 ${JSON.stringify(catalogSummary, null, 2)}

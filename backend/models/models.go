@@ -233,6 +233,8 @@ type Product struct {
 	Fabric          string           `gorm:"size:100;default:'Premium Blend'" json:"fabric"`
 	GSM             int              `gorm:"default:220" json:"gsm"`
 	Fit             string           `gorm:"size:60;default:'Aero-Fit'" json:"fit"`
+	MinOrderQuantity int             `gorm:"default:6" json:"min_order_quantity"` // Wholesale Minimum Order Quantity (Pieces per Set)
+	SetRatio        string           `gorm:"size:100;default:'S:1,M:2,L:2,XL:1'" json:"set_ratio"`
 	IsActive        bool             `gorm:"default:true" json:"is_active"`
 	CreatedAt       time.Time        `json:"created_at"`
 	UpdatedAt       time.Time        `json:"updated_at"`
@@ -577,4 +579,54 @@ type UserAddress struct {
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 }
+
+// PayoutSupportTicket tracks seller payout inquiries and settlement disputes with embedded live chat
+type PayoutSupportTicket struct {
+	ID           string                `gorm:"primaryKey;size:64" json:"id"`
+	ShopID       string                `gorm:"size:255;not null;index" json:"shop_id"`
+	ShopName     string                `gorm:"size:255" json:"shop_name"`
+	SellerID     string                `gorm:"size:255;index" json:"seller_id"`
+	OrderID      string                `gorm:"size:100;index" json:"order_id"`
+	Amount       int                   `gorm:"default:0" json:"amount"`
+	Category     string                `gorm:"size:80;default:'payout_delay'" json:"category"` // payout_delay, commission_query, bank_upi_issue, other
+	Subject      string                `gorm:"size:255;not null" json:"subject"`
+	Status       string                `gorm:"size:40;default:'open';index" json:"status"` // open, in_progress, resolved
+	UTRReference string                `gorm:"size:120" json:"utr_reference"`
+	PayoutUpiID  string                `gorm:"size:120" json:"payout_upi_id"`
+	CreatedAt    time.Time             `json:"created_at"`
+	UpdatedAt    time.Time             `json:"updated_at"`
+	Messages     []PayoutTicketMessage `gorm:"foreignKey:TicketID" json:"messages,omitempty"`
+}
+
+// PayoutTicketMessage represents a live 2-way chat message inside a PayoutSupportTicket
+type PayoutTicketMessage struct {
+	ID         string    `gorm:"primaryKey;size:64" json:"id"`
+	TicketID   string    `gorm:"size:64;not null;index" json:"ticket_id"`
+	SenderRole string    `gorm:"size:30;not null" json:"sender_role"` // seller, admin
+	SenderName string    `gorm:"size:120" json:"sender_name"`
+	Message    string    `gorm:"type:text;not null" json:"message"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+// DailyPayoutSettlement stores admin-settled daily payouts and official receipts per shop and date
+type DailyPayoutSettlement struct {
+	ID            string    `gorm:"primaryKey;size:64" json:"id"`
+	ShopID        string    `gorm:"size:255;not null;index" json:"shop_id"`
+	ShopName      string    `gorm:"size:255" json:"shop_name"`
+	PayoutDate    string    `gorm:"size:20;not null;index" json:"payout_date"` // YYYY-MM-DD
+	OrdersCount   int       `gorm:"default:0" json:"orders_count"`
+	GrossSales    int       `gorm:"default:0" json:"gross_sales"`
+	CommissionFee int       `gorm:"default:0" json:"commission_fee"`
+	NetPayout     int       `gorm:"default:0" json:"net_payout"`
+	Status        string    `gorm:"size:30;default:'paid';index" json:"status"` // paid, processing, pending
+	ReceiptID     string    `gorm:"size:64" json:"receipt_id"`
+	UTRReference  string    `gorm:"size:120" json:"utr_reference"`
+	PayoutUpiID   string    `gorm:"size:120" json:"payout_upi_id"`
+	PaidByAdmin   string    `gorm:"size:120" json:"paid_by_admin"`
+	PaidAt        time.Time `json:"paid_at"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+
 

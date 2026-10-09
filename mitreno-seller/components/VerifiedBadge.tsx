@@ -6,7 +6,7 @@ export const VerifiedBadge = ({ size, className = "w-4 h-4" }: { size?: number; 
   return (
     <span 
       className={`inline-flex items-center justify-center shrink-0 ${className}`} 
-      title="Mitreno Certified Boutique"
+      title="Nvilar Certified Boutique"
       style={size ? { width: size, height: size } : undefined}
     >
       <svg viewBox="0 0 24 24" fill="none" className="w-full h-full drop-shadow-[0_1px_3px_rgba(18,70,184,0.35)]">

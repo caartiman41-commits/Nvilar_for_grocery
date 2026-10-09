@@ -39,12 +39,13 @@ func (ac *AuthController) SyncUser(c *fiber.Ctx) error {
 		})
 	}
 
-	// 1. Get raw UID from token via middleware
+	// 1. Get raw UID and canonical userID from middleware
 	rawUID, _ := c.Locals("rawUID").(string)
+	canonicalUID, _ := c.Locals("userID").(string)
 	if rawUID == "" {
-		rawUID, _ = c.Locals("userID").(string)
+		rawUID = canonicalUID
 	}
-	if rawUID == "" {
+	if rawUID == "" && req.FCMToken == "" && req.Phone == "" {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"success": false,
 			"error":   "Unauthorized: UID missing",
@@ -56,17 +57,7 @@ func (ac *AuthController) SyncUser(c *fiber.Ctx) error {
 	if phoneStr != "" {
 		req.Phone = phoneStr // Prefer verified phone from token
 	}
-
 	normPhone := middleware.NormalizePhone(req.Phone)
-	if normPhone == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"success": false,
-			"error":   "Phone number is required",
-		})
-	}
-
-	phone := normPhone
-	uid := rawUID
 
 	db := config.DB
 	if db == nil {
@@ -76,13 +67,41 @@ func (ac *AuthController) SyncUser(c *fiber.Ctx) error {
 		})
 	}
 
-	// 3. Decoupled Identity Lookup:
-	// Find user strictly by canonical Phone Number or existing FirebaseUID
+	// 3. Decoupled Identity Lookup (prioritize canonical usr_% row):
 	var existingUser models.User
 	userFound := false
-	if err := db.Where("phone = ? OR firebase_uid = ?", phone, uid).First(&existingUser).Error; err == nil {
-		userFound = true
+	if normPhone != "" && rawUID != "" {
+		if err := db.Where("id = ? OR id = ? OR firebase_uid = ? OR phone = ?", canonicalUID, rawUID, rawUID, normPhone).
+			Order("CASE WHEN id LIKE 'usr_%' THEN 0 ELSE 1 END").
+			First(&existingUser).Error; err == nil {
+			userFound = true
+		}
+	} else if rawUID != "" {
+		if err := db.Where("id = ? OR id = ? OR firebase_uid = ?", canonicalUID, rawUID, rawUID).
+			Order("CASE WHEN id LIKE 'usr_%' THEN 0 ELSE 1 END").
+			First(&existingUser).Error; err == nil {
+			userFound = true
+		}
+	} else if normPhone != "" {
+		if err := db.Where("phone = ?", normPhone).
+			Order("CASE WHEN id LIKE 'usr_%' THEN 0 ELSE 1 END").
+			First(&existingUser).Error; err == nil {
+			userFound = true
+		}
 	}
+
+	if !userFound && normPhone == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   "Phone number is required",
+		})
+	}
+
+	phone := normPhone
+	if phone == "" && userFound {
+		phone = existingUser.Phone
+	}
+	uid := rawUID
 
 	// Strict Dual-Branch Gatekeeper Enforcement:
 	if req.Action == "create" && userFound {
@@ -107,11 +126,13 @@ func (ac *AuthController) SyncUser(c *fiber.Ctx) error {
 	if userFound {
 		// Existing User! Their internal user.ID is IMMUTABLE and NEVER CHANGED.
 		user = existingUser
-		user.FirebaseUID = &uid
+		if uid != "" && !strings.HasPrefix(uid, "usr_") {
+			user.FirebaseUID = &uid
+		}
 		if phone != "" {
 			user.Phone = phone
 		}
-		if req.FullName != "" && req.FullName != "Mitreno Member" && req.FullName != "Grezto Member" {
+		if req.FullName != "" && req.FullName != "Nvilar Member" && req.FullName != "Grezto Member" {
 			user.FullName = req.FullName
 		}
 		if req.Email != nil && *req.Email != "" {
@@ -149,7 +170,7 @@ func (ac *AuthController) SyncUser(c *fiber.Ctx) error {
 
 		name := req.FullName
 		if name == "" {
-			name = "Mitreno Member"
+			name = "Nvilar Member"
 		}
 
 		tokens := []string{}
@@ -435,7 +456,7 @@ func (ac *AuthController) TruecallerAuth(c *fiber.Ctx) error {
 	var user models.User
 	if userFound {
 		user = existingUser
-		if req.FullName != "" && req.FullName != "Mitreno Member" && req.FullName != "Grezto Member" {
+		if req.FullName != "" && req.FullName != "Nvilar Member" && req.FullName != "Grezto Member" {
 			user.FullName = req.FullName
 		}
 		if req.FCMToken != "" {
@@ -455,7 +476,7 @@ func (ac *AuthController) TruecallerAuth(c *fiber.Ctx) error {
 		permanentID := fmt.Sprintf("usr_%s", strings.ReplaceAll(uuid.New().String(), "-", "")[:16])
 		name := req.FullName
 		if name == "" {
-			name = "Mitreno Member"
+			name = "Nvilar Member"
 		}
 		tokens := []string{}
 		if req.FCMToken != "" {

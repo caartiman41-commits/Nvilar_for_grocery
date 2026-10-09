@@ -66,6 +66,15 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
+        <intent-filter>
+            <action android:name="OPEN_SELLER_CHAT" />
+            <action android:name="OPEN_BUYER_CHAT" />
+            <action android:name="OPEN_ORDER_DETAILS" />
+            <action android:name="OPEN_SELLER_ORDERS" />
+            <action android:name="OPEN_BUYER_ORDERS" />
+            <action android:name="FLUTTER_NOTIFICATION_CLICK" />
+            <category android:name="android.intent.category.DEFAULT" />
+        </intent-filter>
       </activity>
 
       <!-- Rich E-Commerce Promo Push Notification Receiver with Action Buttons -->

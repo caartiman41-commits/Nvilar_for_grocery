@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"mitreno-backend/config"
+	"mitreno-backend/middleware"
 	"mitreno-backend/models"
 
 	"github.com/gofiber/fiber/v2"
@@ -42,9 +43,13 @@ func (pc *ProductController) ListProducts(c *fiber.Ctx) error {
 		}
 	}
 
+	if userID != "" {
+		userID = middleware.ResolveCanonicalUserID(db, userID)
+	}
+
 	if shopID == "" && userID != "" {
 		var shop models.Shop
-		if err := db.Where("owner_id = ?", userID).First(&shop).Error; err == nil {
+		if err := db.Where("owner_id = ?", userID).Order("created_at ASC").First(&shop).Error; err == nil {
 			shopID = shop.ID
 		}
 	}
@@ -60,9 +65,6 @@ func (pc *ProductController) ListProducts(c *fiber.Ctx) error {
 	} else if status == "out_of_stock" {
 		query = query.Where("is_active = ?", false)
 	}
-	// NOTE: For public storefront (no shopID, no status filter), we return ALL products
-	// including out-of-stock ones. The frontend marks them with isOutOfStock=true
-	// and shows an "Out of Stock" badge — they remain visible but cannot be ordered.
 
 	if category := c.Query("category"); category != "" && category != "all" {
 		query = query.Where("category ILIKE ?", "%"+category+"%")
@@ -74,7 +76,6 @@ func (pc *ProductController) ListProducts(c *fiber.Ctx) error {
 
 	// Preload Shop and Variants for rich response
 	if err := query.Preload("Shop").Preload("Variants").Order("created_at desc").Find(&products).Error; err != nil {
-		// Fallback query if preloading fails
 		var fallbackProducts []models.Product
 		qFallback := db.Order("created_at desc")
 		if shopID != "" {
@@ -95,12 +96,16 @@ func (pc *ProductController) ListProducts(c *fiber.Ctx) error {
 	var outCount int64 = 0
 
 	countQuery := db.Model(&models.Product{})
+	activeQuery := db.Model(&models.Product{}).Where("is_active = ?", true)
+	outQuery := db.Model(&models.Product{}).Where("is_active = ?", false)
 	if shopID != "" {
 		countQuery = countQuery.Where("shop_id = ?", shopID)
+		activeQuery = activeQuery.Where("shop_id = ?", shopID)
+		outQuery = outQuery.Where("shop_id = ?", shopID)
 	}
 	countQuery.Count(&totalCount)
-	db.Model(&models.Product{}).Where("shop_id = ? AND is_active = ?", shopID, true).Count(&activeCount)
-	db.Model(&models.Product{}).Where("shop_id = ? AND is_active = ?", shopID, false).Count(&outCount)
+	activeQuery.Count(&activeCount)
+	outQuery.Count(&outCount)
 
 	return c.JSON(fiber.Map{
 		"success":  true,
@@ -166,6 +171,8 @@ func (pc *ProductController) CreateProduct(c *fiber.Ctx) error {
 		Fabric        string             `json:"fabric"`
 		GSM           int                `json:"gsm"`
 		Fit           string             `json:"fit"`
+		MinOrderQuantity int             `json:"min_order_quantity"`
+		SetRatio         string          `json:"set_ratio"`
 		IsActive      *bool              `json:"is_active"`
 		Variants      []CreateVariantReq `json:"variants"`
 	}
@@ -205,8 +212,8 @@ func (pc *ProductController) CreateProduct(c *fiber.Ctx) error {
 		userID = headerUid
 	}
 
-	if userID == "" {
-		userID = "usr_ashraf_01"
+	if userID != "" {
+		userID = middleware.ResolveCanonicalUserID(db, userID)
 	}
 
 	targetShopID := req.ShopID
@@ -215,27 +222,22 @@ func (pc *ProductController) CreateProduct(c *fiber.Ctx) error {
 			targetShopID = s
 		}
 	}
-	if targetShopID == "" {
+	if targetShopID != "" && userID != "" {
+		var verifyShop models.Shop
+		if err := db.Where("id = ? AND owner_id = ?", targetShopID, userID).First(&verifyShop).Error; err != nil {
+			targetShopID = ""
+		}
+	}
+	if targetShopID == "" && userID != "" {
 		var shop models.Shop
-		if err := db.Where("owner_id = ?", userID).First(&shop).Error; err == nil {
+		if err := db.Where("owner_id = ?", userID).Order("created_at ASC").First(&shop).Error; err == nil {
 			targetShopID = shop.ID
 		}
 	}
 	if targetShopID == "" {
-		targetShopID = "shop_KD56AHEq_42723"
-	}
-
-	// Ensure target shop exists in database to avoid foreign key violations
-	var shopCount int64
-	db.Model(&models.Shop{}).Where("id = ?", targetShopID).Count(&shopCount)
-	if shopCount == 0 {
-		db.Create(&models.Shop{
-			ID:         targetShopID,
-			OwnerID:    userID,
-			Name:       "Mitreno Boutique",
-			Bio:        "Premium designer apparel.",
-			IsVerified: true,
-			Status:     "active",
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"success": false,
+			"error":   "Authenticated boutique shop required to list products",
 		})
 	}
 
@@ -249,22 +251,33 @@ func (pc *ProductController) CreateProduct(c *fiber.Ctx) error {
 		isActive = *req.IsActive
 	}
 
+	minOrder := req.MinOrderQuantity
+	if minOrder <= 0 {
+		minOrder = 6
+	}
+	setRatio := req.SetRatio
+	if setRatio == "" {
+		setRatio = "S:1,M:2,L:2,XL:1"
+	}
+
 	productID := "prod_" + uuid.New().String()[:8]
 	product := models.Product{
-		ID:              productID,
-		ShopID:          targetShopID,
-		Name:            req.Name,
-		Description:     req.Description,
-		Category:        req.Category,
-		BasePrice:       req.BasePrice,
-		OriginalPrice:   req.OriginalPrice,
-		DiscountPercent: discountPercent,
-		Thumbnail:       req.Thumbnail,
-		GalleryImages:   req.GalleryImages,
-		Fabric:          req.Fabric,
-		GSM:             req.GSM,
-		Fit:             req.Fit,
-		IsActive:        isActive,
+		ID:               productID,
+		ShopID:           targetShopID,
+		Name:             req.Name,
+		Description:      req.Description,
+		Category:         req.Category,
+		BasePrice:        req.BasePrice,
+		OriginalPrice:    req.OriginalPrice,
+		DiscountPercent:  discountPercent,
+		Thumbnail:        req.Thumbnail,
+		GalleryImages:    req.GalleryImages,
+		Fabric:           req.Fabric,
+		GSM:              req.GSM,
+		Fit:              req.Fit,
+		MinOrderQuantity: minOrder,
+		SetRatio:         setRatio,
+		IsActive:         isActive,
 	}
 
 	if err := db.Create(&product).Error; err != nil {
@@ -321,6 +334,8 @@ func (pc *ProductController) UpdateProduct(c *fiber.Ctx) error {
 		Fabric        string             `json:"fabric"`
 		GSM           int                `json:"gsm"`
 		Fit           string             `json:"fit"`
+		MinOrderQuantity int             `json:"min_order_quantity"`
+		SetRatio         string          `json:"set_ratio"`
 		IsActive      *bool              `json:"is_active"`
 		Variants      []UpdateVariantReq `json:"variants"`
 	}
@@ -365,6 +380,12 @@ func (pc *ProductController) UpdateProduct(c *fiber.Ctx) error {
 	}
 	if req.Fit != "" {
 		product.Fit = req.Fit
+	}
+	if req.MinOrderQuantity > 0 {
+		product.MinOrderQuantity = req.MinOrderQuantity
+	}
+	if req.SetRatio != "" {
+		product.SetRatio = req.SetRatio
 	}
 	if req.IsActive != nil {
 		product.IsActive = *req.IsActive

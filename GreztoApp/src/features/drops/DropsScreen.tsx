@@ -39,8 +39,8 @@ interface ReelItem {
 const REELS_DATA: ReelItem[] = [
   {
     id: 'reel_1',
-    boutiqueName: 'Mitreno.com',
-    boutiqueHandle: '@mitreno.official',
+    boutiqueName: 'Nvilar.com',
+    boutiqueHandle: '@nvilar.official',
     caption: 'New drop is live! 🌟 Check out our latest collection. Tap to buy 👇',
     videoImage: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=900&auto=format&fit=crop&q=80',
     productTitle: 'OVERSIZED STREETWEAR HOODIE',
@@ -150,7 +150,7 @@ export const DropsScreen = memo(() => {
   const handleShare = async (reel: ReelItem) => {
     try {
       await Share.share({
-        message: `Check out ${reel.productTitle} from ${reel.boutiqueName} on Mitreno Drops! Available now at ${formatINR(reel.productPrice)}.`,
+        message: `Check out ${reel.productTitle} from ${reel.boutiqueName} on Nvilar Drops! Available now at ${formatINR(reel.productPrice)}.`,
       });
     } catch {
       // Ignore dismiss

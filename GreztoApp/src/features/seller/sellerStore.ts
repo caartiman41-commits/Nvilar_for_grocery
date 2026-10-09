@@ -34,6 +34,8 @@ export interface SellerState {
   orders: StudioOrderItem[];
   conversations: StudioConversation[];
   profile: BoutiqueProfile;
+  dashboardMetrics: any | null;
+  analyticsData: any | null;
 
   // Actions
   submitApplication: (data: SellerApplicationData, customId?: string) => void;
@@ -78,19 +80,36 @@ export interface SellerState {
   // Backend Sync Actions
   syncSellerStatusFromBackend: () => Promise<void>;
   fetchSellerStudioDataFromBackend: () => Promise<void>;
+  fetchSellerAnalyticsFromBackend: (timeframe?: string) => Promise<any | null>;
 }
 
 /**
- * Normalizes backend status strings (e.g. accepted, processing, placed) to strict OrderStatus union.
+ * Normalizes backend status strings (checking both seller_status and order_status) to strict OrderStatus union.
  */
-export const normalizeSellerStatus = (rawStatus?: string): OrderStatus => {
-  if (!rawStatus) return 'new';
-  const s = rawStatus.toLowerCase().trim();
-  if (s === 'packaging' || s === 'accepted' || s === 'processing') return 'packaging';
-  if (s === 'shipped' || s === 'dispatched' || s === 'out_for_delivery' || s === 'in_transit') return 'shipped';
-  if (s === 'delivered' || s === 'completed') return 'delivered';
-  if (s === 'returned' || s === 'rto' || s === 'return_requested' || s === 'return_rejected') return 'returned';
-  if (s === 'cancelled' || s === 'rejected') return 'cancelled';
+export const normalizeSellerStatus = (rawSellerStatus?: string, rawOrderStatus?: string): OrderStatus => {
+  const s = (rawSellerStatus || '').toLowerCase().trim();
+  const o = (rawOrderStatus || '').toLowerCase().trim();
+
+  if (s === 'delivered' || s === 'completed' || o === 'delivered' || o === 'completed') return 'delivered';
+  if (s === 'cancelled' || s === 'rejected' || o === 'cancelled' || o === 'rejected') return 'cancelled';
+  if (
+    s === 'returned' || s === 'rto' || s === 'return_requested' || s === 'return_rejected' ||
+    o === 'returned' || o === 'rto' || o === 'return_requested' || o === 'return_rejected'
+  ) {
+    return 'returned';
+  }
+  if (
+    s === 'shipped' || s === 'dispatched' || s === 'out_for_delivery' || s === 'in_transit' ||
+    o === 'shipped' || o === 'dispatched' || o === 'out_for_delivery' || o === 'in_transit'
+  ) {
+    return 'shipped';
+  }
+  if (
+    s === 'packaging' || s === 'accepted' || s === 'processing' ||
+    o === 'packaging' || o === 'accepted' || o === 'processing'
+  ) {
+    return 'packaging';
+  }
   return 'new';
 };
 
@@ -142,9 +161,11 @@ export const useSellerStore = create<SellerState>()(
       isStudioModeActive: false,
 
       products: INITIAL_STUDIO_PRODUCTS,
-      orders: INITIAL_STUDIO_ORDERS,
+      orders: [],
       conversations: [],
       profile: INITIAL_BOUTIQUE_PROFILE,
+      dashboardMetrics: null,
+      analyticsData: null,
 
       submitApplication: (data: SellerApplicationData, customId?: string) => {
         const randomPart = Math.random().toString(36).substring(2, 10).toUpperCase();
@@ -241,13 +262,36 @@ export const useSellerStore = create<SellerState>()(
         }
       },
 
+      fetchSellerAnalyticsFromBackend: async (timeframe: string = 'all') => {
+        try {
+          const data = await SellerService.getSellerAnalytics(timeframe);
+          if (data && data.success) {
+            set({ analyticsData: data });
+            return data;
+          }
+          return null;
+        } catch {
+          return null;
+        }
+      },
+
       fetchSellerStudioDataFromBackend: async () => {
         try {
-          const [backendProducts, backendOrders] = await Promise.all([
+          const [backendProducts, backendOrders, backendDashboard, backendAnalytics] = await Promise.all([
             SellerService.getSellerProducts(),
             SellerService.getSellerOrders(),
+            SellerService.getSellerDashboard(),
+            SellerService.getSellerAnalytics('all'),
           ]);
-          if (backendProducts && backendProducts.length > 0) {
+
+          if (backendDashboard?.metrics) {
+            set({ dashboardMetrics: backendDashboard.metrics });
+          }
+          if (backendAnalytics?.success) {
+            set({ analyticsData: backendAnalytics });
+          }
+
+          if (Array.isArray(backendProducts) && backendProducts.length > 0) {
             const mappedProds: StudioProduct[] = backendProducts.map((bp: any) => ({
               id: bp.id,
               title: bp.name || 'Garment',
@@ -270,11 +314,12 @@ export const useSellerStore = create<SellerState>()(
             }));
             set({ products: mappedProds });
           }
-          if (backendOrders && backendOrders.length > 0) {
+          if (Array.isArray(backendOrders)) {
             const mappedOrders: StudioOrderItem[] = backendOrders.map((bo: any) => {
-              const normalizedStatus = normalizeSellerStatus(bo.seller_status || bo.order_status);
+              const normalizedStatus = normalizeSellerStatus(bo.seller_status, bo.order_status);
               const exactPlacedAt = formatExactOrderDateTime(bo.placed_at || bo.created_at);
               const cleanOrderNum = bo.order_number || (bo.id ? (bo.id.startsWith('#') ? bo.id : `#${bo.id}`) : '#ORD-8291');
+              const orderAmount = bo.total_paid || bo.total_mrp || 0;
               return {
                 id: bo.id,
                 orderNumber: cleanOrderNum,
@@ -288,45 +333,18 @@ export const useSellerStore = create<SellerState>()(
                 size: bo.items?.[0]?.size || 'M',
                 qty: bo.items?.[0]?.quantity || 1,
                 fabric: bo.items?.[0]?.fabric || 'Cotton Blend',
-                price: bo.total_paid || bo.total_mrp || 0,
-                totalSettlement: Math.round((bo.total_paid || bo.total_mrp || 0) * 0.95),
+                price: orderAmount,
+                totalSettlement: orderAmount,
                 discount: bo.total_savings || 0,
                 riderAssigned: normalizedStatus === 'shipped' || normalizedStatus === 'delivered',
                 riderName: (normalizedStatus === 'shipped' || normalizedStatus === 'delivered') ? 'Rahul (Express Fleet)' : undefined,
               };
             });
 
-            set((state) => {
-              const hierarchy: Record<OrderStatus, number> = {
-                new: 0,
-                packaging: 1,
-                shipped: 2,
-                delivered: 3,
-                returned: 4,
-                cancelled: 5,
-              };
-
-              const existingMap = new Map<string, StudioOrderItem>();
-              state.orders.forEach((o) => existingMap.set(o.id, o));
-
-              const merged = mappedOrders.map((fetched) => {
-                const local = existingMap.get(fetched.id);
-                if (local && hierarchy[local.status] > hierarchy[fetched.status] && fetched.status === 'new') {
-                  return {
-                    ...fetched,
-                    status: local.status,
-                    riderAssigned: local.riderAssigned ?? fetched.riderAssigned,
-                    riderName: local.riderName ?? fetched.riderName,
-                  };
-                }
-                return fetched;
-              });
-
-              return { orders: merged };
-            });
+            set({ orders: mappedOrders });
           }
         } catch {
-          // Keep offline mock data
+          // Keep current state on network failure
         }
       },
 
@@ -363,6 +381,8 @@ export const useSellerStore = create<SellerState>()(
           fabric: newProduct.fabric,
           gsm: parseInt(newProduct.gsm?.replace(/[^0-9]/g, '') || '240', 10),
           fit: newProduct.fit,
+          min_order_quantity: newProduct.minOrder || 6,
+          set_ratio: newProduct.setRatio || 'S:1, M:2, L:2, XL:1',
           is_active: newProduct.inStock,
           variants: (newProduct.sizes || []).map((s) => ({
             size: s.size,
@@ -402,6 +422,8 @@ export const useSellerStore = create<SellerState>()(
           fabric: updatedProduct.fabric,
           gsm: parseInt(updatedProduct.gsm?.replace(/[^0-9]/g, '') || '240', 10),
           fit: updatedProduct.fit,
+          min_order_quantity: updatedProduct.minOrder || 6,
+          set_ratio: updatedProduct.setRatio || 'S:1, M:2, L:2, XL:1',
           is_active: updatedProduct.inStock,
           variants: (updatedProduct.sizes || []).map((s) => ({
             size: s.size,
@@ -427,11 +449,15 @@ export const useSellerStore = create<SellerState>()(
           ),
         }));
 
-        // 2. Persist directly to PostgreSQL database via Go backend API
+        // 2. Persist directly to PostgreSQL database via Go backend API and refresh analytics/dashboard metrics
         const cleanId = orderId.startsWith('#') ? orderId.substring(1) : orderId;
-        SellerService.updateOrderStatus(cleanId, status).catch((err) => {
-          console.warn('[sellerStore] Failed to sync order status to backend:', err);
-        });
+        SellerService.updateOrderStatus(cleanId, status)
+          .then(() => {
+            useSellerStore.getState().fetchSellerStudioDataFromBackend().catch(() => {});
+          })
+          .catch((err) => {
+            console.warn('[sellerStore] Failed to sync order status to backend:', err);
+          });
       },
 
       assignRider: (orderId: string, riderName = 'Rahul (Express Fleet)') => {

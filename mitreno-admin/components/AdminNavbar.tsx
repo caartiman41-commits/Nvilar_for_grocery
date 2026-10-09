@@ -31,13 +31,16 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({ pendingCount = 0 }) =>
       {/* Brand & Subtitle */}
       <div className="flex items-center gap-4">
         <Link href="/" className="flex items-center gap-3 group">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center text-white font-black text-lg shadow-md shadow-indigo-500/25 group-hover:scale-105 transition-transform">
-            M
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/nvilar-icon.png"
+            alt="NVILAR"
+            className="w-9 h-9 object-contain group-hover:scale-105 transition-transform"
+          />
           <div>
             <div className="flex items-center gap-2">
               <span className="font-extrabold tracking-tight text-neutral-900 text-base">
-                MITRENO
+                NVILAR
               </span>
               <span className="text-[10px] uppercase font-extrabold tracking-widest px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
                 ADMIN CONSOLE
@@ -63,7 +66,7 @@ export const AdminNavbar: React.FC<AdminNavbarProps> = ({ pendingCount = 0 }) =>
 
         {/* View Main Store Link */}
         <a
-          href={process.env.NEXT_PUBLIC_MAIN_APP_URL || 'https://mitreno.com'}
+          href={process.env.NEXT_PUBLIC_MAIN_APP_URL || 'https://nvilar.com'}
           target="_blank"
           rel="noopener noreferrer"
           className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200/80 text-neutral-700 hover:text-neutral-900 text-xs font-semibold transition-colors border border-neutral-200 shadow-2xs"

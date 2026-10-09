@@ -47,7 +47,7 @@ export const OrderSuccessScreen = () => {
     cardScale.value = withDelay(500, withSpring(1, { damping: 14, stiffness: 120 }));
 
     try {
-      AccessibilityInfo.announceForAccessibility('Order placed successfully! Mitreno boutique is packing your order.');
+      AccessibilityInfo.announceForAccessibility('Order placed successfully! Nvilar boutique is packing your order.');
     } catch (e) {
       console.log('Accessibility announcement error:', e);
     }

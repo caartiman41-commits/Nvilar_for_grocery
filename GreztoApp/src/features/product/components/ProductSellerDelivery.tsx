@@ -169,7 +169,7 @@ export const ProductSellerDelivery: React.FC<ProductSellerDeliveryProps> = memo(
         </View>
       </View>
 
-      {/* Mitreno Full Delivery Address Modal - Lazy Mount on Demand */}
+      {/* Nvilar Full Delivery Address Modal - Lazy Mount on Demand */}
       {addressModalVisible && (
         <DeliveryAddressModal
           visible={addressModalVisible}

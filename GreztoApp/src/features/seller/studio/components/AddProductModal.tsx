@@ -98,6 +98,8 @@ export const AddProductModal: React.FC<AddProductModalProps> = memo(({
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [customUrl, setCustomUrl] = useState('');
   const [sizes, setSizes] = useState<GarmentSizeStock[]>(DEFAULT_SIZES);
+  const [minOrder, setMinOrder] = useState('6');
+  const [setRatio, setSetRatio] = useState('S:1, M:2, L:2, XL:1');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const isEditing = Boolean(productToEdit);
@@ -113,6 +115,8 @@ export const AddProductModal: React.FC<AddProductModalProps> = memo(({
         setFabric(productToEdit.fabric);
         setGsm(productToEdit.gsm);
         setFit(productToEdit.fit);
+        setMinOrder(productToEdit.minOrder ? productToEdit.minOrder.toString() : '6');
+        setSetRatio(productToEdit.setRatio || 'S:1, M:2, L:2, XL:1');
         setImageUri(productToEdit.imageUri);
         setCustomUrl(productToEdit.imageUri);
 
@@ -132,6 +136,8 @@ export const AddProductModal: React.FC<AddProductModalProps> = memo(({
         setFabric('');
         setGsm('240 GSM');
         setFit('Boxy Oversized');
+        setMinOrder('6');
+        setSetRatio('S:1, M:2, L:2, XL:1');
         setImageUri(CURATED_SAMPLE_IMAGES[0].uri);
         setCustomUrl('');
         setShowUrlInput(false);
@@ -257,6 +263,9 @@ export const AddProductModal: React.FC<AddProductModalProps> = memo(({
       return;
     }
 
+    const minOrderNum = parseInt(minOrder, 10) || 6;
+    const resolvedSetRatio = setRatio.trim() || 'S:1, M:2, L:2, XL:1';
+
     if (isEditing && productToEdit) {
       const updatedProduct: StudioProduct = {
         ...productToEdit,
@@ -268,6 +277,8 @@ export const AddProductModal: React.FC<AddProductModalProps> = memo(({
         fabric: fabric.trim(),
         gsm: gsm.trim() || '240 GSM',
         fit: fit.trim() || 'Boxy Oversized',
+        minOrder: minOrderNum,
+        setRatio: resolvedSetRatio,
         imageUri,
         sizes,
         inStock: totalStockCount > 0,
@@ -294,6 +305,8 @@ export const AddProductModal: React.FC<AddProductModalProps> = memo(({
         fabric: fabric.trim(),
         gsm: gsm.trim() || '240 GSM',
         fit: fit.trim() || 'Boxy Oversized',
+        minOrder: minOrderNum,
+        setRatio: resolvedSetRatio,
         sizes,
         isBoosted: false,
         isFlashDrop: false,
@@ -319,6 +332,8 @@ export const AddProductModal: React.FC<AddProductModalProps> = memo(({
     discountPercent,
     gsm,
     fit,
+    minOrder,
+    setRatio,
     sizes,
     totalStockCount,
     updateProduct,
@@ -353,7 +368,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = memo(({
                   {isEditing ? 'Edit Garment Piece' : 'List New Garment'}
                 </Text>
                 <Text style={styles.headerSubtitle}>
-                  Mitreno Atelier • Studio Catalog Dispatch
+                  Nvilar Atelier • Studio Catalog Dispatch
                 </Text>
               </View>
             </View>
@@ -499,6 +514,77 @@ export const AddProductModal: React.FC<AddProductModalProps> = memo(({
                   <Text style={styles.discountBadgeText}>
                     {discountPercent}% OFF • Buyer saves ₹
                     {((originalPriceNum - priceNum) || 0).toLocaleString('en-IN')}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* 3.1 Wholesale MOQ & Lot Size Ratio */}
+            <View style={styles.fieldSection}>
+              <View style={styles.fieldHeaderRow}>
+                <Text style={styles.fieldLabel}>WHOLESALE MINIMUM ORDER QUANTITY (MOQ) *</Text>
+                <Text style={styles.fieldHint}>Pieces per Set</Text>
+              </View>
+
+              {/* Quick MOQ Preset Chips */}
+              <View style={styles.moqPresetRow}>
+                {['4', '6', '12', '24'].map((count) => {
+                  const isSelected = minOrder === count;
+                  return (
+                    <TouchableOpacity
+                      key={count}
+                      style={[styles.moqChip, isSelected && styles.moqChipActive]}
+                      onPress={() => {
+                        setMinOrder(count);
+                        if (count === '4') setSetRatio('S:1, M:1, L:1, XL:1');
+                        else if (count === '6') setSetRatio('S:1, M:2, L:2, XL:1');
+                        else if (count === '12') setSetRatio('S:2, M:4, L:4, XL:2');
+                        else if (count === '24') setSetRatio('S:4, M:8, L:8, XL:4');
+                      }}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[styles.moqChipText, isSelected && styles.moqChipTextActive]}>
+                        {count} pcs Lot
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <View style={styles.inputWithSymbol}>
+                <Text style={styles.currencyPrefix}>MOQ</Text>
+                <TextInput
+                  style={styles.currencyInput}
+                  placeholder="6"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="numeric"
+                  value={minOrder}
+                  onChangeText={(val) => setMinOrder(val.replace(/[^0-9]/g, ''))}
+                />
+                <Text style={styles.pcsSuffix}>pcs / set</Text>
+              </View>
+
+              {/* Set Ratio Input */}
+              <Text style={[styles.inputSubLabel, { marginTop: 10, marginBottom: 4 }]}>
+                Pre-packed Size Ratio Breakdown
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. S:1, M:2, L:2, XL:1"
+                placeholderTextColor="#94A3B8"
+                value={setRatio}
+                onChangeText={setSetRatio}
+              />
+
+              {/* Live Wholesale Calculation Summary Banner */}
+              {priceNum > 0 && (
+                <View style={styles.wholesaleSummaryCard}>
+                  <Icon name="package-variant-closed" size={16} color="#1E40AF" style={{ marginRight: 6 }} />
+                  <Text style={styles.wholesaleSummaryText}>
+                    1 Set = {parseInt(minOrder, 10) || 6} pcs @ ₹{priceNum.toLocaleString('en-IN')}/pc ={' '}
+                    <Text style={styles.wholesaleSummaryBold}>
+                      ₹{((parseInt(minOrder, 10) || 6) * priceNum).toLocaleString('en-IN')} Total Set Value
+                    </Text>
                   </Text>
                 </View>
               )}
@@ -1234,5 +1320,62 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.2,
+  },
+  moqPresetRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  moqChip: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moqChipActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#2563EB',
+    borderWidth: 1.5,
+  },
+  moqChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  moqChipTextActive: {
+    color: '#1D4ED8',
+    fontWeight: '800',
+  },
+  pcsSuffix: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748B',
+    paddingRight: 12,
+  },
+  wholesaleSummaryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    marginTop: 10,
+  },
+  wholesaleSummaryText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#1E40AF',
+    flex: 1,
+  },
+  wholesaleSummaryBold: {
+    fontWeight: '800',
+    color: '#1E3A8A',
   },
 });

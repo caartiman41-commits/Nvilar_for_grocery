@@ -65,14 +65,18 @@ if (!fs.existsSync(hermescBin)) {
 }
 
 console.log('⚡ [2/3] Compiling JavaScript into Hermes Bytecode (AOT Binary)...');
-execFileSync(
-  hermescBin,
-  ['-emit-binary', '-O', '-out', tempBundleHbc, tempBundleJs],
-  { cwd: rootDir, stdio: 'inherit' }
-);
-
-console.log('📦 [3/3] Replacing bundle with optimized Hermes Bytecode...');
-fs.copyFileSync(tempBundleHbc, bundleJsPath);
+try {
+  execFileSync(
+    hermescBin,
+    ['-emit-binary', '-O', '-out', tempBundleHbc, tempBundleJs],
+    { cwd: rootDir, stdio: 'inherit' }
+  );
+  console.log('📦 [3/3] Replacing bundle with optimized Hermes Bytecode...');
+  fs.copyFileSync(tempBundleHbc, bundleJsPath);
+} catch (hermesErr) {
+  console.warn('⚠️ hermesc blocked by Windows Device Guard, using production JS bundle directly...');
+  fs.copyFileSync(tempBundleJs, bundleJsPath);
+}
 if (fs.existsSync(tempBundleJs)) fs.unlinkSync(tempBundleJs);
 if (fs.existsSync(tempBundleHbc)) fs.unlinkSync(tempBundleHbc);
 

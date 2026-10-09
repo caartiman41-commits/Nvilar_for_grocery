@@ -346,10 +346,10 @@ export const OrderConfirmationModal: React.FC<OrderConfirmationModalProps> = ({
   };
 
   const handleShareOrder = () => {
-    const shareText = `🛍️ Ordered from Mitreno!\nOrder ID: ${orderData.orderId}\nTotal: ₹${orderData.total.toLocaleString('en-IN')}\nExpected Delivery: ${orderData.deliveryDate || 'Within 2-3 business days'}`;
+    const shareText = `🛍️ Ordered from Nvilar!\nOrder ID: ${orderData.orderId}\nTotal: ₹${orderData.total.toLocaleString('en-IN')}\nExpected Delivery: ${orderData.deliveryDate || 'Within 2-3 business days'}`;
     if (typeof navigator !== 'undefined' && navigator.share) {
       navigator.share({
-        title: `Mitreno Order ${orderData.orderId}`,
+        title: `Nvilar Order ${orderData.orderId}`,
         text: shareText,
         url: window.location.href,
       }).catch(() => {});

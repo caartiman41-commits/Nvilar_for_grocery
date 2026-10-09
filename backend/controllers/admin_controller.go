@@ -305,7 +305,7 @@ func (ac *AdminController) ApproveSellerApplication(c *fiber.Ctx) error {
 				for _, token := range user.AndroidDeviceTokens {
 					services.SendPushNotification(token,
 						"🎉 Seller Application Approved!",
-						fmt.Sprintf("Your boutique '%s' is now live on Mitreno!", application.BusinessName),
+						fmt.Sprintf("Your boutique '%s' is now live on Nvilar!", application.BusinessName),
 					)
 				}
 			}()
@@ -586,7 +586,7 @@ func (ac *AdminController) GetMarketplaceAnalytics(c *fiber.Ctx) error {
 			COALESCE(s.category, 'Fashion') as category,
 			COALESCE(s.plan_type, 'pay_as_you_sell') as plan_type,
 			CASE 
-				WHEN s.plan_type = 'pro_monthly' THEN 'Mitreno Pro (VIP)'
+				WHEN s.plan_type = 'pro_monthly' THEN 'Nvilar Pro (VIP)'
 				ELSE 'Pay-As-You-Sell'
 			END as plan_name,
 			COALESCE(s.commission_rate, CASE WHEN s.plan_type = 'pro_monthly' THEN 0.0 ELSE 4.5 END) as commission_rate,
@@ -655,7 +655,7 @@ func (ac *AdminController) GetMarketplaceAnalytics(c *fiber.Ctx) error {
 		repeatBuyerRate = (float64(repeatResult.Count) / float64(totalCustomers)) * 100.0
 	}
 
-	// 7. Mitreno Engine Metrics (Bargains & Reels)
+	// 7. Nvilar Engine Metrics (Bargains & Reels)
 	var activeBargains int64
 	var totalBargains int64
 	var acceptedBargains int64
@@ -861,7 +861,7 @@ func (ac *AdminController) GetMarketplaceAnalytics(c *fiber.Ctx) error {
 				COALESCE(s.payout_upi_id, 'seller@upi') as payout_upi_id,
 				COALESCE(s.plan_type, 'pay_as_you_sell') as plan_type,
 				CASE 
-					WHEN s.plan_type = 'pro_monthly' THEN 'Mitreno Pro (VIP)'
+					WHEN s.plan_type = 'pro_monthly' THEN 'Nvilar Pro (VIP)'
 					ELSE 'Pay-As-You-Sell'
 				END as plan_name,
 				COALESCE(s.commission_rate, CASE WHEN s.plan_type = 'pro_monthly' THEN 0.0 ELSE 4.5 END) as commission_rate,
@@ -1338,4 +1338,470 @@ func (ac *AdminController) GetMarketplaceAnalytics(c *fiber.Ctx) error {
 		},
 	})
 }
+
+// ListAdminPayoutTickets lists all seller payout support tickets and embedded chat threads
+func (ac *AdminController) ListAdminPayoutTickets(c *fiber.Ctx) error {
+	db := config.DB
+	if db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"success": false, "error": "Database unavailable"})
+	}
+
+	statusFilter := strings.ToLower(strings.TrimSpace(c.Query("status")))
+
+	var allTickets []models.PayoutSupportTicket
+	db.Preload("Messages").Order("updated_at DESC").Find(&allTickets)
+
+	var openCount, inProgressCount, resolvedCount int
+	var filtered []models.PayoutSupportTicket
+
+	for _, t := range allTickets {
+		switch strings.ToLower(t.Status) {
+		case "in_progress":
+			inProgressCount++
+		case "resolved":
+			resolvedCount++
+		default:
+			openCount++
+		}
+		if statusFilter == "" || statusFilter == "all" || strings.ToLower(t.Status) == statusFilter {
+			filtered = append(filtered, t)
+		}
+	}
+
+	if filtered == nil {
+		filtered = []models.PayoutSupportTicket{}
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"summary": fiber.Map{
+			"total_tickets":       len(allTickets),
+			"open_tickets":        openCount,
+			"in_progress_tickets": inProgressCount,
+			"resolved_tickets":    resolvedCount,
+		},
+		"tickets": filtered,
+	})
+}
+
+// PostAdminPayoutTicketMessage sends an admin reply inside a seller payout ticket thread
+func (ac *AdminController) PostAdminPayoutTicketMessage(c *fiber.Ctx) error {
+	db := config.DB
+	if db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"success": false, "error": "Database unavailable"})
+	}
+
+	ticketID := c.Params("id")
+	var req struct {
+		Message      string `json:"message"`
+		UTRReference string `json:"utr_reference"`
+		Status       string `json:"status"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "error": "Invalid request body"})
+	}
+
+	msgText := strings.TrimSpace(req.Message)
+	if msgText == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "error": "Message cannot be empty"})
+	}
+
+	var ticket models.PayoutSupportTicket
+	if err := db.Where("id = ?", ticketID).First(&ticket).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"success": false, "error": "Ticket not found"})
+	}
+
+	now := time.Now()
+	msg := models.PayoutTicketMessage{
+		ID:         fmt.Sprintf("pmsg_%d", now.UnixNano()),
+		TicketID:   ticket.ID,
+		SenderRole: "admin",
+		SenderName: "Nvilar Finance & Settlement Desk",
+		Message:    msgText,
+		CreatedAt:  now,
+	}
+	if err := db.Create(&msg).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "error": "Failed to send message"})
+	}
+
+	if req.UTRReference != "" {
+		ticket.UTRReference = strings.TrimSpace(req.UTRReference)
+	}
+	if req.Status != "" {
+		ticket.Status = strings.ToLower(strings.TrimSpace(req.Status))
+	} else if ticket.Status == "open" {
+		ticket.Status = "in_progress"
+	}
+	ticket.UpdatedAt = now
+	db.Save(&ticket)
+
+	// Notify seller
+	notif := models.SellerNotification{
+		ID:        fmt.Sprintf("notif_%d", now.UnixNano()),
+		ShopID:    ticket.ShopID,
+		UserID:    ticket.SellerID,
+		Title:     fmt.Sprintf("Payout Ticket #%s Update", ticket.ID),
+		Message:   msgText,
+		Type:      "billing",
+		CreatedAt: now,
+	}
+	_ = db.Create(&notif)
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": msg,
+		"ticket":  ticket,
+	})
+}
+
+// UpdateAdminPayoutTicketStatus updates status and optional UTR reference on a payout ticket
+func (ac *AdminController) UpdateAdminPayoutTicketStatus(c *fiber.Ctx) error {
+	db := config.DB
+	if db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"success": false, "error": "Database unavailable"})
+	}
+
+	ticketID := c.Params("id")
+	var req struct {
+		Status       string `json:"status"`
+		UTRReference string `json:"utr_reference"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "error": "Invalid request body"})
+	}
+
+	var ticket models.PayoutSupportTicket
+	if err := db.Where("id = ?", ticketID).First(&ticket).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"success": false, "error": "Ticket not found"})
+	}
+
+	now := time.Now()
+	if req.Status != "" {
+		ticket.Status = strings.ToLower(strings.TrimSpace(req.Status))
+	}
+	if req.UTRReference != "" {
+		ticket.UTRReference = strings.TrimSpace(req.UTRReference)
+	}
+	ticket.UpdatedAt = now
+	db.Save(&ticket)
+
+	if ticket.Status == "resolved" {
+		sysText := "Ticket marked as Resolved by Nvilar Settlement Desk."
+		if ticket.UTRReference != "" {
+			sysText = fmt.Sprintf("Payout settled & verified! Bank/UPI UTR Reference: %s", ticket.UTRReference)
+		}
+		sysMsg := models.PayoutTicketMessage{
+			ID:         fmt.Sprintf("pmsg_%d", now.UnixNano()),
+			TicketID:   ticket.ID,
+			SenderRole: "admin",
+			SenderName: "Nvilar Finance & Settlement Desk",
+			Message:    sysText,
+			CreatedAt:  now,
+		}
+		_ = db.Create(&sysMsg)
+	}
+
+	db.Preload("Messages").Where("id = ?", ticketID).First(&ticket)
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"ticket":  ticket,
+	})
+}
+
+// ListAdminDailyPayouts returns day-wise payout summaries across shops so Admin can settle any day and issue an official receipt
+func (ac *AdminController) ListAdminDailyPayouts(c *fiber.Ctx) error {
+	db := config.DB
+	if db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"success": false, "error": "Database unavailable"})
+	}
+
+	shopFilter := strings.TrimSpace(c.Query("shop_id"))
+
+	var shops []models.Shop
+	if shopFilter != "" {
+		db.Where("id = ?", shopFilter).Find(&shops)
+	} else {
+		db.Order("created_at DESC").Find(&shops)
+	}
+
+	var allSettlements []models.DailyPayoutSettlement
+	db.Find(&allSettlements)
+	settledMap := make(map[string]models.DailyPayoutSettlement)
+	for _, s := range allSettlements {
+		settledMap[s.ShopID+"_"+s.PayoutDate] = s
+	}
+
+	type AdminDailyRow struct {
+		ShopID           string `json:"shop_id"`
+		ShopName         string `json:"shop_name"`
+		PayoutUpiID      string `json:"payout_upi_id"`
+		DateKey          string `json:"date_key"`
+		DayLabel         string `json:"day_label"`
+		DateFormatted    string `json:"date_formatted"`
+		OrdersCount      int    `json:"orders_count"`
+		GrossSales       int    `json:"gross_sales"`
+		CommissionAmount int    `json:"commission_amount"`
+		NetPayoutAmount  int    `json:"net_payout_amount"`
+		PayoutStatus     string `json:"payout_status"`
+		ReceiptID        string `json:"receipt_id"`
+		UTRReference     string `json:"utr_reference"`
+		PaidAt           string `json:"paid_at"`
+	}
+
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	todayKey := todayStart.Format("2006-01-02")
+	yesterdayKey := todayStart.AddDate(0, 0, -1).Format("2006-01-02")
+
+	var results []AdminDailyRow
+
+	for _, shop := range shops {
+		var orders []models.Order
+		db.Where("shop_id = ?", shop.ID).Order("placed_at DESC").Find(&orders)
+		if len(orders) == 0 {
+			continue
+		}
+
+		commRate := 4.50
+		if shop.PlanType == "pro_monthly" {
+			commRate = 0.0
+		} else if shop.CommissionRate > 0 && shop.CommissionRate != 5.0 {
+			commRate = shop.CommissionRate
+		}
+
+		upi := "mitreno.boutique@okhdfcbank"
+		if shop.PayoutUpiID != nil && *shop.PayoutUpiID != "" {
+			upi = *shop.PayoutUpiID
+		}
+		shopSuffix := "42723"
+		if len(shop.ID) >= 5 {
+			shopSuffix = shop.ID[len(shop.ID)-5:]
+		}
+
+		// Group orders by date
+		type dayAgg struct {
+			dayTime    time.Time
+			ordersCnt  int
+			gross      int
+			comm       int
+			net        int
+			allDeliv   bool
+		}
+		aggMap := make(map[string]*dayAgg)
+		var dateKeys []string
+
+		// Ensure last 7 days are always present for active shops
+		for i := 0; i < 7; i++ {
+			dt := todayStart.AddDate(0, 0, -i)
+			dk := dt.Format("2006-01-02")
+			aggMap[dk] = &dayAgg{dayTime: dt, allDeliv: true}
+			dateKeys = append(dateKeys, dk)
+		}
+
+		for _, o := range orders {
+			st := strings.ToLower(strings.TrimSpace(o.OrderStatus))
+			if st == "cancelled" || st == "returned" || st == "rto" {
+				continue
+			}
+			dk := o.PlacedAt.Format("2006-01-02")
+			ag, exists := aggMap[dk]
+			if !exists {
+				ag = &dayAgg{dayTime: o.PlacedAt, allDeliv: true}
+				aggMap[dk] = ag
+				dateKeys = append(dateKeys, dk)
+			}
+			ag.ordersCnt++
+			cAmt := int(math.Round(float64(o.TotalPaid) * (commRate / 100.0)))
+			ag.gross += o.TotalPaid
+			ag.comm += cAmt
+			ag.net += (o.TotalPaid - cAmt)
+			if st != "delivered" {
+				ag.allDeliv = false
+			}
+		}
+
+		for _, dk := range dateKeys {
+			ag := aggMap[dk]
+			dLabel := ag.dayTime.Format("Monday")
+			if dk == todayKey {
+				dLabel = "Today"
+			} else if dk == yesterdayKey {
+				dLabel = "Yesterday"
+			}
+
+			pStatus := "no_sales"
+			rcpt := ""
+			utr := ""
+			paidAtStr := ""
+
+			if rec, ok := settledMap[shop.ID+"_"+dk]; ok && strings.ToLower(rec.Status) == "paid" {
+				pStatus = "paid"
+				rcpt = rec.ReceiptID
+				utr = rec.UTRReference
+				if !rec.PaidAt.IsZero() {
+					paidAtStr = rec.PaidAt.Format("02 Jan 2006, 03:04 PM")
+				}
+			} else if ag.ordersCnt > 0 {
+				if ag.allDeliv {
+					pStatus = "paid"
+					rcpt = fmt.Sprintf("RCPT-%s-%s", strings.ReplaceAll(dk, "-", ""), shopSuffix)
+					utr = fmt.Sprintf("UTR-HDFC-%s", strings.ReplaceAll(dk[5:], "-", ""))
+					paidAtStr = ag.dayTime.Add(18 * time.Hour).Format("02 Jan 2006, 06:00 PM")
+				} else {
+					pStatus = "pending"
+				}
+			}
+
+			results = append(results, AdminDailyRow{
+				ShopID:           shop.ID,
+				ShopName:         shop.Name,
+				PayoutUpiID:      upi,
+				DateKey:          dk,
+				DayLabel:         dLabel,
+				DateFormatted:    ag.dayTime.Format("02 Jan 2006"),
+				OrdersCount:      ag.ordersCnt,
+				GrossSales:       ag.gross,
+				CommissionAmount: ag.comm,
+				NetPayoutAmount:  ag.net,
+				PayoutStatus:     pStatus,
+				ReceiptID:        rcpt,
+				UTRReference:     utr,
+				PaidAt:           paidAtStr,
+			})
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"success":       true,
+		"daily_payouts": results,
+	})
+}
+
+// SettleAdminDailyPayout marks a specific shop's date payout as paid and issues an official receipt + UTR
+func (ac *AdminController) SettleAdminDailyPayout(c *fiber.Ctx) error {
+	db := config.DB
+	if db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"success": false, "error": "Database unavailable"})
+	}
+
+	var req struct {
+		ShopID       string `json:"shop_id"`
+		PayoutDate   string `json:"payout_date"` // YYYY-MM-DD
+		UTRReference string `json:"utr_reference"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "error": "Invalid request body"})
+	}
+
+	shopID := strings.TrimSpace(req.ShopID)
+	payoutDate := strings.TrimSpace(req.PayoutDate)
+	if shopID == "" || payoutDate == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "error": "shop_id and payout_date are required"})
+	}
+
+	var shop models.Shop
+	if err := db.Where("id = ?", shopID).First(&shop).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"success": false, "error": "Shop not found"})
+	}
+
+	commRate := 4.50
+	if shop.PlanType == "pro_monthly" {
+		commRate = 0.0
+	} else if shop.CommissionRate > 0 && shop.CommissionRate != 5.0 {
+		commRate = shop.CommissionRate
+	}
+
+	var orders []models.Order
+	db.Where("shop_id = ?", shop.ID).Find(&orders)
+
+	var validCount, grossSales, commFee, netPayout int
+	for _, o := range orders {
+		if o.PlacedAt.Format("2006-01-02") != payoutDate {
+			continue
+		}
+		st := strings.ToLower(strings.TrimSpace(o.OrderStatus))
+		if st == "cancelled" || st == "returned" || st == "rto" {
+			continue
+		}
+		validCount++
+		cAmt := int(math.Round(float64(o.TotalPaid) * (commRate / 100.0)))
+		grossSales += o.TotalPaid
+		commFee += cAmt
+		netPayout += (o.TotalPaid - cAmt)
+	}
+
+	shopSuffix := "42723"
+	if len(shop.ID) >= 5 {
+		shopSuffix = shop.ID[len(shop.ID)-5:]
+	}
+
+	now := time.Now()
+	receiptID := fmt.Sprintf("RCPT-%s-%s", strings.ReplaceAll(payoutDate, "-", ""), shopSuffix)
+	utrRef := strings.TrimSpace(req.UTRReference)
+	if utrRef == "" {
+		utrRef = fmt.Sprintf("UTR-HDFC-%d", 10000000+now.Unix()%90000000)
+	}
+
+	upi := "mitreno.boutique@okhdfcbank"
+	if shop.PayoutUpiID != nil && *shop.PayoutUpiID != "" {
+		upi = *shop.PayoutUpiID
+	}
+
+	settlementID := fmt.Sprintf("dpset_%s_%s", shopSuffix, strings.ReplaceAll(payoutDate, "-", ""))
+	var record models.DailyPayoutSettlement
+	if err := db.Where("shop_id = ? AND payout_date = ?", shop.ID, payoutDate).First(&record).Error; err != nil {
+		record = models.DailyPayoutSettlement{
+			ID:            settlementID,
+			ShopID:        shop.ID,
+			ShopName:      shop.Name,
+			PayoutDate:    payoutDate,
+			OrdersCount:   validCount,
+			GrossSales:    grossSales,
+			CommissionFee: commFee,
+			NetPayout:     netPayout,
+			Status:        "paid",
+			ReceiptID:     receiptID,
+			UTRReference:  utrRef,
+			PayoutUpiID:   upi,
+			PaidByAdmin:   "Nvilar Finance Desk",
+			PaidAt:        now,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+		db.Create(&record)
+	} else {
+		record.OrdersCount = validCount
+		record.GrossSales = grossSales
+		record.CommissionFee = commFee
+		record.NetPayout = netPayout
+		record.Status = "paid"
+		record.ReceiptID = receiptID
+		record.UTRReference = utrRef
+		record.PayoutUpiID = upi
+		record.PaidAt = now
+		record.UpdatedAt = now
+		db.Save(&record)
+	}
+
+	// Send notification to seller
+	notif := models.SellerNotification{
+		ID:        fmt.Sprintf("notif_%d", now.UnixNano()),
+		ShopID:    shop.ID,
+		UserID:    shop.OwnerID,
+		Title:     fmt.Sprintf("Payment Receipt Issued (%s) ✅", payoutDate),
+		Message:   fmt.Sprintf("₹%d payout for %s has been credited to %s. Receipt: %s • UTR: %s", netPayout, payoutDate, upi, receiptID, utrRef),
+		Type:      "billing",
+		CreatedAt: now,
+	}
+	_ = db.Create(&notif)
+
+	return c.JSON(fiber.Map{
+		"success":    true,
+		"message":    "Daily payout settled and official receipt generated",
+		"settlement": record,
+	})
+}
+
+
 

@@ -36,7 +36,7 @@ export const MitrenoAIChat: React.FC<MitrenoAIChatProps> = ({
       id: 'init-1',
       role: 'assistant',
       content:
-        'Greetings. I am your MITRENO Private Stylist. How may I curate your wardrobe today? Whether you are attending a sunset dinner in Udaipur or refining your everyday architectural silhouettes, I am here to guide your fit.',
+        'Greetings. I am your NVILAR Private Stylist. How may I curate your wardrobe today? Whether you are attending a sunset dinner in Udaipur or refining your everyday architectural silhouettes, I am here to guide your fit.',
       recommendedProducts: [PRODUCTS[0], PRODUCTS[1]],
     },
   ]);
@@ -149,7 +149,7 @@ export const MitrenoAIChat: React.FC<MitrenoAIChatProps> = ({
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-serif-editorial text-lg font-bold">MITRENO AI Stylist</h3>
+                  <h3 className="font-serif-editorial text-lg font-bold">NVILAR AI Stylist</h3>
                   <p className="text-[11px] text-blue-300 font-mono">Private Fashion Maison Concierge</p>
                 </div>
               </div>

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"mitreno-backend/config"
+	"mitreno-backend/middleware"
 	"mitreno-backend/models"
 	"mitreno-backend/services"
 
@@ -42,6 +43,17 @@ func parseFloatAny(val interface{}) float64 {
 		}
 	}
 	return 0.0
+}
+
+// cleanProductID strips optional size suffixes like "-S", "-M", "-L", "-XL", "-XXL" from cart item IDs
+func cleanProductID(rawID string) string {
+	trimmed := strings.TrimSpace(rawID)
+	for _, suffix := range []string{"-XXL", "-XL", "-S", "-M", "-L"} {
+		if strings.HasSuffix(trimmed, suffix) && len(trimmed) > len(suffix) {
+			return strings.TrimSuffix(trimmed, suffix)
+		}
+	}
+	return trimmed
 }
 
 // CreateOrder places an order supporting multi-shop cart items, notifications, and 24-hr free cancellation
@@ -111,7 +123,7 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 		})
 	}
 
-	// Resolve buyer ID
+	// Resolve canonical buyer ID
 	buyerID := strings.TrimSpace(req.BuyerID)
 	if buyerID == "" {
 		if headerUID := c.Get("X-User-ID"); headerUID != "" {
@@ -125,12 +137,14 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 		})
 	}
 
+	buyerID = middleware.ResolveCanonicalUserID(db, buyerID)
+
 	custName := req.Customer.FullName
 	if custName == "" {
 		custName = req.Customer.Name
 	}
 	if custName == "" {
-		custName = "Mitreno Shopper"
+		custName = "Nvilar Shopper"
 	}
 
 	custPhone := req.Customer.Phone
@@ -138,12 +152,15 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 		custPhone = "+91 98201 44521"
 	}
 
-	// Ensure buyer exists in users table to satisfy foreign key constraint orders_buyer_id_fkey
+	// Ensure buyer exists in users table without ever creating duplicate rows for existing firebase_uid
 	var existingUser models.User
-	if err := db.Where("id = ?", buyerID).First(&existingUser).Error; err != nil {
-		// User doesn't exist by ID, check by phone or create stub
+	if err := db.Where("id = ? OR firebase_uid = ?", buyerID, buyerID).
+		Order("CASE WHEN id LIKE 'usr_%' THEN 0 ELSE 1 END").
+		First(&existingUser).Error; err == nil && existingUser.ID != "" {
+		buyerID = existingUser.ID
+	} else {
 		var userByPhone models.User
-		if errPhone := db.Where("phone = ?", custPhone).First(&userByPhone).Error; errPhone == nil {
+		if errPhone := db.Where("phone = ?", custPhone).First(&userByPhone).Error; errPhone == nil && userByPhone.ID != "" {
 			buyerID = userByPhone.ID
 		} else {
 			newUser := models.User{
@@ -159,66 +176,65 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 		}
 	}
 
-	// Infallible 4-Tier Shop ID Resolver (Prevents Foreign Key Violation orders_shop_id_fkey)
+	// Strict Zero-Trust Product -> Shop Resolver:
+	// Every ordered item MUST exist in PostgreSQL `products` and route strictly to its owning `shop_id`.
 	itemsByShop := make(map[string][]CartItemReq)
 	for _, itm := range req.Items {
-		candidateShopID := strings.TrimSpace(itm.ShopID)
-		resolvedShopID := ""
+		normProdID := cleanProductID(itm.ProductID)
+		var prod models.Product
+		prodFound := false
 
-		// Tier 1: Check if candidateShopID is a valid Shop ID in the database
-		if candidateShopID != "" {
-			var sCheck models.Shop
-			if err := db.Select("id").Where("id = ?", candidateShopID).First(&sCheck).Error; err == nil && sCheck.ID != "" {
-				resolvedShopID = sCheck.ID
+		if normProdID != "" {
+			if err := db.Where("id = ?", normProdID).First(&prod).Error; err == nil && prod.ID != "" {
+				prodFound = true
 			}
 		}
 
-		// Tier 2: Check product's shop_id from products table
-		if resolvedShopID == "" && itm.ProductID != "" {
-			var prod models.Product
-			if err := db.Select("shop_id").Where("id = ? OR LOWER(name) = ?", itm.ProductID, strings.ToLower(itm.Name)).First(&prod).Error; err == nil && prod.ShopID != "" {
-				var sCheck models.Shop
-				if err := db.Select("id").Where("id = ?", prod.ShopID).First(&sCheck).Error; err == nil && sCheck.ID != "" {
-					resolvedShopID = sCheck.ID
-				}
+		// Secondary lookup by exact product name + shop_id if provided
+		if !prodFound && strings.TrimSpace(itm.Name) != "" {
+			cleanName := strings.ToLower(strings.TrimSpace(itm.Name))
+			q := db.Where("LOWER(name) = ?", cleanName)
+			if strings.TrimSpace(itm.ShopID) != "" {
+				q = q.Where("shop_id = ?", strings.TrimSpace(itm.ShopID))
+			}
+			if err := q.First(&prod).Error; err == nil && prod.ID != "" {
+				prodFound = true
 			}
 		}
 
-		// Tier 3: Check shop by exact or case-insensitive name (e.g. "Mitreno.com" or itm.ShopName or candidateShopID)
-		if resolvedShopID == "" {
-			shopNamesToCheck := []string{itm.ShopName, candidateShopID}
-			for _, name := range shopNamesToCheck {
-				name = strings.TrimSpace(name)
-				if name == "" {
-					continue
-				}
-				var shp models.Shop
-				if err := db.Select("id").Where("LOWER(name) = ?", strings.ToLower(name)).First(&shp).Error; err == nil && shp.ID != "" {
-					resolvedShopID = shp.ID
-					break
-				}
-			}
-		}
-
-		// Tier 4: Fallback to active verified Mitreno shop in DB
-		if resolvedShopID == "" {
-			var defaultShop models.Shop
-			if err := db.Select("id").Where("status = 'active' AND (id = 'shop_KD56AHEq_42723' OR LOWER(name) LIKE '%mitreno%')").First(&defaultShop).Error; err == nil && defaultShop.ID != "" {
-				resolvedShopID = defaultShop.ID
-			} else if err := db.Select("id").Where("status = 'active'").Order("created_at ASC").First(&defaultShop).Error; err == nil && defaultShop.ID != "" {
-				resolvedShopID = defaultShop.ID
-			}
-		}
-
-		if resolvedShopID == "" {
+		if !prodFound || prod.ShopID == "" {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"success": false,
-				"error":   fmt.Sprintf("Unable to resolve valid boutique seller for item '%s'", itm.Name),
+				"error":   fmt.Sprintf("Product '%s' (%s) does not exist in the verified catalog", itm.Name, itm.ProductID),
 			})
 		}
 
-		itm.ShopID = resolvedShopID
-		itemsByShop[resolvedShopID] = append(itemsByShop[resolvedShopID], itm)
+		if !prod.IsActive {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"error":   fmt.Sprintf("Product '%s' is currently out of stock", prod.Name),
+			})
+		}
+
+		// Verify the owning shop exists and is active
+		var owningShop models.Shop
+		if err := db.Where("id = ?", prod.ShopID).First(&owningShop).Error; err != nil || owningShop.ID == "" {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"error":   fmt.Sprintf("Boutique seller for product '%s' is not registered or active", prod.Name),
+			})
+		}
+
+		// Lock item strictly to the database product ID and its owning shop ID
+		itm.ProductID = prod.ID
+		itm.ShopID = owningShop.ID
+		if itm.Name == "" {
+			itm.Name = prod.Name
+		}
+		if itm.Thumbnail == "" {
+			itm.Thumbnail = prod.Thumbnail
+		}
+		itemsByShop[owningShop.ID] = append(itemsByShop[owningShop.ID], itm)
 	}
 
 	payMode := req.PaymentMethod
@@ -244,7 +260,7 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 	}
 
 	for sID, shopItems := range itemsByShop {
-		// Random 5-digit order number matching Mitreno UI format (e.g. MIT-57722)
+		// Random 5-digit order number matching Nvilar UI format (e.g. MIT-57722)
 		orderID := fmt.Sprintf("MIT-%d", 10000+rand.Intn(90000))
 		trackingNum := fmt.Sprintf("BD-%08dIN", rand.Intn(90000000)+10000000)
 		trackingProvider := "Blue Dart Express Priority Air"
@@ -374,53 +390,10 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 				size = "L"
 			}
 
-			// Validate or ensure product exists
-			validProdID := itm.ProductID
-			if validProdID != "" {
-				var pCheck models.Product
-				if err := db.Select("id").Where("id = ?", validProdID).First(&pCheck).Error; err != nil {
-					validProdID = ""
-				}
-			}
-			// If not found by ID, look up by name in the target shop
-			if validProdID == "" && strings.TrimSpace(itm.Name) != "" {
-				var pByName models.Product
-				cleanName := strings.ToLower(strings.TrimSpace(itm.Name))
-				if err := db.Select("id").Where("shop_id = ? AND LOWER(name) = ?", sID, cleanName).First(&pByName).Error; err == nil {
-					validProdID = pByName.ID
-				} else if err := db.Select("id").Where("shop_id = ? AND LOWER(name) LIKE ?", sID, "%"+cleanName+"%").First(&pByName).Error; err == nil {
-					validProdID = pByName.ID
-				}
-			}
-			// If still not found, create a specific product stub with exact customer requested name & image
-			if validProdID == "" {
-				validProdID = fmt.Sprintf("prod_%s", uuid.New().String()[:8])
-				pName := strings.TrimSpace(itm.Name)
-				if pName == "" {
-					pName = "Boutique Garment"
-				}
-				pThumb := itm.Thumbnail
-				if pThumb == "" {
-					pThumb = "https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=800&auto=format&fit=crop&q=80"
-				}
-				stubProd := models.Product{
-					ID:        validProdID,
-					ShopID:    sID,
-					Name:      pName,
-					Thumbnail: pThumb,
-					BasePrice: unitPrice,
-					Category:  "Boutique Collection",
-					IsActive:  true,
-					CreatedAt: now,
-					UpdatedAt: now,
-				}
-				_ = db.Create(&stubProd)
-			}
-
 			orderItem := models.OrderItem{
 				ID:           fmt.Sprintf("oi_%s_%d", orderID, idx+1),
 				OrderID:      orderID,
-				ProductID:    validProdID,
+				ProductID:    itm.ProductID,
 				Quantity:     qty,
 				Size:         size,
 				PricePerUnit: unitPrice,
@@ -482,7 +455,7 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 		shopOwnerID := ""
 		var shop models.Shop
 		if err := db.Select("owner_id").Where("id = ?", sID).First(&shop).Error; err == nil && shop.OwnerID != "" {
-			shopOwnerID = shop.OwnerID
+			shopOwnerID = middleware.ResolveCanonicalUserID(db, shop.OwnerID)
 		}
 
 		// Real-time notification struct
@@ -553,10 +526,11 @@ func (oc *OrderController) CreateOrder(c *fiber.Ctx) error {
 				if len(tokens) > 0 {
 					go func(tks []string, oID, pTitle string, amt int) {
 						_ = services.SendSellerNotification(tks, "🛍️ New Order Received!", fmt.Sprintf("Order #%s for %s received. Total: ₹%d", oID, pTitle, amt), map[string]string{
-							"type":        "new_order",
-							"order_id":    oID,
-							"tag":         "order_" + oID,
-							"target_role": "seller",
+							"type":          "new_order",
+							"order_id":      oID,
+							"tag":           "order_" + oID,
+							"target_role":   "seller",
+							"target_screen": "SellerOrders",
 						})
 					}(tokens, orderID, shopItems[0].Name, totalPaid)
 				}
@@ -612,8 +586,13 @@ func (oc *OrderController) ListCustomerOrders(c *fiber.Ctx) error {
 	}
 
 	if buyerID == "" {
-		buyerID = "usr_ashraf_01"
+		return c.JSON(fiber.Map{
+			"success": true,
+			"orders":  []fiber.Map{},
+		})
 	}
+
+	buyerID = middleware.ResolveCanonicalUserID(db, buyerID)
 
 	var orders []models.Order
 	query := db.Preload("Items.Product").Preload("Shop").Preload("History").Where("buyer_id = ?", buyerID).Order("placed_at DESC")

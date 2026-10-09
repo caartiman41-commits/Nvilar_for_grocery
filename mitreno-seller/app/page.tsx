@@ -81,7 +81,7 @@ export default function SellerHomePage() {
           <Store className="w-6 h-6 stroke-[2.5]" />
         </div>
         <p className="text-sm font-semibold tracking-wide text-neutral-400">
-          Loading Mitreno Seller Studio...
+          Loading Nvilar Seller Studio...
         </p>
       </div>
     );
@@ -108,7 +108,7 @@ export default function SellerHomePage() {
             </div>
             <div>
               <h1 className="text-base font-black tracking-tight text-white flex items-center gap-2">
-                MITRENO <span className="text-amber-400 font-extrabold text-xs uppercase px-2 py-0.5 rounded bg-amber-400/10 border border-amber-400/20">PARTNER HUB</span>
+                NVILAR <span className="text-amber-400 font-extrabold text-xs uppercase px-2 py-0.5 rounded bg-amber-400/10 border border-amber-400/20">PARTNER HUB</span>
               </h1>
             </div>
           </div>
@@ -174,7 +174,7 @@ export default function SellerHomePage() {
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-neutral-300">Studio Activation</h4>
-                  <p className="text-xs text-neutral-500 mt-0.5">Your boutique goes live on Mitreno customer app and website.</p>
+                  <p className="text-xs text-neutral-500 mt-0.5">Your boutique goes live on Nvilar customer app and website.</p>
                 </div>
               </div>
             </div>
@@ -216,7 +216,7 @@ export default function SellerHomePage() {
             <div className="w-9 h-9 rounded-xl bg-amber-400 text-neutral-950 flex items-center justify-center font-black">
               <Store className="w-5 h-5 stroke-[2.5]" />
             </div>
-            <h1 className="text-base font-black text-white">MITRENO SELLER STUDIO</h1>
+            <h1 className="text-base font-black text-white">NVILAR SELLER STUDIO</h1>
           </div>
           <button onClick={() => logout()} className="text-xs font-bold px-3 py-1.5 rounded-lg bg-neutral-800 text-neutral-300">Sign Out</button>
         </header>
@@ -262,7 +262,7 @@ export default function SellerHomePage() {
             </div>
             <div>
               <span className="text-xs font-bold tracking-widest text-amber-400 uppercase">Seller Studio</span>
-              <h1 className="text-lg font-black tracking-tight text-white leading-tight">MITRENO</h1>
+              <h1 className="text-lg font-black tracking-tight text-white leading-tight">NVILAR</h1>
             </div>
           </div>
 
@@ -313,7 +313,7 @@ export default function SellerHomePage() {
           </div>
 
           <h2 className="text-4xl sm:text-6xl font-black tracking-tight text-white leading-[1.1] mb-6">
-            Grow Your Boutique with <span className="bg-gradient-to-r from-amber-400 via-amber-200 to-yellow-300 bg-clip-text text-transparent">Mitreno</span>
+            Grow Your Boutique with <span className="bg-gradient-to-r from-amber-400 via-amber-200 to-yellow-300 bg-clip-text text-transparent">Nvilar</span>
           </h2>
 
           <p className="text-base sm:text-lg text-neutral-300 max-w-2xl mx-auto leading-relaxed mb-10 font-normal">
@@ -453,8 +453,8 @@ export default function SellerHomePage() {
 
       {/* Footer */}
       <footer className="border-t border-neutral-800/80 bg-neutral-950 py-10 px-6 text-center text-xs text-neutral-500">
-        <p>&copy; {new Date().getFullYear()} Mitreno Marketplace Technologies. All rights reserved.</p>
-        <p className="mt-1">Mitreno Seller Studio &bull; Connecting India's Elite Boutiques</p>
+        <p>&copy; {new Date().getFullYear()} Nvilar Marketplace Technologies. All rights reserved.</p>
+        <p className="mt-1">Nvilar Seller Studio &bull; Connecting India's Elite Boutiques</p>
       </footer>
 
       {/* KYC Onboarding Modal */}

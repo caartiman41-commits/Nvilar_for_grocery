@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Pool } from 'pg';
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:MitrenoDB2026@140.238.164.12:5433/postgres?sslmode=disable',
+  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:NvilarDB2026@140.238.164.12:5433/postgres?sslmode=disable',
   max: 10,
   connectionTimeoutMillis: 8000,
 });

@@ -6,6 +6,7 @@ import { MitrenoToast } from '../components/MitrenoToast';
 import {
   initializeNotificationChannels,
   postNativeNotification,
+  consumeInitialNativeNotification,
   VIBRATION_PATTERNS,
   MITRENO_SELLER_CHANNEL,
   MITRENO_BUYER_CHANNEL,
@@ -76,7 +77,11 @@ export interface MitrenoNotificationPayload {
 // ---------------------------------------------------------------------------
 export const navigationRef = createNavigationContainerRef<any>();
 
-let pendingDeepLink: { targetRole: string; conversationId?: string } | null = null;
+let pendingDeepLink: {
+  targetRole: string;
+  conversationId?: string;
+  extras?: Record<string, any>;
+} | null = null;
 
 // Track currently active open chat conversation context across buyer and seller screens
 export interface ActiveChatContext {
@@ -139,34 +144,84 @@ export function getActiveChatContext(): ActiveChatContext | null {
   return currentActiveChat;
 }
 
+let lastRoutedSignature = '';
+let lastRoutedTimestamp = 0;
+
 /**
- * Executes or queues the deep-link route based on target_role and conversation_id
+ * Executes or queues the 4-way smart deep-link route based on target_role, type, conversation_id, and order_id
  */
 export function routeDeepLink(
   targetRole: string,
   conversationId?: string,
   extras?: Record<string, any>
 ): boolean {
-  const normalizedRole = (targetRole || '').toLowerCase().trim();
-  const action = ((extras?.action || '') as string).toUpperCase();
+  const rawRole = (
+    targetRole ||
+    extras?.target_role ||
+    extras?.role ||
+    (extras?.channel_id === MITRENO_SELLER_CHANNEL.id ? 'seller' : '') ||
+    (extras?.click_action === 'OPEN_SELLER_CHAT' || extras?.click_action === 'OPEN_SELLER_ORDERS' ? 'seller' : '') ||
+    (extras?.click_action === 'OPEN_BUYER_CHAT' || extras?.click_action === 'OPEN_BUYER_ORDERS' ? 'buyer' : '')
+  )
+    .toLowerCase()
+    .trim();
+
+  const notifType = ((extras?.type || '') as string).toLowerCase().trim();
+  const action = ((extras?.action || extras?.click_action || '') as string).toUpperCase().trim();
   const productId = extras?.product_id || extras?.productId;
+  const orderId = extras?.order_id || extras?.orderId;
+  const resolvedConvId =
+    conversationId ||
+    extras?.conversation_id ||
+    extras?.conversationId ||
+    extras?.negotiation_id ||
+    extras?.negotiationId;
   const targetScreen = extras?.target_screen || extras?.targetScreen || extras?.screen;
+
+  // Infer role if still empty
+  const normalizedRole =
+    rawRole ||
+    (notifType === 'new_order' || targetScreen === 'SellerOrders' ? 'seller' : 'buyer');
 
   if (!navigationRef.isReady()) {
     console.log('[NotificationService] NavigationRef not ready, caching pending deep-link:', {
       targetRole: normalizedRole,
-      conversationId,
+      conversationId: resolvedConvId,
+      orderId,
+      notifType,
       action,
       productId,
     });
-    pendingDeepLink = { targetRole: normalizedRole, conversationId, extras } as any;
+    pendingDeepLink = {
+      targetRole: normalizedRole,
+      conversationId: resolvedConvId,
+      extras,
+    };
     return false;
   }
 
-  console.log(`[NotificationService] Navigating deep-link -> role: '${normalizedRole}', action: '${action}', productId: '${productId}'`);
+  const tapTs = Date.now();
+  const routeSignature = `${normalizedRole}:${notifType}:${resolvedConvId || ''}:${orderId || ''}:${productId || ''}:${action}`;
+  if (routeSignature === lastRoutedSignature && tapTs - lastRoutedTimestamp < 2500) {
+    console.log(`[NotificationService] Duplicate tap deep-link ignored within 2.5s window: ${routeSignature}`);
+    return true;
+  }
+  lastRoutedSignature = routeSignature;
+  lastRoutedTimestamp = tapTs;
+
+  const currentRouteName = navigationRef.getCurrentRoute()?.name;
+
+  console.log(
+    `[NotificationService] Navigating deep-link -> role: '${normalizedRole}', type: '${notifType}', convId: '${resolvedConvId}', orderId: '${orderId}', action: '${action}', currentRoute: '${currentRouteName}'`
+  );
 
   // 1. E-Commerce "Shop Now" or Product PDP Deep Link
-  if (action === 'SHOP_NOW' || targetScreen === 'ProductDetails' || normalizedRole === 'product' || productId) {
+  if (
+    action === 'SHOP_NOW' ||
+    targetScreen === 'ProductDetails' ||
+    normalizedRole === 'product' ||
+    (productId && !resolvedConvId && !orderId)
+  ) {
     try {
       navigationRef.navigate('ProductDetails', {
         productId: productId || 'prod_1',
@@ -187,21 +242,61 @@ export function routeDeepLink(
     }
   }
 
+  // 3. SELLER PORTAL ROUTES (Seller Orders vs Seller Chat)
   if (normalizedRole === 'seller') {
-    // Navigate user directly to StudioChatTab (or Seller Studio) with conversation_id
+    const isSellerOrder =
+      notifType === 'new_order' ||
+      notifType === 'order' ||
+      action === 'OPEN_SELLER_ORDERS' ||
+      targetScreen === 'SellerOrders' ||
+      Boolean(orderId && !resolvedConvId);
+
+    if (isSellerOrder) {
+      try {
+        navigationRef.navigate('SellerStudio', {
+          initialTab: 'orders',
+          order_id: orderId,
+          orderId,
+          _tapTs: tapTs,
+        });
+        return true;
+      } catch (err) {
+        console.warn('[NotificationService] Failed to navigate to SellerStudio orders:', err);
+        return false;
+      }
+    }
+
+    // Already-In-Target-Chat Guard (Seller): If seller is ALREADY viewing this exact customer chat inside SellerStudio, stay put!
+    if (
+      currentRouteName === 'SellerStudio' &&
+      currentActiveChat?.role === 'seller' &&
+      resolvedConvId &&
+      (currentActiveChat.conversationId === resolvedConvId ||
+        currentActiveChat.conversationId.includes(resolvedConvId) ||
+        resolvedConvId.includes(currentActiveChat.conversationId))
+    ) {
+      console.log(`[NotificationService] Seller is already inside active chat '${resolvedConvId}', skipping redundant navigation.`);
+      return true;
+    }
+
+    // Seller Chat Notification -> Open SellerStudio directly on 'chat' tab with customer conversation open
     try {
       navigationRef.navigate('SellerStudio', {
         initialTab: 'chat',
-        conversation_id: conversationId,
-        conversationId,
+        conversation_id: resolvedConvId,
+        conversationId: resolvedConvId,
+        buyer_name: extras?.buyer_name,
+        product_title: extras?.product_title,
+        _tapTs: tapTs,
       });
       return true;
     } catch (err) {
-      console.warn('[NotificationService] Failed to navigate to SellerStudio, trying StudioChatTab fallback:', err);
+      console.warn('[NotificationService] Failed to navigate to SellerStudio chat, trying StudioChatTab fallback:', err);
       try {
         navigationRef.navigate('StudioChatTab', {
-          conversation_id: conversationId,
-          conversationId,
+          conversation_id: resolvedConvId,
+          conversationId: resolvedConvId,
+          _tapTs: tapTs,
         });
         return true;
       } catch (innerErr) {
@@ -209,29 +304,74 @@ export function routeDeepLink(
         return false;
       }
     }
-  } else if (normalizedRole === 'buyer') {
-    // Navigate user directly to ChatsScreen (Buyer App) with conversation_id
+  }
+
+  // 4. BUYER PORTAL ROUTES (Buyer Orders vs Buyer Chat)
+  if (normalizedRole === 'buyer') {
+    const isBuyerOrder =
+      notifType === 'order_update' ||
+      notifType === 'order' ||
+      action === 'OPEN_BUYER_ORDERS' ||
+      action === 'OPEN_ORDER_DETAILS' ||
+      targetScreen === 'Orders' ||
+      Boolean(orderId && !resolvedConvId);
+
+    if (isBuyerOrder) {
+      try {
+        navigationRef.navigate('Orders', {
+          order_id: orderId,
+          orderId,
+          _tapTs: tapTs,
+        });
+        return true;
+      } catch (err) {
+        console.warn('[NotificationService] Failed to navigate to Buyer Orders:', err);
+        return false;
+      }
+    }
+
+    // Already-In-Target-Chat Guard (Buyer): If buyer is ALREADY inside ChatConversation for this exact conversation, stay put!
+    if (
+      currentRouteName === 'ChatConversation' &&
+      currentActiveChat?.role === 'buyer' &&
+      resolvedConvId &&
+      (currentActiveChat.conversationId === resolvedConvId ||
+        currentActiveChat.conversationId.includes(resolvedConvId) ||
+        resolvedConvId.includes(currentActiveChat.conversationId))
+    ) {
+      console.log(`[NotificationService] Buyer is already inside active ChatConversation '${resolvedConvId}', skipping redundant navigation.`);
+      return true;
+    }
+
+    // Buyer Chat / Deal Notification -> Open ChatConversation directly with boutique
+    if (resolvedConvId || extras?.shop_id || extras?.shopId) {
+      try {
+        navigationRef.navigate('ChatConversation', {
+          negotiationId: resolvedConvId,
+          conversationId: resolvedConvId,
+          conversation_id: resolvedConvId,
+          shopId: extras?.shop_id || extras?.shopId,
+          boutiqueName: extras?.seller_name || extras?.boutiqueName || 'Nvilar Boutique',
+          _tapTs: tapTs,
+        });
+        return true;
+      } catch (err) {
+        console.warn('[NotificationService] Failed to navigate to ChatConversation, trying ChatsScreen fallback:', err);
+      }
+    }
+
     try {
       navigationRef.navigate('ChatsScreen', {
-        conversation_id: conversationId,
-        conversationId,
+        conversation_id: resolvedConvId,
+        conversationId: resolvedConvId,
+        shopId: extras?.shop_id || extras?.shopId,
+        boutiqueName: extras?.seller_name || extras?.boutiqueName,
+        _tapTs: tapTs,
       });
       return true;
     } catch (err) {
-      console.warn('[NotificationService] Failed to navigate to ChatsScreen, trying MainTabs fallback:', err);
-      try {
-        navigationRef.navigate('MainTabs', {
-          screen: 'ChatsTab',
-          params: {
-            conversation_id: conversationId,
-            conversationId,
-          },
-        });
-        return true;
-      } catch (innerErr) {
-        console.error('[NotificationService] Failed to navigate to buyer chats:', innerErr);
-        return false;
-      }
+      console.warn('[NotificationService] Failed to navigate to ChatsScreen:', err);
+      return false;
     }
   }
 
@@ -244,9 +384,9 @@ export function routeDeepLink(
 export function onNavigationReady(): void {
   console.log('[NotificationService] Navigation is ready');
   if (pendingDeepLink) {
-    const { targetRole, conversationId } = pendingDeepLink;
+    const { targetRole, conversationId, extras } = pendingDeepLink;
     pendingDeepLink = null;
-    routeDeepLink(targetRole, conversationId);
+    routeDeepLink(targetRole, conversationId, extras);
   }
 }
 
@@ -300,7 +440,7 @@ export function handleForegroundNotification(payload: MitrenoNotificationPayload
     recordNotificationSeen(messageId);
   }
 
-  const title = payload.title || payload.notification?.title || 'Mitreno';
+  const title = payload.title || payload.notification?.title || 'Nvilar';
   const body = payload.body || payload.notification?.body || '';
   const channelId = (payload.channelId ||
     (targetRole === 'seller' ? MITRENO_SELLER_CHANNEL.id : MITRENO_BUYER_CHANNEL.id)) as NotificationChannelId;
@@ -376,7 +516,7 @@ export function dispatchNotification(payload: MitrenoNotificationPayload): void 
     const targetRole = (data.target_role || data.role || '').toLowerCase().trim();
     const channelId = (payload.channelId ||
       (targetRole === 'seller' ? MITRENO_SELLER_CHANNEL.id : MITRENO_BUYER_CHANNEL.id)) as NotificationChannelId;
-    const title = payload.title || payload.notification?.title || 'Mitreno';
+    const title = payload.title || payload.notification?.title || 'Nvilar';
     const body = payload.body || payload.notification?.body || '';
 
     if (messageId) {
@@ -428,7 +568,7 @@ export function simulateNotification(
  * - BigPictureStyle hero product image in the middle
  * - "🛍️ Shop Now" primary action button
  * - "✨ Visit Now" secondary action button
- * - Mitreno authentic white squircle icon + red origami bag badge
+ * - Nvilar authentic white squircle icon + red origami bag badge
  */
 export function postProductPromoNotification(options: {
   title: string;
@@ -484,7 +624,7 @@ export function initialize(): () => void {
   }
   isInitialized = true;
 
-  console.log('🔔 [NotificationService] Initializing Mitreno Notification Service...');
+  console.log('🔔 [NotificationService] Initializing Nvilar Notification Service...');
 
   // 1. Request OS permissions & ensure Android Notification Channels
   initializeNotificationChannels().catch((err) => {
@@ -637,7 +777,7 @@ export function initialize(): () => void {
         const handleMsg = async (remoteMessage: any) => {
           if (!remoteMessage) return;
           const normalizedPayload: MitrenoNotificationPayload = {
-            title: remoteMessage.notification?.title || remoteMessage.data?.title || 'Mitreno Alert',
+            title: remoteMessage.notification?.title || remoteMessage.data?.title || 'Nvilar Alert',
             body: remoteMessage.notification?.body || remoteMessage.data?.body || '',
             image: remoteMessage.notification?.android?.imageUrl || remoteMessage.data?.image_url || remoteMessage.data?.image,
             data: remoteMessage.data || {},
@@ -699,6 +839,16 @@ export function initialize(): () => void {
     }
   });
   cleanups.push(() => nativeTapSub.remove());
+
+  // 5. Consume any pending cold-start notification extras captured by MainActivity before JS mounted
+  consumeInitialNativeNotification()
+    .then((initialExtras) => {
+      if (initialExtras) {
+        console.log('[NotificationService] Consumed cold-start native notification extras:', initialExtras);
+        handleNotificationTap({ data: initialExtras });
+      }
+    })
+    .catch(() => {});
 
   return () => {
     isInitialized = false;

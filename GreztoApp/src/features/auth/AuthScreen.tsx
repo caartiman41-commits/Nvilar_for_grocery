@@ -124,7 +124,7 @@ export const AuthScreen = () => {
     try {
       const res = await TruecallerAuthService.requestOneTapLogin();
       if (res.success && res.phoneNumber) {
-        const verifiedName = res.name || fullName.trim() || 'Mitreno Member';
+        const verifiedName = res.name || fullName.trim() || 'Nvilar Member';
         await loginWithTruecaller({
           phoneNumber: res.phoneNumber,
           displayName: verifiedName,
@@ -296,7 +296,7 @@ export const AuthScreen = () => {
     setIsVerifyingOtp(true);
     try {
       const cleanNumber = phoneNumber.replace(/[^0-9]/g, '');
-      const userDisplayName = authMode === 'create' ? fullName.trim() : (fullName.trim() || 'Mitreno Member');
+      const userDisplayName = authMode === 'create' ? fullName.trim() : (fullName.trim() || 'Nvilar Member');
 
       if (!confirmationResult) {
         showToast({
@@ -374,7 +374,7 @@ export const AuthScreen = () => {
         {/* BRAND LOGO & MOTTO (MATCHING SCREENSHOT 3) */}
         <View style={styles.brandCenterCol}>
           <Text style={styles.brandTitle}>
-            <Text style={styles.brandGoldM}>M</Text>ITRENO
+            <Text style={styles.brandGoldM}>N</Text>VILAR
           </Text>
           <Text style={styles.brandSubtitle}>THE PINNACLE OF BARGAINING</Text>
         </View>

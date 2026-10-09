@@ -324,9 +324,16 @@ const StudioConversationCard = memo(({ item, onPress }: StudioConversationCardPr
 interface StudioChatTabProps {
   onSelectConversation?: (conversationId: string) => void;
   initialConversationId?: string;
+  tapTimestamp?: number;
+  onConsumeInitialConversation?: () => void;
 }
 
-export const StudioChatTab: React.FC<StudioChatTabProps> = memo(({ onSelectConversation, initialConversationId }) => {
+export const StudioChatTab: React.FC<StudioChatTabProps> = memo(({
+  onSelectConversation,
+  initialConversationId,
+  tapTimestamp,
+  onConsumeInitialConversation,
+}) => {
   const insets = useSafeAreaInsets();
   const profile = useSellerStore((s) => s.profile);
   const conversations = useSellerStore((s) => s.conversations);
@@ -350,6 +357,7 @@ export const StudioChatTab: React.FC<StudioChatTabProps> = memo(({ onSelectConve
   const spinValue = useRef(new Animated.Value(0)).current;
   const sellerTypingTimeoutRef = useRef<any>(null);
   const isSendingReplyRef = useRef<boolean>(false);
+  const lastConsumedConvTapRef = useRef<string | null>(null);
 
   useEffect(() => {
     const showSub = Keyboard.addListener(
@@ -383,11 +391,16 @@ export const StudioChatTab: React.FC<StudioChatTabProps> = memo(({ onSelectConve
     };
   }, [selectedConvId]);
 
-  // Deep-link / Notification Tap Handler: Immediately open and fetch thread
+  // Deep-link / Notification Tap Handler: Immediately open and fetch thread ONCE per tap
   useEffect(() => {
     if (!initialConversationId) return;
 
+    const tapKey = `${initialConversationId}_${tapTimestamp || 'init'}`;
+    if (lastConsumedConvTapRef.current === tapKey) return;
+    lastConsumedConvTapRef.current = tapKey;
+
     setSelectedConvId(initialConversationId);
+    onConsumeInitialConversation?.();
 
     // Instant in-memory cache check (0ms instant display)
     const cached = BargainChatService.getCachedThreadMessages(initialConversationId);
@@ -452,7 +465,7 @@ export const StudioChatTab: React.FC<StudioChatTabProps> = memo(({ onSelectConve
 
     // Mark as seen and notify backend
     BargainChatService.markMessagesAsSeen(initialConversationId, profile.storeId || 'seller').catch(() => {});
-  }, [initialConversationId, profile.storeId]);
+  }, [initialConversationId, tapTimestamp, onConsumeInitialConversation]);
 
   // Find currently selected conversation from store, or synthesize fallback for instant notification deep-links
   const activeConversation = useMemo(() => {
@@ -1125,7 +1138,7 @@ export const StudioChatTab: React.FC<StudioChatTabProps> = memo(({ onSelectConve
     showToast({
       type: 'success',
       title: 'Report Submitted',
-      message: `Report filed for ${activeConversation.customerName}. Mitreno Trust & Safety will inspect within 2 hours.`,
+      message: `Report filed for ${activeConversation.customerName}. Nvilar Trust & Safety will inspect within 2 hours.`,
     });
   }, [activeConversation]);
 

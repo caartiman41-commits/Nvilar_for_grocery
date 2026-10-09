@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Pool } from 'pg';
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:MitrenoDB2026@140.238.164.12:5433/postgres?sslmode=disable',
+  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:NvilarDB2026@140.238.164.12:5433/postgres?sslmode=disable',
   max: 10,
   connectionTimeoutMillis: 8000,
 });
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
 
       // New user
       const newId = userId || ('usr_' + Date.now().toString(36));
-      const newName = fullName || 'Mitreno Member';
+      const newName = fullName || 'Nvilar Member';
       const insertRes = await client.query(`
         INSERT INTO users (id, phone, full_name, email, role, is_active, created_at, updated_at)
         VALUES ($1, $2, $3, $4, 'customer', true, NOW(), NOW())

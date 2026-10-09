@@ -256,7 +256,7 @@ export function BargainsFloorModule({
         </div>
 
         <div className={`pt-3 border-t text-xs font-semibold flex items-center justify-between ${isDark ? 'border-slate-800 text-slate-400' : 'border-slate-200 text-slate-500'}`}>
-          <span>Mitreno AI sets automatic upper/lower acceptable limits for each boutique</span>
+          <span>Nvilar AI sets automatic upper/lower acceptable limits for each boutique</span>
           <span className="font-black text-amber-600 dark:text-amber-400">● Live WebSocket / Polling Synced</span>
         </div>
       </div>

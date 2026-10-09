@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     const product = PRODUCTS.find((p) => p.id === productId) || PRODUCTS[0];
     const ai = getGeminiClient();
 
-    const prompt = `You are Mitreno's Neural Virtual Mirror and Smart Fit Engine.
+    const prompt = `You are Nvilar's Neural Virtual Mirror and Smart Fit Engine.
 The user is trying on:
 Product: ${product.name}
 Category: ${product.category}
@@ -22,7 +22,7 @@ User Fit Preference: ${fitPreference || "Relaxed"}
 Analyze the drape, shoulder seam placement, fabric weight behavior (${product.gsm} GSM), and provide:
 1. Sizing recommendation (S, M, L, XL, or XXL) with concise style explanation.
 2. Drape & Silhouette Evaluation (how the fabric sits on user).
-3. 3 complementary piece recommendations from the Mitreno catalog to complete this look.
+3. 3 complementary piece recommendations from the Nvilar catalog to complete this look.
 4. AI Stylist Quote.
 
 Return ONLY JSON:

@@ -486,7 +486,7 @@ export const ShopKundliModal: React.FC<ShopKundliModalProps> = ({
                         <Store className="w-4 h-4 text-slate-400" />
                       </div>
                       <p className="text-xs text-slate-700 leading-relaxed font-medium">
-                        {shop?.bio || 'Verified artisan boutique showcasing authentic regional handloom and apparel collections on Mitreno.'}
+                        {shop?.bio || 'Verified artisan boutique showcasing authentic regional handloom and apparel collections on Nvilar.'}
                       </p>
                       <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-400 font-mono">
                         Member since: {shop?.created_at ? new Date(shop.created_at).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' }) : '2026'}
@@ -538,7 +538,7 @@ export const ShopKundliModal: React.FC<ShopKundliModalProps> = ({
                     <div className="space-y-2 text-xs text-slate-600">
                       <p className="flex items-center gap-2">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span>All orders placed on Mitreno have a mandatory 24-hour buyer cancellation cooling period.</span>
+                        <span>All orders placed on Nvilar have a mandatory 24-hour buyer cancellation cooling period.</span>
                       </p>
                       <p className="flex items-center gap-2">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
@@ -698,7 +698,7 @@ export const ShopKundliModal: React.FC<ShopKundliModalProps> = ({
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-slate-500 font-medium">Email Address:</span>
-                          <span className="font-mono text-slate-700">{shop?.owner_email || 'partner@mitreno.in'}</span>
+                          <span className="font-mono text-slate-700">{shop?.owner_email || 'partner@nvilar.in'}</span>
                         </div>
                       </div>
                     </div>

@@ -147,7 +147,7 @@ export const SAMPLE_PRODUCTS: Record<string, ProductDetailItem> = {
   "p2": {
     "id": "p2",
     "name": "Handcrafted Chikankari Mulmul Kurta",
-    "boutiqueTag": "MITRENO BOUTIQUE",
+    "boutiqueTag": "NVILAR BOUTIQUE",
     "price": 3500,
     "originalPrice": 5000,
     "discountPercent": 30,
@@ -182,8 +182,8 @@ export const SAMPLE_PRODUCTS: Record<string, ProductDetailItem> = {
       }
     ],
     "seller": {
-      "name": "Mitreno.com",
-      "handle": "@mitreno.official",
+      "name": "Nvilar.com",
+      "handle": "@nvilar.official",
       "rating": 5,
       "verified": true,
       "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80",
@@ -431,7 +431,7 @@ export const SAMPLE_PRODUCTS: Record<string, ProductDetailItem> = {
   "p4": {
     "id": "p4",
     "name": "HEAVYWEIGHT BOX-FIT STREETWEAR HOODIE",
-    "boutiqueTag": "MITRENO BOUTIQUE",
+    "boutiqueTag": "NVILAR BOUTIQUE",
     "price": 2499,
     "originalPrice": 3499,
     "discountPercent": 29,
@@ -466,8 +466,8 @@ export const SAMPLE_PRODUCTS: Record<string, ProductDetailItem> = {
       }
     ],
     "seller": {
-      "name": "Mitreno.com",
-      "handle": "@mitreno.official",
+      "name": "Nvilar.com",
+      "handle": "@nvilar.official",
       "rating": 5,
       "verified": true,
       "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80",
@@ -2703,7 +2703,7 @@ export const SAMPLE_PRODUCTS: Record<string, ProductDetailItem> = {
   "p20": {
     "id": "p20",
     "name": "DOUBLE-BREASTED LINEN SUMMER BLAZER",
-    "boutiqueTag": "MITRENO BOUTIQUE",
+    "boutiqueTag": "NVILAR BOUTIQUE",
     "price": 4499,
     "originalPrice": 6499,
     "discountPercent": 31,
@@ -2738,8 +2738,8 @@ export const SAMPLE_PRODUCTS: Record<string, ProductDetailItem> = {
       }
     ],
     "seller": {
-      "name": "Mitreno.com",
-      "handle": "@mitreno.official",
+      "name": "Nvilar.com",
+      "handle": "@nvilar.official",
       "rating": 5,
       "verified": true,
       "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80",

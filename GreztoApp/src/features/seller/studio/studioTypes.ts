@@ -60,6 +60,8 @@ export interface StudioProduct {
   gsm: string;
   fit: string;
   sizes: GarmentSizeStock[];
+  minOrder?: number;
+  setRatio?: string;
   isBoosted?: boolean;
   isFlashDrop?: boolean;
 }

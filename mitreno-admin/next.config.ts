@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'r2.mitreno.com',
+        hostname: 'r2.nvilar.com',
       },
     ],
   },

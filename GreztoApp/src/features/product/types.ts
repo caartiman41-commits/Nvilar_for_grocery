@@ -60,4 +60,6 @@ export interface ProductDetailItem {
   productStory: string;
   policies: PolicyItem[];
   inStock?: boolean;
+  minOrder?: number;
+  setRatio?: string;
 }

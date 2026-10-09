@@ -105,16 +105,35 @@ export const ChatConversationScreen = memo(() => {
   const routeParams = route.params || {};
   const initialNegId = routeParams.negotiationId || routeParams.conversationId || routeParams.conversation_id;
   const initialShopId = routeParams.shopId || routeParams.seller?.shopId;
-  const initialBoutiqueName = routeParams.boutiqueName || routeParams.shopName || routeParams.seller?.name || 'Mitreno Boutique';
+  const initialBoutiqueName = routeParams.boutiqueName || routeParams.shopName || routeParams.seller?.name || 'Nvilar Boutique';
   const initialAvatar = routeParams.avatar || routeParams.shopAvatar || routeParams.seller?.avatar || 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=150&auto=format&fit=crop&q=80';
   const initialProduct = routeParams.product || routeParams.attachedProduct;
 
   // Active state
   const [negotiationId, setNegotiationId] = useState<string | null>(initialNegId || null);
-  const [shopId] = useState<string | null>(initialShopId || null);
+  const [shopId, setShopId] = useState<string | null>(initialShopId || null);
   const [boutiqueName, setBoutiqueName] = useState<string>(initialBoutiqueName);
   const [boutiqueAvatar, setBoutiqueAvatar] = useState<string>(initialAvatar);
   const [attachedProduct, setAttachedProduct] = useState<any>(initialProduct || null);
+
+  const lastConsumedTapRef = useRef<number | undefined>(routeParams._tapTs);
+
+  useEffect(() => {
+    if (routeParams._tapTs && routeParams._tapTs === lastConsumedTapRef.current && negotiationId) {
+      return;
+    }
+    lastConsumedTapRef.current = routeParams._tapTs;
+
+    if (initialNegId && initialNegId !== negotiationId) {
+      setNegotiationId(initialNegId);
+    }
+    if (initialShopId && initialShopId !== shopId) {
+      setShopId(initialShopId);
+    }
+    if (routeParams.boutiqueName || routeParams.shopName || routeParams.seller?.name) {
+      setBoutiqueName(initialBoutiqueName);
+    }
+  }, [initialNegId, initialShopId, initialBoutiqueName, routeParams._tapTs, negotiationId, shopId]);
 
   // Primary in-memory cache key for 0ms WhatsApp-grade instant chat display
   const primaryCacheKey = initialNegId || initialShopId || initialBoutiqueName;
@@ -636,7 +655,13 @@ export const ChatConversationScreen = memo(() => {
         isOnline={isSellerOnline}
         lastSeenTime={sellerLastSeen}
         isTyping={isSellerTyping}
-        onBack={() => navigation.goBack()}
+        onBack={() => {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate('MainTabs', { screen: 'ChatsTab' });
+          }
+        }}
         onInfoPress={() => setChatInfoVisible(true)}
         headerBgColor={THEME_BACKGROUNDS[chatTheme]}
       />
@@ -956,7 +981,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   buyerBubble: {
-    backgroundColor: '#1E3A8A', // Mitreno Deep Royal Navy
+    backgroundColor: '#1E3A8A', // Nvilar Deep Royal Navy
     borderBottomRightRadius: 4,
   },
   sellerBubble: {

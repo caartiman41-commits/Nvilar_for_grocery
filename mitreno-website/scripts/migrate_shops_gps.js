@@ -1,6 +1,6 @@
 const { Client } = require('pg');
 const client = new Client({
-  connectionString: 'postgresql://postgres:MitrenoDB2026@140.238.164.12:5433/postgres?sslmode=disable',
+  connectionString: 'postgresql://postgres:NvilarDB2026@140.238.164.12:5433/postgres?sslmode=disable',
 });
 
 async function migrate() {

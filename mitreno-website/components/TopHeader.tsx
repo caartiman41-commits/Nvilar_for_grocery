@@ -73,11 +73,14 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
           {/* Brand Mark & Filter Dropdown */}
           <div className="flex items-center gap-2.5 relative">
-            {/* Mitreno Brand Mark */}
+            {/* Nvilar Brand Mark */}
             <div className="flex items-center select-none">
-              <span className="font-serif-editorial text-2xl font-black tracking-tight text-neutral-950">
-                Mitreno
-              </span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/nvilar-logo-header.png"
+                alt="NVILAR"
+                className="h-7 w-auto object-contain"
+              />
             </div>
             
             {/* Filter Dropdown */}

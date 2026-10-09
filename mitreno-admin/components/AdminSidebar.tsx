@@ -18,6 +18,7 @@ import {
   HelpCircle,
   Zap,
   BarChart3,
+  CreditCard,
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -68,6 +69,14 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ pendingCount = 0 }) 
       href: '/orders',
       icon: ShoppingBag,
       active: pathname.startsWith('/orders'),
+    },
+    {
+      title: 'Payouts & Support',
+      href: '/payout-tickets',
+      icon: CreditCard,
+      active: pathname.startsWith('/payout-tickets'),
+      badge: 'Live',
+      badgeColor: 'bg-emerald-500/20 text-emerald-700 border border-emerald-500/30',
     },
     {
       title: '⚡ Nearby Orders Radar',

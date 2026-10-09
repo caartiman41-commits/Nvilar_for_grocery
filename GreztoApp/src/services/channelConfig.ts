@@ -1,8 +1,8 @@
 /**
- * Mitreno Native Android Notification Channels Configuration (API 26+)
+ * Nvilar Native Android Notification Channels Configuration (API 26+)
  * 
  * Configures distinct high-priority notification channels with customized
- * vibration cadences and luxury sound profiles for Mitreno boutiques & shoppers.
+ * vibration cadences and luxury sound profiles for Nvilar boutiques & shoppers.
  */
 
 import { NativeModules, PermissionsAndroid, Platform } from 'react-native';
@@ -89,7 +89,7 @@ export const MITRENO_SELLER_CHANNEL: NotificationChannelConfig = {
   vibrationPattern: VIBRATION_PATTERNS.SELLER_URGENT_DOUBLE_PULSE, // [0, 250, 200, 250]
   sound: CHANNEL_SOUNDS.SELLER, // 'cash_chime' (with native fallback to default)
   lights: true,
-  lightColor: '#E6A524', // Mitreno Gold
+  lightColor: '#E6A524', // Nvilar Gold
   showBadge: true,
   visibility: NotificationVisibility.PUBLIC, // 1 (Full Lockscreen preview visible)
 };
@@ -107,7 +107,7 @@ export const MITRENO_BUYER_CHANNEL: NotificationChannelConfig = {
   vibrationPattern: VIBRATION_PATTERNS.BUYER_SMOOTH_WAVE, // [0, 400]
   sound: CHANNEL_SOUNDS.BUYER, // 'luxury_chime' (with native fallback to default)
   lights: true,
-  lightColor: '#1B1B1B', // Mitreno Onyx
+  lightColor: '#1B1B1B', // Nvilar Onyx
   showBadge: true,
   visibility: NotificationVisibility.PUBLIC, // 1 (Full Lockscreen preview visible)
 };
@@ -199,7 +199,7 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
       const granted = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
         {
-          title: 'Mitreno Notifications',
+          title: 'Nvilar Notifications',
           message: 'Enable notifications to receive real-time bargain offers, boutique replies, and order updates.',
           buttonPositive: 'Allow',
           buttonNegative: 'Not Now',
@@ -266,6 +266,23 @@ export const postNativeNotification = async (
     return typeof notificationId === 'number' ? notificationId : null;
   } catch (error) {
     console.warn('[NotificationChannels] Native postNotification error:', error);
+    return null;
+  }
+};
+
+/**
+ * Consumes any pending notification extras captured by MainActivity during cold start
+ */
+export const consumeInitialNativeNotification = async (): Promise<Record<string, string> | null> => {
+  if (Platform.OS !== 'android' || !NotificationChannelModule?.consumeInitialNotification) {
+    return null;
+  }
+
+  try {
+    const extras = await NotificationChannelModule.consumeInitialNotification();
+    return extras && typeof extras === 'object' ? extras : null;
+  } catch (error) {
+    console.warn('[NotificationChannels] consumeInitialNotification error:', error);
     return null;
   }
 };

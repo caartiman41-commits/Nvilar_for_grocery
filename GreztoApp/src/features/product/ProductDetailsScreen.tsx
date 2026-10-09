@@ -28,8 +28,6 @@ import { ProductSizeSelector } from './components/ProductSizeSelector';
 import { ProductSellerDelivery } from './components/ProductSellerDelivery';
 import { ProductSpecifications } from './components/ProductSpecifications';
 import { ProductRecommendations } from './components/ProductRecommendations';
-import { PriceHistoryModal } from './components/PriceHistoryModal';
-import { PriceHistoryButton } from './components/PriceHistoryButton';
 import { ProductDetailsSkeleton } from './components/ProductDetailsSkeleton';
 
 export const ProductDetailsScreen: React.FC = memo(() => {
@@ -49,16 +47,25 @@ export const ProductDetailsScreen: React.FC = memo(() => {
       passedProduct.sizes &&
       passedProduct.images
     ) {
-      return passedProduct as ProductDetailItem;
+      return {
+        ...passedProduct,
+        minOrder: passedProduct.minOrder || 6,
+        setRatio: passedProduct.setRatio || 'S:1, M:2, L:2, XL:1',
+      } as ProductDetailItem;
     }
 
-    return getProductDetailById(
+    const base = getProductDetailById(
       productId,
       passedProduct?.name,
       passedProduct?.price,
       passedProduct?.image || passedProduct?.images?.[0],
       passedProduct?.boutiqueName || passedProduct?.boutiqueTag
     );
+    return {
+      ...base,
+      minOrder: passedProduct?.minOrder || base.minOrder || 6,
+      setRatio: passedProduct?.setRatio || base.setRatio || 'S:1, M:2, L:2, XL:1',
+    };
   }, [productId, passedProduct]);
 
   const [liveBackendProduct, setLiveBackendProduct] = useState<BackendProduct | null>(null);
@@ -78,10 +85,25 @@ export const ProductDetailsScreen: React.FC = memo(() => {
   }, [productId]);
 
   const productData: ProductDetailItem = useMemo(() => {
-    if (!liveBackendProduct) return fallbackProduct;
+    const passedShopId = passedProduct?.shopId || passedProduct?.shop_id || (passedProduct?.seller as any)?.shopId || '';
+    if (!liveBackendProduct) {
+      return {
+        ...fallbackProduct,
+        minOrder: passedProduct?.minOrder || fallbackProduct.minOrder || 6,
+        setRatio: passedProduct?.setRatio || fallbackProduct.setRatio || 'S:1, M:2, L:2, XL:1',
+        shopId: passedShopId,
+        seller: {
+          ...fallbackProduct.seller,
+          shopId: passedShopId,
+        },
+      } as ProductDetailItem;
+    }
     const bp = liveBackendProduct;
     const orig = bp.original_price || bp.base_price;
     const disc = bp.discount_percent || (orig > bp.base_price ? Math.round(((orig - bp.base_price) / orig) * 100) : 0);
+    const resolvedShopId = bp.shop?.id || bp.shop_id || passedShopId;
+    const resolvedMinOrder = bp.min_order_quantity || passedProduct?.minOrder || fallbackProduct.minOrder || 6;
+    const resolvedSetRatio = bp.set_ratio || passedProduct?.setRatio || fallbackProduct.setRatio || 'S:1, M:2, L:2, XL:1';
     return {
       ...fallbackProduct,
       id: bp.id,
@@ -89,11 +111,13 @@ export const ProductDetailsScreen: React.FC = memo(() => {
       price: bp.base_price,
       originalPrice: orig,
       discountPercent: disc,
-      shopId: bp.shop?.id || bp.shop_id || 'shop_KD56AHEq_42723',
+      minOrder: resolvedMinOrder,
+      setRatio: resolvedSetRatio,
+      shopId: resolvedShopId,
       images: bp.gallery_images && bp.gallery_images.length > 0 ? bp.gallery_images : [bp.thumbnail, ...fallbackProduct.images.slice(1)],
       seller: bp.shop
         ? {
-            shopId: bp.shop.id || bp.shop_id || 'shop_KD56AHEq_42723',
+            shopId: resolvedShopId,
             name: bp.shop.name,
             handle: `@${bp.shop.name.toLowerCase().replace(/\s+/g, '')}`,
             rating: bp.shop.rating ? Number(bp.shop.rating) : 4.8,
@@ -103,7 +127,7 @@ export const ProductDetailsScreen: React.FC = memo(() => {
           }
         : {
             ...fallbackProduct.seller,
-            shopId: 'shop_KD56AHEq_42723',
+            shopId: resolvedShopId,
           },
       specifications: [
         {
@@ -126,13 +150,12 @@ export const ProductDetailsScreen: React.FC = memo(() => {
       sizes: bp.variants && bp.variants.length > 0 ? bp.variants.map((v) => ({ size: v.size, stock: v.stock })) : fallbackProduct.sizes,
       inStock: bp.is_active !== undefined ? bp.is_active : (fallbackProduct.inStock ?? true),
     };
-  }, [fallbackProduct, liveBackendProduct]);
+  }, [fallbackProduct, liveBackendProduct, passedProduct]);
 
   // Screen State
   const [selectedSize, setSelectedSize] = useState<string>(
     productData.sizes?.[0]?.size || 'M'
   );
-  const [priceHistoryModalVisible, setPriceHistoryModalVisible] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
@@ -170,29 +193,104 @@ export const ProductDetailsScreen: React.FC = memo(() => {
     return productData.badgeText || 'SPECIAL PRICE';
   }, [productData.priceHistory, productData.price, productData.originalPrice, productData.badgeText]);
 
-  // Cart actions
+  // Cart items & Multi-Size Wholesale Quantities
+  const cartItems = useCartStore((s) => s.items);
   const addItem = useCartStore((s) => s.addItem);
+  const updateQuantity = useCartStore((s) => s.updateQuantity);
+  const removeItem = useCartStore((s) => s.removeItem);
+
+  // Map quantities by size for this product
+  const sizeQuantities = useMemo(() => {
+    const map: Record<string, number> = {};
+    cartItems.forEach((item) => {
+      if (item.productId === productData.id && item.size) {
+        map[item.size] = (map[item.size] || 0) + item.quantity;
+      } else if (item.id.startsWith(productData.id + '_')) {
+        const sz = item.id.replace(productData.id + '_', '');
+        map[sz] = (map[sz] || 0) + item.quantity;
+      } else if (item.id === productData.id && item.size) {
+        map[item.size] = (map[item.size] || 0) + item.quantity;
+      }
+    });
+    return map;
+  }, [cartItems, productData.id]);
+
+  const selectedSizeCartItemId = `${productData.id}_${selectedSize}`;
+  const cartQuantityForSelectedSize = sizeQuantities[selectedSize] || 0;
+
+  // Tooltip Popover state & animated opacity
+  const [showMoqTooltip, setShowMoqTooltip] = useState(false);
+  const tooltipOpacity = useRef(new Animated.Value(0)).current;
+
+  const triggerTooltip = useCallback(() => {
+    setShowMoqTooltip(true);
+    tooltipOpacity.setValue(0);
+    Animated.sequence([
+      Animated.timing(tooltipOpacity, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+      Animated.delay(2600),
+      Animated.timing(tooltipOpacity, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowMoqTooltip(false);
+    });
+  }, [tooltipOpacity]);
 
   const handleAddToCart = useCallback(() => {
     if (productData.inStock === false) {
       Alert.alert('Out of Stock', `"${productData.name}" is currently out of stock.`);
       return;
     }
+    const minOrder = productData.minOrder || 6;
     addItem({
-      id: `${productData.id}-${selectedSize}`,
+      id: selectedSizeCartItemId,
+      productId: productData.id,
+      size: selectedSize,
       name: `${productData.name} (${selectedSize})`,
       price: productData.price,
-      quantity: 1,
+      quantity: minOrder,
       image: productData.images[0],
       discountBadge: `${productData.discountPercent}% OFF`,
-      unitLabel: selectedSize,
+      unitLabel: `Size ${selectedSize} • ${minOrder} pcs`,
     });
+    triggerTooltip();
+  }, [addItem, productData, selectedSize, selectedSizeCartItemId, triggerTooltip]);
 
-    setIsAdded(true);
-    setTimeout(() => {
-      setIsAdded(false);
-    }, 2000);
-  }, [addItem, productData, selectedSize]);
+  const handleIncrement = useCallback((delta: number = 1) => {
+    const existing = cartItems.find((i) => i.id === selectedSizeCartItemId);
+    if (existing) {
+      updateQuantity(selectedSizeCartItemId, existing.quantity + delta);
+    } else {
+      const minOrder = productData.minOrder || 6;
+      addItem({
+        id: selectedSizeCartItemId,
+        productId: productData.id,
+        size: selectedSize,
+        name: `${productData.name} (${selectedSize})`,
+        price: productData.price,
+        quantity: Math.max(minOrder, delta),
+        image: productData.images[0],
+        discountBadge: `${productData.discountPercent}% OFF`,
+        unitLabel: `Size ${selectedSize} • ${Math.max(minOrder, delta)} pcs`,
+      });
+      triggerTooltip();
+    }
+  }, [cartItems, selectedSizeCartItemId, updateQuantity, addItem, productData, selectedSize, triggerTooltip]);
+
+  const handleDecrement = useCallback(() => {
+    const minOrder = productData.minOrder || 6;
+    if (cartQuantityForSelectedSize <= minOrder) {
+      removeItem(selectedSizeCartItemId);
+    } else {
+      updateQuantity(selectedSizeCartItemId, cartQuantityForSelectedSize - 1);
+    }
+  }, [cartQuantityForSelectedSize, productData.minOrder, removeItem, selectedSizeCartItemId, updateQuantity]);
 
   const handleBuyNow = useCallback((customPrice?: number) => {
     if (productData.inStock === false) {
@@ -200,9 +298,12 @@ export const ProductDetailsScreen: React.FC = memo(() => {
       return;
     }
     const finalPrice = typeof customPrice === 'number' ? customPrice : productData.price;
+    const exactShopId = (productData as any).shopId || (productData.seller as any)?.shopId || '';
     navigation.navigate('Checkout', {
       directItem: {
-        id: `${productData.id}-${selectedSize}`,
+        id: productData.id,
+        productId: productData.id,
+        shopId: exactShopId,
         name: productData.name,
         price: finalPrice,
         originalPrice: productData.originalPrice,
@@ -210,7 +311,7 @@ export const ProductDetailsScreen: React.FC = memo(() => {
         image: productData.images[0],
         discountBadge: `${productData.discountPercent}% OFF`,
         size: selectedSize,
-        boutiqueName: productData.seller?.name || 'Mitreno.com',
+        boutiqueName: productData.seller?.name || 'Verified Boutique',
       }
     });
   }, [navigation, productData, selectedSize]);
@@ -219,7 +320,7 @@ export const ProductDetailsScreen: React.FC = memo(() => {
     try {
       await Share.share({
         title: productData.name,
-        message: `Check out ${productData.name} from ${productData.seller.name} for ${formatINR(productData.price)} on Mitreno!`,
+        message: `Check out ${productData.name} from ${productData.seller.name} for ${formatINR(productData.price)} on Nvilar!`,
       });
     } catch {
       // Dismissed
@@ -231,11 +332,12 @@ export const ProductDetailsScreen: React.FC = memo(() => {
       Alert.alert('Out of Stock', `"${productData.name}" is currently out of stock and unavailable for bargaining.`);
       return;
     }
+    const exactShopId = (productData as any).shopId || (productData.seller as any)?.shopId || '';
     navigation.navigate('ChatConversation', {
       product: productData,
       attachedProduct: productData,
-      shopId: (productData as any).shopId || (productData.seller as any)?.shopId || 'shop_KD56AHEq_42723',
-      boutiqueName: productData.seller?.name || 'Mitreno Boutique',
+      shopId: exactShopId,
+      boutiqueName: productData.seller?.name || 'Nvilar Boutique',
       avatar: productData.seller?.avatar || 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=150&auto=format&fit=crop&q=80',
     });
   }, [navigation, productData]);
@@ -323,11 +425,14 @@ export const ProductDetailsScreen: React.FC = memo(() => {
           productTitle={productData.name}
         />
 
-        {/* 2. Top Size Selector Card (Matching Screenshot 2) */}
+        {/* 2. Top Size Selector Card (Customizable Size-Wise Wholesale) */}
         <ProductSizeSelector
           sizes={productData.sizes}
           selectedSize={selectedSize}
           onSelectSize={setSelectedSize}
+          minOrder={productData.minOrder || 6}
+          sizeQuantities={sizeQuantities}
+          unitPrice={productData.price}
         />
 
         {/* 3. Middle Product Info Section (Seamless Plane aligned to 12px margin) */}
@@ -337,14 +442,14 @@ export const ProductDetailsScreen: React.FC = memo(() => {
             style={styles.boutiqueRow}
             onPress={() =>
               navigation.navigate('BoutiqueStore', {
-                shopId: (productData as any).shopId || (productData.seller as any)?.shopId || 'shop_KD56AHEq_42723',
+                shopId: (productData as any).shopId || (productData.seller as any)?.shopId || '',
                 seller: productData.seller,
               })
             }
             activeOpacity={0.75}
           >
             <Text style={styles.boutiqueNameText}>
-              {productData.seller?.name || 'Mitreno Boutique'}
+              {productData.seller?.name || 'Nvilar Boutique'}
             </Text>
             <Icon name="chevron-right" size={14} color="#64748B" style={{ marginLeft: 3 }} />
           </TouchableOpacity>
@@ -366,24 +471,29 @@ export const ProductDetailsScreen: React.FC = memo(() => {
             </View>
           ) : null}
 
-          {/* Price Row: Bold Final Price + Strikethrough Original + Discount% */}
-          <View style={styles.priceRow}>
-            <Text style={styles.currentPrice}>{formatINR(productData.price)}</Text>
-            <Text style={styles.originalPrice}>{formatINR(productData.originalPrice)}</Text>
-            <Text style={styles.discountText}>{productData.discountPercent}% off</Text>
+          {/* Wholesale Pricing Breakdown */}
+          <View style={styles.wholesalePriceCard}>
+            <View style={styles.priceRow}>
+              <Text style={styles.currentPrice}>{formatINR(productData.price)}</Text>
+              <Text style={styles.unitText}>/ pc</Text>
+              <Text style={styles.originalPrice}>{formatINR(productData.originalPrice)}</Text>
+              <View style={styles.marginPill}>
+                <Text style={styles.marginPillText}>{productData.discountPercent}% MARGIN</Text>
+              </View>
+            </View>
+            <View style={styles.setTotalRow}>
+              <Icon name="package-variant-closed" size={15} color="#2563EB" style={{ marginRight: 6 }} />
+              <Text style={styles.setTotalText}>
+                Wholesale Minimum: <Text style={styles.setTotalBold}>{productData.minOrder || 6} pieces per size</Text>
+              </Text>
+            </View>
+            <View style={styles.profitEstimateRow}>
+              <Icon name="trending-up" size={14} color="#059669" style={{ marginRight: 5 }} />
+              <Text style={styles.profitEstimateText}>
+                Resale MRP {formatINR(productData.originalPrice)}/pc • Profit {formatINR(productData.originalPrice - productData.price)}/pc
+              </Text>
+            </View>
           </View>
-
-          {/* Delivery Fee Notice */}
-          <View style={styles.deliveryFeeRow}>
-            <Text style={styles.deliveryFeeText}>
-              {productData.deliveryFeeText || '+₹99 Delivery Fee'}
-            </Text>
-          </View>
-
-          {/* Glowing Animated 7-Day Price History Button */}
-          <PriceHistoryButton
-            onPress={() => setPriceHistoryModalVisible(true)}
-          />
 
           {/* Zero Artificial Markup Trust Badge */}
           <View style={styles.trustBadgeRow}>
@@ -416,6 +526,8 @@ export const ProductDetailsScreen: React.FC = memo(() => {
               specifications={productData.specifications}
               productStory={productData.productStory}
               sku={productData.sku}
+              minOrder={productData.minOrder || 6}
+              setRatio={productData.setRatio}
             />
 
             {/* 6. Flipkart-style Similar Outfits & More Products Recommendations */}
@@ -463,30 +575,66 @@ export const ProductDetailsScreen: React.FC = memo(() => {
               </Text>
             </TouchableOpacity>
 
-            {/* Right: BUY NOW with Dynamic Price */}
-            <TouchableOpacity
-              style={styles.buyNowBtn}
-              onPress={() => handleBuyNow()}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.buyNowText}>BUY NOW {formatINR(productData.price)}</Text>
-              <Icon name="arrow-right" size={16} color="#FFFFFF" style={{ marginLeft: 4 }} />
-            </TouchableOpacity>
+            {/* Right: Clean Wholesale ADD Button & Stepper with Downward Arrow Tooltip */}
+            <View style={styles.addBtnWrapper}>
+              {/* Downward Arrow Pop-up Tooltip */}
+              {showMoqTooltip && (
+                <Animated.View style={[styles.tooltipContainer, { opacity: tooltipOpacity }]}>
+                  <View style={styles.tooltipBubble}>
+                    <Icon name="information" size={13} color="#FFFFFF" style={{ marginRight: 5 }} />
+                    <Text style={styles.tooltipText}>
+                      Minimum order should be {productData.minOrder || 6}
+                    </Text>
+                  </View>
+                  <View style={styles.tooltipArrowDown} />
+                </Animated.View>
+              )}
+
+              {cartQuantityForSelectedSize === 0 ? (
+                <TouchableOpacity
+                  style={styles.buyNowBtn}
+                  onPress={handleAddToCart}
+                  activeOpacity={0.85}
+                >
+                  <Icon name="cart-plus" size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={styles.buyNowText}>ADD</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.wholesaleStepperPill}>
+                  <TouchableOpacity
+                    style={styles.stepperActionBtn}
+                    onPress={handleDecrement}
+                    activeOpacity={0.7}
+                  >
+                    <Icon
+                      name={cartQuantityForSelectedSize <= (productData.minOrder || 6) ? "trash-can-outline" : "minus"}
+                      size={18}
+                      color="#E11D48"
+                    />
+                  </TouchableOpacity>
+
+                  <View style={styles.stepperCenterInfo}>
+                    <Text style={styles.stepperQtyText}>
+                      {cartQuantityForSelectedSize} Pieces
+                    </Text>
+                    <Text style={styles.stepperPiecesSub}>
+                      Size {selectedSize} • {formatINR(cartQuantityForSelectedSize * productData.price)}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.stepperActionBtn}
+                    onPress={() => handleIncrement(1)}
+                    activeOpacity={0.7}
+                  >
+                    <Icon name="plus" size={18} color="#E11D48" />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
           </>
         )}
       </View>
-
-      {/* 7. Price History Modal - Lazy Mount on Demand */}
-      {priceHistoryModalVisible && (
-        <PriceHistoryModal
-          visible={priceHistoryModalVisible}
-          onClose={() => setPriceHistoryModalVisible(false)}
-          productTitle={productData.name}
-          originalPrice={productData.originalPrice}
-          priceHistory={productData.priceHistory}
-          onBuyAtLowestPrice={(price) => handleBuyNow(price)}
-        />
-      )}
     </View>
   );
 });
@@ -563,16 +711,62 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#047857',
   },
-  deliveryFeeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  wholesalePriceCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     marginBottom: 12,
   },
-  deliveryFeeText: {
-    fontSize: 13,
-    fontWeight: '600',
+  unitText: {
+    fontSize: 14,
+    fontWeight: '700',
     color: '#64748B',
+    marginLeft: -2,
     marginRight: 4,
+  },
+  marginPill: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  marginPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#15803D',
+    letterSpacing: 0.3,
+  },
+  setTotalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#EEF2F6',
+  },
+  setTotalText: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  setTotalBold: {
+    fontSize: 14.5,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  profitEstimateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 5,
+  },
+  profitEstimateText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#059669',
   },
 
   trustBadgeRow: {
@@ -640,26 +834,106 @@ const styles = StyleSheet.create({
   addToCartTextSuccess: {
     color: colors.verifiedGreen,
   },
-  buyNowBtn: {
+  addBtnWrapper: {
     flex: 1.5,
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  tooltipContainer: {
+    position: 'absolute',
+    bottom: 54,
+    right: 0,
+    left: -40,
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  tooltipBubble: {
+    backgroundColor: '#0F172A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 8,
+  },
+  tooltipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
+  tooltipArrowDown: {
+    width: 0,
+    height: 0,
+    backgroundColor: 'transparent',
+    borderStyle: 'solid',
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 6,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#0F172A',
+    alignSelf: 'center',
+    marginTop: -1,
+  },
+  buyNowBtn: {
+    flex: 1,
     height: 46,
     borderRadius: 14,
-    backgroundColor: colors.burgundy,
+    backgroundColor: '#E11D48',
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 10,
-    shadowColor: colors.burgundy,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
   },
   buyNowText: {
-    fontSize: 12.5,
-    fontWeight: '900',
+    fontSize: 14,
+    fontWeight: '800',
     color: '#FFFFFF',
-    letterSpacing: 0.4,
+    letterSpacing: 0.5,
+  },
+  wholesaleStepperPill: {
+    flex: 1.5,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: '#FFF1F2',
+    borderWidth: 1.5,
+    borderColor: '#FECDD3',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 6,
+  },
+  stepperActionBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  stepperCenterInfo: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperQtyText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#9F1239',
+  },
+  stepperPiecesSub: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#E11D48',
   },
   outOfStockPillDetail: {
     alignSelf: 'flex-start',

@@ -29,6 +29,7 @@ import { ProductGridSkeleton } from '../../components/ProductGridSkeleton';
 
 export interface BoutiqueProductItem {
   id: string;
+  shopId?: string;
   name: string;
   price: number;
   originalPrice: number;
@@ -38,6 +39,7 @@ export interface BoutiqueProductItem {
   discountBadge: string;
   filterGroup?: 'all' | 'under_1999' | 'min_50' | 'biggest_discount';
   inStock?: boolean;
+  minOrder?: number;
 }
 
 const BOUTIQUE_PRODUCTS: BoutiqueProductItem[] = [
@@ -51,6 +53,7 @@ const BOUTIQUE_PRODUCTS: BoutiqueProductItem[] = [
     rating: 4.6,
     discountBadge: '26% OFF',
     filterGroup: 'all',
+    minOrder: 6,
   },
   {
     id: 'p2',
@@ -58,10 +61,11 @@ const BOUTIQUE_PRODUCTS: BoutiqueProductItem[] = [
     price: 3500,
     originalPrice: 5000,
     image: 'https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?w=900&auto=format&fit=crop&q=80',
-    boutiqueName: 'Mitreno.com',
+    boutiqueName: 'Nvilar.com',
     rating: 5.0,
     discountBadge: '30% OFF',
     filterGroup: 'all',
+    minOrder: 5,
   },
   {
     id: 'p3',
@@ -80,7 +84,7 @@ const BOUTIQUE_PRODUCTS: BoutiqueProductItem[] = [
     price: 2499,
     originalPrice: 3499,
     image: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=900&auto=format&fit=crop&q=80',
-    boutiqueName: 'Mitreno.com',
+    boutiqueName: 'Nvilar.com',
     rating: 5.0,
     discountBadge: '29% OFF',
     filterGroup: 'all',
@@ -256,7 +260,7 @@ const BOUTIQUE_PRODUCTS: BoutiqueProductItem[] = [
     price: 4499,
     originalPrice: 6499,
     image: 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=900&auto=format&fit=crop&q=80',
-    boutiqueName: 'Mitreno.com',
+    boutiqueName: 'Nvilar.com',
     rating: 5.0,
     discountBadge: '31% OFF',
     filterGroup: 'all',
@@ -266,13 +270,26 @@ const BOUTIQUE_PRODUCTS: BoutiqueProductItem[] = [
 interface ProductGridItemProps {
   item: BoutiqueProductItem;
   width: number;
+  cartQuantity: number;
   onProductPress: (item: BoutiqueProductItem) => void;
   onBoutiquePress: (item: BoutiqueProductItem) => void;
   onBargain: (item: BoutiqueProductItem) => void;
   onBuy: (item: BoutiqueProductItem) => void;
+  onIncrement: (item: BoutiqueProductItem) => void;
+  onDecrement: (item: BoutiqueProductItem) => void;
 }
 
-const ProductGridItem = memo(({ item, width, onProductPress, onBoutiquePress, onBargain, onBuy }: ProductGridItemProps) => (
+const ProductGridItem = memo(({ 
+  item, 
+  width, 
+  cartQuantity,
+  onProductPress, 
+  onBoutiquePress, 
+  onBargain, 
+  onBuy,
+  onIncrement,
+  onDecrement,
+}: ProductGridItemProps) => (
   <View style={[styles.cardWrapper, { width }]}>
     <ProductCard
       id={item.id}
@@ -282,12 +299,16 @@ const ProductGridItem = memo(({ item, width, onProductPress, onBoutiquePress, on
       image={item.image}
       boutiqueName={item.boutiqueName}
       rating={item.rating}
+      minOrder={item.minOrder || 6}
       inStock={item.inStock ?? true}
+      cartQuantity={cartQuantity}
       onBoutiquePress={() => onBoutiquePress(item)}
       onPress={() => onProductPress(item)}
       onBargain={() => onBargain(item)}
       onBuy={() => onBuy(item)}
       onAdd={() => onBuy(item)}
+      onIncrement={() => onIncrement(item)}
+      onDecrement={() => onDecrement(item)}
     />
   </View>
 ));
@@ -303,11 +324,21 @@ export const HomeScreen = memo(() => {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const addItem = useCartStore((s) => s.addItem);
+  const updateQuantity = useCartStore((s) => s.updateQuantity);
+  const removeItem = useCartStore((s) => s.removeItem);
   const cartItems = useCartStore((s) => s.items);
 
-  const SIDE_PADDING = 12;
-  const GAP = 10;
+  const SIDE_PADDING = 8;
+  const GAP = 8;
   const cardWidth = useMemo(() => Math.floor((width - (SIDE_PADDING * 2) - GAP) / 2), [width]);
+
+  const cartQuantities = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const it of cartItems) {
+      map[it.id] = (map[it.id] || 0) + it.quantity;
+    }
+    return map;
+  }, [cartItems]);
 
   // Preload top featured boutique product images + visual category avatars into cache
   useEffect(() => {
@@ -351,7 +382,7 @@ export const HomeScreen = memo(() => {
   const [shuffleKey, setShuffleKey] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
-  // Live products fetch from Go backend (resilient fallback to BOUTIQUE_PRODUCTS)
+  // Live products fetch from Go backend (PostgreSQL single source of truth)
   const fetchLiveProducts = useCallback(async () => {
     try {
       const res = await ProductService.getProducts({
@@ -366,6 +397,7 @@ export const HomeScreen = memo(() => {
           const inStock = sellerMatch ? sellerMatch.inStock : (p.is_active !== undefined ? p.is_active : true);
           return {
             id: p.id,
+            shopId: p.shop_id || p.shop?.id || '',
             name: p.name,
             price: p.base_price,
             originalPrice: orig,
@@ -378,9 +410,12 @@ export const HomeScreen = memo(() => {
           };
         });
         setShuffledProducts(smartShuffle(mapped));
+      } else {
+        setShuffledProducts(smartShuffle(BOUTIQUE_PRODUCTS));
       }
     } catch {
-      // Offline fallback
+      // Keep current list or fallback to curated products on transient network error
+      setShuffledProducts((prev) => (prev.length > 0 ? prev : smartShuffle(BOUTIQUE_PRODUCTS)));
     } finally {
       setIsInitialLoading(false);
     }
@@ -390,33 +425,15 @@ export const HomeScreen = memo(() => {
     fetchLiveProducts();
   }, [fetchLiveProducts]);
 
-  // Real-time synchronization when stock status toggles in Seller Studio
+  // Real-time synchronization when products are added, edited, deleted, or stock-toggled in Seller Studio
   const studioProducts = useSellerStore((s) => s.products);
   useEffect(() => {
-    if (studioProducts && studioProducts.length > 0) {
-      setShuffledProducts((prev) =>
-        prev.map((prod) => {
-          const match = studioProducts.find((sp) => sp.id === prod.id);
-          if (match && match.inStock !== prod.inStock) {
-            return { ...prod, inStock: match.inStock };
-          }
-          return prod;
-        })
-      );
-    }
-  }, [studioProducts]);
+    fetchLiveProducts();
+  }, [studioProducts, fetchLiveProducts]);
 
   const filteredProducts = useMemo(() => {
     const list = shuffledProducts.filter((item) => {
-      // 1. Filter by Visual Category (if specific category selected)
-      if (selectedCategory === 'men' && (item.id === 'p17' || item.id === 'p8')) return false;
-      if (selectedCategory === 'women' && (item.id === 'p1' || item.id === 'p2' || item.id === 'p4' || item.id === 'p6' || item.id === 'p7')) return false;
-      if (selectedCategory === 'kids' && (item.id === 'p2' || item.id === 'p6' || item.id === 'p13' || item.id === 'p20')) return false;
-      if (selectedCategory === 'ethnic' && item.id !== 'p2' && item.id !== 'p8' && item.id !== 'p14') return false;
-      if (selectedCategory === 'streetwear' && item.id !== 'p4' && item.id !== 'p9' && item.id !== 'p13' && item.id !== 'p18') return false;
-      if (selectedCategory === 'footwear' && item.id !== 'p3') return false;
-
-      // 2. Filter by Deal options
+      // Filter by Deal options
       if (selectedFilter === 'all') return true;
       if (selectedFilter === 'under_1999') return item.price <= 1999;
       if (selectedFilter === 'min_50') {
@@ -430,7 +447,7 @@ export const HomeScreen = memo(() => {
       return item.filterGroup === selectedFilter;
     });
 
-    // 3. Sorting
+    // Sorting
     if (selectedSort === 'price_asc') {
       return [...list].sort((a, b) => a.price - b.price);
     }
@@ -441,7 +458,7 @@ export const HomeScreen = memo(() => {
       return [...list].sort((a, b) => b.rating - a.rating);
     }
     return list;
-  }, [shuffledProducts, selectedCategory, selectedFilter, selectedSort]);
+  }, [shuffledProducts, selectedFilter, selectedSort]);
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
@@ -472,37 +489,51 @@ export const HomeScreen = memo(() => {
       Alert.alert('Out of Stock', `"${product.name}" is currently out of stock and unavailable for bargaining.`);
       return;
     }
-    Alert.alert(
-      'Live Bargain Window Open',
-      `Submit your counter-offer for ${product.name} to ${product.boutiqueName}. Current price: ₹${product.price}.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Open Chat', 
-          onPress: () => navigation.navigate('ChatsTab') 
-        },
-      ]
-    );
-  }, [navigation]);
-
-  const handleBuy = useCallback((product: BoutiqueProductItem) => {
-    if (product.inStock === false) {
-      Alert.alert('Out of Stock', `"${product.name}" is currently out of stock and cannot be ordered.`);
-      return;
-    }
-    navigation.navigate('Checkout', {
-      directItem: {
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        originalPrice: product.originalPrice,
-        image: product.image,
-        quantity: 1,
-        size: 'M',
-        boutiqueName: product.boutiqueName,
-      },
+    navigation.navigate('ChatConversation', {
+      product,
+      attachedProduct: product,
+      shopId: product.shopId || '',
+      boutiqueName: product.boutiqueName,
+      avatar: product.image,
     });
   }, [navigation]);
+
+  const handleAddToCart = useCallback((product: BoutiqueProductItem) => {
+    if (product.inStock === false) {
+      Alert.alert('Out of Stock', `"${product.name}" is currently out of stock.`);
+      return;
+    }
+    const discount = product.originalPrice
+      ? `${Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}% OFF`
+      : 'WHOLESALE';
+    addItem({
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      quantity: 1,
+      image: product.image,
+      discountBadge: discount,
+      unitLabel: 'Pack of 6 Pcs',
+    });
+  }, [addItem]);
+
+  const handleIncrement = useCallback((product: BoutiqueProductItem) => {
+    const currentQty = cartQuantities[product.id] || 0;
+    if (currentQty === 0) {
+      handleAddToCart(product);
+    } else {
+      updateQuantity(product.id, currentQty + 1);
+    }
+  }, [cartQuantities, handleAddToCart, updateQuantity]);
+
+  const handleDecrement = useCallback((product: BoutiqueProductItem) => {
+    const currentQty = cartQuantities[product.id] || 0;
+    if (currentQty <= 1) {
+      removeItem(product.id);
+    } else {
+      updateQuantity(product.id, currentQty - 1);
+    }
+  }, [cartQuantities, removeItem, updateQuantity]);
 
   const handleProductPress = useCallback((item: BoutiqueProductItem) => {
     FastImage.preload([{ uri: item.image, priority: FastImage.priority.high }]);
@@ -511,7 +542,7 @@ export const HomeScreen = memo(() => {
 
   const handleBoutiquePress = useCallback((item: BoutiqueProductItem) => {
     navigation.navigate('BoutiqueStore', {
-      shopId: 'shop_KD56AHEq_42723',
+      shopId: item.shopId || '',
       shopName: item.boutiqueName,
     });
   }, [navigation]);
@@ -520,12 +551,15 @@ export const HomeScreen = memo(() => {
     <ProductGridItem
       item={item}
       width={cardWidth}
+      cartQuantity={cartQuantities[item.id] || 0}
       onProductPress={handleProductPress}
       onBoutiquePress={handleBoutiquePress}
       onBargain={handleBargain}
-      onBuy={handleBuy}
+      onBuy={handleAddToCart}
+      onIncrement={handleIncrement}
+      onDecrement={handleDecrement}
     />
-  ), [cardWidth, handleProductPress, handleBoutiquePress, handleBargain, handleBuy]);
+  ), [cardWidth, cartQuantities, handleProductPress, handleBoutiquePress, handleBargain, handleAddToCart, handleIncrement, handleDecrement]);
 
   const keyExtractor = useCallback((item: BoutiqueProductItem) => item.id, []);
 
@@ -545,7 +579,7 @@ export const HomeScreen = memo(() => {
 
   return (
     <View style={styles.container}>
-      {/* Mitreno Luxury Top Header matching Screenshot 2 */}
+      {/* Nvilar Luxury Top Header matching Screenshot 2 */}
       <MitrenoHeader
         locationName="Kolkata, WB"
         onSearchPress={() => navigation.navigate('Search')}
@@ -622,27 +656,27 @@ export const HomeScreen = memo(() => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FAF8F6', // Warm luxury soft off-white
   },
   content: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FAF8F6',
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FAF8F6',
   },
   scrollContent: {
     paddingBottom: 40,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FAF8F6',
   },
   feedHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
+    paddingHorizontal: 10,
     marginTop: 12,
     marginBottom: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FAF8F6',
   },
   feedHeaderTitleRow: {
     flexDirection: 'row',
@@ -659,10 +693,10 @@ const styles = StyleSheet.create({
   },
   columnWrapper: {
     justifyContent: 'space-between',
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
   },
   cardWrapper: {
-    marginBottom: 12,
-    backgroundColor: '#FFFFFF',
+    marginBottom: 8,
+    backgroundColor: 'transparent',
   },
 });

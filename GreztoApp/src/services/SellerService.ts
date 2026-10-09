@@ -76,6 +76,18 @@ export const SellerService = {
     }
   },
 
+  // 3.1 Seller Performance & Financial Analytics (Single Source of Truth)
+  getSellerAnalytics: async (timeframe: string = 'all'): Promise<any | null> => {
+    try {
+      const res = await apiClient.get('/seller/analytics', {
+        params: { timeframe },
+      });
+      return res.data || null;
+    } catch {
+      return null;
+    }
+  },
+
   // 4. Seller Products List
   getSellerProducts: async (): Promise<any[]> => {
     try {

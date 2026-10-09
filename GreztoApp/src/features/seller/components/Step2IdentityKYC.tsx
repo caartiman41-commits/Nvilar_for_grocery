@@ -63,7 +63,7 @@ export const Step2IdentityKYC: React.FC<Step2IdentityKYCProps> = memo(({
           PermissionsAndroid.PERMISSIONS.CAMERA,
           {
             title: 'Camera Permission Required',
-            message: 'Mitreno needs camera access to capture your official KYC document.',
+            message: 'Nvilar needs camera access to capture your official KYC document.',
             buttonPositive: 'Allow Access',
             buttonNegative: 'Cancel',
           }

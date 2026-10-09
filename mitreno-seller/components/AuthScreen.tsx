@@ -218,7 +218,7 @@ export default function AuthScreen() {
           className="mb-10 text-center"
         >
           <h1 className="text-4xl font-black tracking-tight text-neutral-900" style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}>
-            <span className="text-[#C5963A]">M</span>ITRENO
+            <span className="text-[#C5963A]">N</span>VILAR
           </h1>
           <p className="text-neutral-400 text-xs font-medium tracking-widest uppercase mt-1.5">The pinnacle of bargaining</p>
         </motion.div>

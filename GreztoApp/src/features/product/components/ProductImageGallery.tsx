@@ -50,7 +50,7 @@ export const ProductImageGallery: React.FC<ProductImageGalleryProps> = memo(({
   const handleShare = useCallback(async () => {
     try {
       await Share.share({
-        message: `Check out ${productTitle} on Mitreno! Handcrafted boutique drops.`,
+        message: `Check out ${productTitle} on Nvilar! Handcrafted boutique drops.`,
       });
     } catch {
       // Ignore dismiss

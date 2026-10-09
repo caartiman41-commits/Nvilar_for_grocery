@@ -1,0 +1,69 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="1080"
+    android:viewportHeight="1080">
+
+    <!-- Studio Off-White Background (#F5F5F0) -->
+    <path
+        android:pathData="M0,0h1080v1080h-1080z"
+        android:fillColor="#FFF5F5F0" />
+
+    <!-- P2: Top-Left Fold + Descending Midnight Navy-Charcoal Leg -->
+    <path android:pathData="M433.78,350.96 C440.04,339.26 450.92,336 464.52,336 L488.18,336 C501.24,336 508.86,341.98 514.3,353.68 L546.39,423.58 L521.37,477.98 L458.81,353.68 C452.82,341.98 440.04,342.8 433.78,350.96 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="430.52" android:startY="336" android:endX="547.48" android:endY="482.88">
+                <item android:offset="0.0" android:color="#FF1D273A" />
+                <item android:offset="1.0" android:color="#FF141C2C" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- P1: Left Ascending Charcoal-Black Leg of N -->
+    <path android:pathData="M366.6,613.44 L312.2,613.44 L429.98,358.3 C433.78,350.14 443.58,349.6 450.1,361.02 L466.42,395.84 L366.6,613.44 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="444.12" android:startY="346.88" android:endX="335.32" android:endY="613.44">
+                <item android:offset="0.0" android:color="#FF181B20" />
+                <item android:offset="1.0" android:color="#FF121418" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- P3: Full Dark Emerald Green V Ribbon (#007A34 -> #00863A) -->
+    <path android:pathData="M455.54,444.8 L429.98,500.29 L477.3,603.92 C481.11,611.26 487.1,613.44 496.34,613.44 L513.48,613.44 C522.46,613.44 528.44,611.26 532.25,603.92 L655.74,336 L601.88,336 L503.96,549.52 L455.54,444.8 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="427.8" android:startY="613.44" android:endX="656.28" android:endY="336">
+                <item android:offset="0.0" android:color="#FF007A34" />
+                <item android:offset="1.0" android:color="#FF00863A" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- P4A: Lower-Right Descending Dark Navy Fold (#182E58 -> #1E3A6E) -->
+    <path android:pathData="M586.92,511.44 L561.08,567.74 L577.94,603.92 C582.3,611.26 589.64,613.44 600.52,613.44 L628.54,613.44 C641.05,613.44 649.21,608 654.1,599.3 C646.76,606.37 634.52,604.19 625.82,592.77 L586.92,511.44 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="566.52" android:startY="510.08" android:endX="648.12" android:endY="613.44">
+                <item android:offset="0.0" android:color="#FF182E58" />
+                <item android:offset="1.0" android:color="#FF1E3A6E" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- P4B: Ascending Royal Blue Arrow (#1D4AA8 -> #2255BC) -->
+    <path android:pathData="M620.38,556.86 L693.82,396.38 L666.62,382.78 L750.12,336 L767.8,429.84 L738.42,416.24 L655.74,595.49 C650.84,602.02 641.32,600.38 635.34,589.5 L620.38,556.86 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="620.92" android:startY="602.56" android:endX="756.92" android:endY="336">
+                <item android:offset="0.0" android:color="#FF1D4AA8" />
+                <item android:offset="1.0" android:color="#FF2255BC" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Custom Rounded-Ribbon NVILÎ›R Vector Wordmark (#161A20) -->
+    <path
+        android:pathData="M252.21,752.02 L252.21,666.96 C252.21,655 268.86,651.78 278.31,662.36 L328.71,724.43 L328.71,666.96 C328.71,658.68 334.56,655 341.76,655 L347.61,655 L347.61,740.06 C347.61,752.02 330.96,755.24 321.51,744.66 L271.56,683.05 L271.56,752.02 Z M360.66,655 L382.27,655 L416.02,729.49 L449.77,655 L471.37,655 L429.97,744.2 C425.02,754.14 407.02,754.14 402.07,744.2 Z M485.32,752.02 L485.32,667.87 C485.32,659.14 491.17,655 498.37,655 L505.12,655 L505.12,752.02 Z M528.52,655 L548.33,655 L548.33,726.73 C548.33,731.79 551.48,734.55 556.43,734.55 L608.18,734.55 L600.08,752.02 L554.63,752.02 C537.52,752.02 528.52,742.36 528.52,724.89 Z M614.93,752.02 L656.51,662.82 C661.55,652.7 679.46,652.7 684.5,662.82 L726.09,752.02 L705.84,752.02 L670.51,675.69 L635.18,752.02 Z M739.14,655 L794.94,655 C813.39,655 825.99,668.33 825.99,686.96 C825.99,703.28 816.99,713.86 805.29,717.35 L827.79,752.02 L806.64,752.02 L784.86,718.91 L758.04,718.91 L758.04,752.02 L738.24,752.02 L738.24,716.61 C738.24,706.96 744.09,701.9 753.54,701.9 L793.59,701.9 C801.69,701.9 807.09,695.46 807.09,686.96 C807.09,678.45 801.69,672.01 793.59,672.01 L750.39,672.01 C743.19,670.17 739.14,663.28 739.14,655 Z"
+        android:fillType="nonZero"
+        android:fillColor="#FF161A20" />
+</vector>

@@ -22,8 +22,8 @@ import {
 } from '../studioTypes';
 import {
   INITIAL_STUDIO_BANNERS,
-  INITIAL_KPI_STATS,
 } from '../mockStudioData';
+import { StudioAnalyticsModal } from '../components/StudioAnalyticsModal';
 import { showToast } from '../../../../components/MitrenoToast';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -48,13 +48,16 @@ export const StudioDashboardTab: React.FC<StudioDashboardTabProps> = memo(({
   const orders = useSellerStore((s) => s.orders);
   const products = useSellerStore((s) => s.products);
   const profile = useSellerStore((s) => s.profile);
+  const dashboardMetrics = useSellerStore((s) => s.dashboardMetrics);
+  const analyticsData = useSellerStore((s) => s.analyticsData);
+  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
 
   // Filter ONLY new pending incoming orders for the dashboard feed
   const newOrders = useMemo(() => {
     return orders.filter((o) => o.status === 'new');
   }, [orders]);
 
-  // Auto-sync seller studio orders and catalog from backend on mount
+  // Auto-sync seller studio orders, dashboard, and analytics from backend on mount
   useEffect(() => {
     useSellerStore.getState().fetchSellerStudioDataFromBackend().catch(() => {});
   }, []);
@@ -158,25 +161,49 @@ export const StudioDashboardTab: React.FC<StudioDashboardTabProps> = memo(({
   );
 
   // ----------------------------------------------------
-  // Dynamic KPI Stats Computation
+  // Dynamic KPI Stats Computation (Strict Delivered-Only Revenue synced from Analytics)
   // ----------------------------------------------------
-  const stats: StudioKPIStats = useMemo(() => {
-    const totalRev = orders.length > 0
-      ? orders.reduce((sum, ord) => sum + (ord.totalSettlement || ord.price), 0)
-      : INITIAL_KPI_STATS.totalRevenue;
+  const deliveredOrdersCount = useMemo(() => {
+    if (analyticsData?.summary?.delivered_orders !== undefined) {
+      return Number(analyticsData.summary.delivered_orders);
+    }
+    if (dashboardMetrics?.delivered_orders !== undefined) {
+      return Number(dashboardMetrics.delivered_orders);
+    }
+    return orders.filter((ord) => ord.status === 'delivered').length;
+  }, [analyticsData, dashboardMetrics, orders]);
 
-    const activeCount = orders.filter(
+  const stats: StudioKPIStats = useMemo(() => {
+    const deliveredRevFromOrders = orders
+      .filter((ord) => ord.status === 'delivered')
+      .reduce((sum, ord) => sum + (ord.price || ord.totalSettlement || 0), 0);
+
+    const totalRev =
+      analyticsData?.summary?.total_sales !== undefined
+        ? Number(analyticsData.summary.total_sales)
+        : dashboardMetrics?.total_revenue !== undefined
+        ? Number(dashboardMetrics.total_revenue)
+        : deliveredRevFromOrders;
+
+    const activeCountFromOrders = orders.filter(
       (ord) => ord.status === 'new' || ord.status === 'packaging' || ord.status === 'shipped'
     ).length;
 
+    const activeCount =
+      dashboardMetrics?.active_orders !== undefined
+        ? Number(dashboardMetrics.active_orders)
+        : analyticsData?.summary?.active_orders !== undefined
+        ? Number(analyticsData.summary.active_orders)
+        : activeCountFromOrders;
+
     return {
       totalRevenue: totalRev,
-      activeOrdersCount: activeCount > 0 ? activeCount : INITIAL_KPI_STATS.activeOrdersCount,
-      catalogCount: products.length > 0 ? products.length : INITIAL_KPI_STATS.catalogCount,
-      storeRating: profile.rating || INITIAL_KPI_STATS.storeRating,
-      reviewCount: profile.reviewsCount || INITIAL_KPI_STATS.reviewCount,
+      activeOrdersCount: activeCount,
+      catalogCount: dashboardMetrics?.total_products ?? products.length,
+      storeRating: Number(dashboardMetrics?.rating ?? profile.rating ?? 5.0),
+      reviewCount: Number(dashboardMetrics?.review_count ?? profile.reviewsCount ?? 1),
     };
-  }, [orders, products, profile]);
+  }, [orders, products, profile, dashboardMetrics, analyticsData]);
 
   // Status badge styling helper
   const getStatusBadge = (status: StudioOrderItem['status']) => {
@@ -234,7 +261,7 @@ export const StudioDashboardTab: React.FC<StudioDashboardTabProps> = memo(({
             <View style={styles.boutiqueInfo}>
               <View style={styles.boutiqueNameRow}>
                 <Text style={styles.boutiqueName} numberOfLines={1}>
-                  {profile.name || 'Mitreno.com'}
+                  {profile.name || 'Nvilar.com'}
                 </Text>
                 {profile.verifiedBadge && (
                   <Icon name="check-decagram" size={15} color="#2563EB" style={styles.verifiedIcon} />
@@ -374,24 +401,20 @@ export const StudioDashboardTab: React.FC<StudioDashboardTabProps> = memo(({
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.kpiScrollContent}
         >
-          {/* Card 1: Total Revenue */}
+          {/* Card 1: Total Revenue (Synced from Analytics Delivered Net Sales) */}
           <TouchableOpacity
             style={styles.kpiCard}
             activeOpacity={0.8}
-            onPress={() => {
-              showToast({
-                type: 'info',
-                title: 'Revenue Summary',
-                message: `Total Gross Revenue: ₹${stats.totalRevenue.toLocaleString('en-IN')} with direct bank UPI payouts.`,
-              });
-            }}
+            onPress={() => setIsAnalyticsOpen(true)}
           >
             <View style={styles.kpiCardHeader}>
               <View style={[styles.kpiIconWrap, { backgroundColor: '#ECFDF5' }]}>
                 <Icon name="trending-up" size={16} color="#059669" />
               </View>
               <View style={[styles.kpiTrendChip, { backgroundColor: '#F0FDF4' }]}>
-                <Text style={[styles.kpiTrendChipText, { color: '#16A34A' }]}>+18%</Text>
+                <Text style={[styles.kpiTrendChipText, { color: '#16A34A' }]}>
+                  {deliveredOrdersCount} Delivered
+                </Text>
               </View>
             </View>
             <Text style={styles.kpiValue} numberOfLines={1}>
@@ -400,7 +423,7 @@ export const StudioDashboardTab: React.FC<StudioDashboardTabProps> = memo(({
             <Text style={styles.kpiLabel}>Total Revenue</Text>
             <View style={styles.kpiSubRow}>
               <Icon name="check-circle" size={10} color="#059669" style={{ marginRight: 3 }} />
-              <Text style={[styles.kpiSubText, { color: '#059669' }]}>Direct UPI Payouts</Text>
+              <Text style={[styles.kpiSubText, { color: '#059669' }]}>Analytics & UPI ↗</Text>
             </View>
           </TouchableOpacity>
 
@@ -415,7 +438,9 @@ export const StudioDashboardTab: React.FC<StudioDashboardTabProps> = memo(({
                 <Icon name="package-variant-closed" size={16} color="#2563EB" />
               </View>
               <View style={[styles.kpiTrendChip, { backgroundColor: '#EFF6FF' }]}>
-                <Text style={[styles.kpiTrendChipText, { color: '#2563EB' }]}>Radar</Text>
+                <Text style={[styles.kpiTrendChipText, { color: '#2563EB' }]}>
+                  {newOrders.length} New
+                </Text>
               </View>
             </View>
             <Text style={styles.kpiValue} numberOfLines={1}>
@@ -423,7 +448,9 @@ export const StudioDashboardTab: React.FC<StudioDashboardTabProps> = memo(({
             </Text>
             <Text style={styles.kpiLabel}>Active Orders</Text>
             <View style={styles.kpiSubRow}>
-              <Text style={[styles.kpiSubText, { color: '#3B82F6' }]}>All clear ↗</Text>
+              <Text style={[styles.kpiSubText, { color: '#3B82F6' }]}>
+                {newOrders.length > 0 ? 'Action required ↗' : 'All clear ↗'}
+              </Text>
             </View>
           </TouchableOpacity>
 
@@ -663,6 +690,12 @@ export const StudioDashboardTab: React.FC<StudioDashboardTabProps> = memo(({
           <Icon name="chevron-right" size={18} color="#94A3B8" />
         </TouchableOpacity>
       </View>
+
+      {/* Live Sales & Financial Analytics Modal */}
+      <StudioAnalyticsModal
+        visible={isAnalyticsOpen}
+        onClose={() => setIsAnalyticsOpen(false)}
+      />
     </ScrollView>
   );
 });
@@ -978,15 +1011,15 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   kpiValue: {
-    fontSize: 15,
-    fontWeight: '800',
+    fontSize: 17,
+    fontWeight: '900',
     color: '#0F172A',
     letterSpacing: -0.3,
   },
   kpiLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#64748B',
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#1E293B',
     marginTop: 2,
   },
   kpiSubRow: {
@@ -995,8 +1028,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   kpiSubText: {
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: 10.5,
+    fontWeight: '800',
   },
 
   allClearBadge: {

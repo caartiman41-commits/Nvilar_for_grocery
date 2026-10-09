@@ -591,7 +591,7 @@ export const ShopProfileModal: React.FC<ShopProfileModalProps> = ({
               {isShopVerified && (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200/70 text-emerald-700 text-xs font-bold shadow-2xs">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>Mitreno Verified Store</span>
+                  <span>Nvilar Verified Store</span>
                 </span>
               )}
             </div>

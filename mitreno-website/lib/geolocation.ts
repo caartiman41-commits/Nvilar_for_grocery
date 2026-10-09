@@ -1,5 +1,5 @@
 // lib/geolocation.ts
-// Advanced Geolocation & Delivery ETA Engine for Mitreno
+// Advanced Geolocation & Delivery ETA Engine for Nvilar
 
 export interface Coordinates {
   latitude: number;

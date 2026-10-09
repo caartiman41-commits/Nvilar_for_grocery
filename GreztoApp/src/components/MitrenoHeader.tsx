@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -60,7 +61,7 @@ export const MitrenoHeader: React.FC<MitrenoHeaderProps> = ({
 
   return (
     <View style={[styles.headerContainer, { paddingTop: Math.max(insets.top, 12) + 4 }]}>
-      {/* ROW 1: EXPLORING LOCATION | MITRENO BRAND LOGO | COMPACT 3-LINE FILTER BUTTON */}
+      {/* ROW 1: EXPLORING LOCATION | NVILAR BRAND LOGO | COMPACT 3-LINE FILTER BUTTON */}
       <View style={styles.topRow}>
         {/* Left: Exploring + Location */}
         <TouchableOpacity
@@ -78,9 +79,13 @@ export const MitrenoHeader: React.FC<MitrenoHeaderProps> = ({
           </View>
         </TouchableOpacity>
 
-        {/* Center: Mitreno Luxury Serif Brand Name */}
+        {/* Center: NVILAR Royal Electric Violet-Indigo Brand Logo */}
         <View style={styles.logoCenterCol}>
-          <Text style={styles.brandTitle}>Mitreno</Text>
+          <Image
+            source={require('../assets/nvilar_logo_header.png')}
+            style={{ width: 132, height: 27 }}
+            resizeMode="contain"
+          />
         </View>
 
         {/* Right: Compact 3-Line Filter Button */}

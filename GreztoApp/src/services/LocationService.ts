@@ -19,7 +19,7 @@ export const requestLocationPermission = async (): Promise<boolean> => {
       PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
       {
         title: 'Location Permission',
-        message: 'Mitreno needs access to your location to show relevant products.',
+        message: 'Nvilar needs access to your location to show relevant products.',
         buttonNeutral: 'Ask Me Later',
         buttonNegative: 'Cancel',
         buttonPositive: 'OK',
@@ -68,7 +68,7 @@ export const reverseGeocode = async (latitude: number, longitude: number): Promi
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
       {
         headers: {
-          'User-Agent': 'MitrenoApp/1.0',
+          'User-Agent': 'NvilarApp/1.0',
         },
       }
     );

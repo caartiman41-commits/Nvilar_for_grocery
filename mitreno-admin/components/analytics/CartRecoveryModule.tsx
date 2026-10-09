@@ -78,7 +78,7 @@ export function CartRecoveryModule({
   const getWhatsAppLink = (lead: { phone: string; customer_name: string; cart_value: number; order_id?: string }) => {
     const cleanPhone = lead.phone.replace(/[^0-9]/g, '');
     const phoneWithCountry = cleanPhone.startsWith('91') ? cleanPhone : `91${cleanPhone}`;
-    const message = `Namaste ${lead.customer_name}! We noticed you left an item worth ${formatINR(lead.cart_value)} in your Mitreno cart. Use code SAVE5 for an instant discount to complete your checkout today! Order here: https://mitreno.com/cart`;
+    const message = `Namaste ${lead.customer_name}! We noticed you left an item worth ${formatINR(lead.cart_value)} in your Nvilar cart. Use code SAVE5 for an instant discount to complete your checkout today! Order here: https://nvilar.com/cart`;
     return `https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(message)}`;
   };
 

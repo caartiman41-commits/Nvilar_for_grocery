@@ -895,7 +895,7 @@ export default function CityShopsPage() {
                         rows={2}
                         value={newShopBio}
                         onChange={(e) => setNewShopBio(e.target.value)}
-                        placeholder="Authentic silk & ethnic wear boutique verified on Mitreno marketplace."
+                        placeholder="Authentic silk & ethnic wear boutique verified on Nvilar marketplace."
                         className="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-xs"
                       />
                     </div>

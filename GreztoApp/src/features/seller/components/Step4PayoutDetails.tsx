@@ -181,7 +181,7 @@ export const Step4PayoutDetails: React.FC<Step4PayoutDetailsProps> = memo(({
           <View style={{ flex: 1 }}>
             <Text style={styles.upiTrustTitle}>Daily 24-Hour Settlement</Text>
             <Text style={styles.upiTrustSub}>
-              Mitreno deposits verified order proceeds directly to your account daily at 11:00 PM.
+              Nvilar deposits verified order proceeds directly to your account daily at 11:00 PM.
             </Text>
           </View>
         </View>

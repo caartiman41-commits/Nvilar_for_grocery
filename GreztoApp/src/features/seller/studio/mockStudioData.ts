@@ -42,7 +42,7 @@ export const INITIAL_STUDIO_BANNERS: StudioBanner[] = [
     id: 'banner_quality',
     tag: 'LUXURY BENCHMARK',
     title: 'Verified Merchant Compliance',
-    subtitle: 'Ensure packaging includes official Mitreno tamper-proof seals & authentic care tags.',
+    subtitle: 'Ensure packaging includes official Nvilar tamper-proof seals & authentic care tags.',
     badgeText: 'GUIDELINE',
     gradientColors: ['#78350F', '#D97706'],
     iconName: 'shield-check',
@@ -65,7 +65,7 @@ export const INITIAL_STUDIO_ORDERS: StudioOrderItem[] = [];
 export const INITIAL_CONVERSATIONS: StudioConversation[] = [];
 
 export const INITIAL_BOUTIQUE_PROFILE: BoutiqueProfile = {
-  name: 'Mitreno.com',
+  name: 'Nvilar.com',
   handle: '@mitreno_official',
   storeId: '42723',
   category: 'Designer Streetwear & Ethnic Fusion',

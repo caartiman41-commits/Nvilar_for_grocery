@@ -110,15 +110,62 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
   const [chats, setChats] = useState<ChatMessage[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Deep-link / route parameter handler: Navigate to ChatConversation screen seamlessly
+  // Deep-link / route parameter handler: Navigate to ChatConversation screen seamlessly ONCE per incoming tap
   const incomingParams = propRoute?.params || navRoute?.params;
+  const lastConsumedParamsRef = React.useRef<string | null>(null);
+
   useEffect(() => {
-    if (incomingParams && (incomingParams.seller || incomingParams.attachedProduct || incomingParams.product || incomingParams.conversation_id || incomingParams.negotiationId || incomingParams.shopId)) {
-      const targetShopId = incomingParams.shopId || incomingParams.seller?.shopId || incomingParams.attachedProduct?.seller?.shopId || incomingParams.product?.seller?.shopId;
-      const targetBoutiqueName = incomingParams.boutiqueName || incomingParams.seller?.name || incomingParams.attachedProduct?.seller?.name || incomingParams.product?.seller?.name || 'Mitreno Boutique';
-      const targetAvatar = incomingParams.avatar || incomingParams.seller?.avatar || incomingParams.attachedProduct?.seller?.avatar || incomingParams.product?.seller?.avatar;
-      const targetNegId = incomingParams.negotiationId || incomingParams.conversationId || incomingParams.conversation_id;
+    if (
+      incomingParams &&
+      (incomingParams.seller ||
+        incomingParams.attachedProduct ||
+        incomingParams.product ||
+        incomingParams.conversation_id ||
+        incomingParams.conversationId ||
+        incomingParams.negotiationId ||
+        incomingParams.shopId)
+    ) {
+      const targetShopId =
+        incomingParams.shopId ||
+        incomingParams.seller?.shopId ||
+        incomingParams.attachedProduct?.seller?.shopId ||
+        incomingParams.product?.seller?.shopId;
+      const targetBoutiqueName =
+        incomingParams.boutiqueName ||
+        incomingParams.seller?.name ||
+        incomingParams.attachedProduct?.seller?.name ||
+        incomingParams.product?.seller?.name ||
+        'Nvilar Boutique';
+      const targetAvatar =
+        incomingParams.avatar ||
+        incomingParams.seller?.avatar ||
+        incomingParams.attachedProduct?.seller?.avatar ||
+        incomingParams.product?.seller?.avatar;
+      const targetNegId =
+        incomingParams.negotiationId ||
+        incomingParams.conversationId ||
+        incomingParams.conversation_id;
       const targetProduct = incomingParams.attachedProduct || incomingParams.product;
+
+      const paramSignature = `${targetNegId || ''}_${targetShopId || ''}_${targetProduct?.id || ''}_${incomingParams._tapTs || 'init'}`;
+      if (lastConsumedParamsRef.current === paramSignature) return;
+      lastConsumedParamsRef.current = paramSignature;
+
+      // Clear route params immediately so pressing Back from ChatConversation never re-triggers this navigate!
+      try {
+        navigation.setParams({
+          seller: undefined,
+          attachedProduct: undefined,
+          product: undefined,
+          conversation_id: undefined,
+          conversationId: undefined,
+          negotiationId: undefined,
+          shopId: undefined,
+          boutiqueName: undefined,
+          avatar: undefined,
+          _tapTs: undefined,
+        });
+      } catch {}
 
       navigation.navigate('ChatConversation', {
         negotiationId: targetNegId,
@@ -145,7 +192,7 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
             id: rc.id || rc.negotiation_id,
             negotiationId: rc.negotiation_id || rc.id,
             shopId: rc.shop_id || rc.shop?.id,
-            boutiqueName: rc.shop_name || rc.boutique_name || rc.shop?.name || 'Mitreno Boutique',
+            boutiqueName: rc.shop_name || rc.boutique_name || rc.shop?.name || 'Nvilar Boutique',
             avatar: rc.shop_avatar || rc.avatar || rc.shop?.logo_url || 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=150&auto=format&fit=crop&q=80',
             verified: rc.verified ?? rc.shop?.is_verified ?? true,
             isOnline: true,
@@ -359,7 +406,7 @@ export const ChatsScreen: React.FC<ChatsScreenProps> = memo(({ route: propRoute 
               <Icon name="chat-outline" size={40} color="#94A3B8" />
               <Text style={styles.emptyInboxTitle}>No Conversations Yet</Text>
               <Text style={styles.emptyInboxSub}>
-                Start a bargain discussion with any boutique on Mitreno!
+                Start a bargain discussion with any boutique on Nvilar!
               </Text>
             </View>
           ) : (

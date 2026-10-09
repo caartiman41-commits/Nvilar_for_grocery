@@ -1,7 +1,7 @@
 import { Product } from '@/lib/products-data';
 
 /**
- * MITRENO AUTONOMOUS DISCOVERY & ROTATION ENGINE
+ * NVILAR AUTONOMOUS DISCOVERY & ROTATION ENGINE
  * Inspired by Instagram Explore, TikTok Cold-Start, and YouTube Session Shuffling.
  * 
  * 1. 3-Hour Time Epoch: Rotates spotlight boutiques and debut slots every 3 hours (8 epochs per day).
@@ -60,7 +60,7 @@ function seededRandom(seed: number) {
 }
 
 /**
- * The Mitreno 60-30-10 Autonomous Discovery Ranking Engine
+ * The Nvilar 60-30-10 Autonomous Discovery Ranking Engine
  */
 export function getSmartFeed(
   products: Product[],

@@ -1,8 +1,8 @@
-# 🔐 Mitreno Admin Console
+# 🔐 Nvilar Admin Console
 
-A standalone enterprise administration portal for **Mitreno Marketplace**, built to manage boutique onboarding, review KYC document submissions (Aadhar, PAN, Voter ID, Driving License, GST), and oversee platform operations.
+A standalone enterprise administration portal for **Nvilar Marketplace**, built to manage boutique onboarding, review KYC document submissions (Aadhar, PAN, Voter ID, Driving License, GST), and oversee platform operations.
 
-Designed as an independent Next.js project so it can be hosted on its own custom domain (e.g., `https://admin.mitreno.com`).
+Designed as an independent Next.js project so it can be hosted on its own custom domain (e.g., `https://admin.nvilar.com`).
 
 ---
 
@@ -26,7 +26,7 @@ Designed as an independent Next.js project so it can be hosted on its own custom
    - Allows applicants to fix errors and re-apply.
 
 4. **Dual Data-Engine**:
-   - Direct connection to Mitreno Go/Fiber backend (`/api/admin/*`).
+   - Direct connection to Nvilar Go/Fiber backend (`/api/admin/*`).
    - Browser synchronization (`localStorage`) for standalone offline/demo evaluation.
 
 ---
@@ -58,5 +58,5 @@ npm run build
 npm run start
 ```
 Configure environment variables:
-- `NEXT_PUBLIC_BACKEND_URL`: `https://api.mitreno.com`
+- `NEXT_PUBLIC_BACKEND_URL`: `https://api.nvilar.com`
 - `NEXT_PUBLIC_ADMIN_KEY`: `your_secure_admin_key`

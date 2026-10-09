@@ -12,7 +12,7 @@ export const getBackendUrl = () => {
     }
   }
   // Fallback for production
-  return 'https://api.mitreno.com';
+  return 'https://api.nvilar.com';
 };
 
 export const getSellerPortalUrl = () => {
@@ -28,6 +28,6 @@ export const getSellerPortalUrl = () => {
       return `${window.location.protocol}//${host}:3002`;
     }
   }
-  return 'https://seller.mitreno.com';
+  return 'https://seller.nvilar.com';
 };
 

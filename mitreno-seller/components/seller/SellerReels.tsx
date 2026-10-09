@@ -266,7 +266,7 @@ export const SellerReels: React.FC<SellerReelsProps> = ({
           <div className="space-y-1">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
               <Film className="w-3.5 h-3.5" />
-              <span>Mitreno Fashion Reels Studio</span>
+              <span>Nvilar Fashion Reels Studio</span>
             </div>
             <h2 className="text-2xl font-extrabold text-neutral-950 tracking-tight">
               Reels, Runway Shorts & Drops 🎬
@@ -523,7 +523,7 @@ export const SellerReels: React.FC<SellerReelsProps> = ({
                 <textarea
                   value={caption}
                   onChange={e => setCaption(e.target.value)}
-                  placeholder="e.g. Acid-wash street fit drop. 240 GSM pure French Terry cotton #MitrenoDrops #BoutiqueFit"
+                  placeholder="e.g. Acid-wash street fit drop. 240 GSM pure French Terry cotton #NvilarDrops #BoutiqueFit"
                   rows={2}
                   className="w-full px-3.5 py-2 rounded-xl bg-neutral-50 border border-neutral-200 text-xs text-neutral-950 placeholder:text-neutral-400 focus:outline-none focus:border-rose-500 focus:bg-white"
                   required
@@ -581,7 +581,7 @@ export const SellerReels: React.FC<SellerReelsProps> = ({
             <div className="space-y-1">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-50 border border-purple-200 text-purple-700 text-[10px] font-black uppercase tracking-wider">
                 <Zap className="w-3 h-3 fill-current" />
-                Mitreno Reel Boost Engine
+                Nvilar Reel Boost Engine
               </span>
               <h3 className="text-lg font-extrabold text-neutral-950">Boost Video Discovery</h3>
               <p className="text-xs text-neutral-500">

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"mitreno-backend/config"
+	"mitreno-backend/middleware"
 	"mitreno-backend/models"
 	"mitreno-backend/services"
 
@@ -23,22 +24,22 @@ func NewBargainController() *BargainController {
 
 // resolveCallerID extracts the authenticated or declared user ID from context or headers
 func resolveCallerID(c *fiber.Ctx) string {
+	raw := ""
 	if u, ok := c.Locals("userID").(string); ok && u != "" {
-		return strings.TrimSpace(u)
+		raw = strings.TrimSpace(u)
+	} else if h := c.Get("X-User-ID"); h != "" {
+		raw = strings.TrimSpace(h)
+	} else if q := c.Query("user_id"); q != "" {
+		raw = strings.TrimSpace(q)
+	} else if q := c.Query("buyer_id"); q != "" {
+		raw = strings.TrimSpace(q)
+	} else if q := c.Query("uid"); q != "" {
+		raw = strings.TrimSpace(q)
 	}
-	if h := c.Get("X-User-ID"); h != "" {
-		return strings.TrimSpace(h)
+	if raw != "" && config.DB != nil {
+		return middleware.ResolveCanonicalUserID(config.DB, raw)
 	}
-	if q := c.Query("user_id"); q != "" {
-		return strings.TrimSpace(q)
-	}
-	if q := c.Query("buyer_id"); q != "" {
-		return strings.TrimSpace(q)
-	}
-	if q := c.Query("uid"); q != "" {
-		return strings.TrimSpace(q)
-	}
-	return ""
+	return raw
 }
 
 // isBuyer verifies if caller is the buyer of the negotiation
@@ -117,18 +118,6 @@ func (bc *BargainController) StartNegotiation(c *fiber.Ctx) error {
 		offer = req.BuyerOffer
 	}
 
-	callerID := resolveCallerID(c)
-	buyerID := req.BuyerID
-	if buyerID == "" {
-		buyerID = callerID
-	}
-	if buyerID == "" || req.ShopID == "" || req.ProductID == "" || offer <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"success": false,
-			"error":   "BuyerID, ShopID, ProductID, and valid positive offer are required",
-		})
-	}
-
 	db := config.DB
 	if db == nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
@@ -137,18 +126,55 @@ func (bc *BargainController) StartNegotiation(c *fiber.Ctx) error {
 		})
 	}
 
-	// Fetch Product to verify base price
+	callerID := resolveCallerID(c)
+	buyerID := strings.TrimSpace(req.BuyerID)
+	if buyerID == "" {
+		buyerID = callerID
+	}
+	buyerID = middleware.ResolveCanonicalUserID(db, buyerID)
+
+	if buyerID == "" || req.ProductID == "" || offer <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   "BuyerID, ProductID, and valid positive offer are required",
+		})
+	}
+
+	// Ensure buyer exists in users table to satisfy foreign key constraint
+	var buyerUser models.User
+	if err := db.Where("id = ?", buyerID).First(&buyerUser).Error; err != nil {
+		newUser := models.User{
+			ID:        buyerID,
+			FullName:  "Customer",
+			Phone:     "+91 98000 00000",
+			Role:      "customer",
+			IsActive:  true,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+		_ = db.Create(&newUser)
+	}
+
+	// Fetch Product to verify base price and strictly resolve owning shop_id
 	var product models.Product
-	if err := db.Where("id = ?", req.ProductID).First(&product).Error; err != nil {
+	if err := db.Where("id = ?", req.ProductID).First(&product).Error; err != nil || product.ID == "" {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
-			"error":   "Product not found",
+			"error":   "Product not found in verified catalog",
+		})
+	}
+
+	targetShopID := product.ShopID
+	if targetShopID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"error":   "Product does not have a valid registered boutique",
 		})
 	}
 
 	// Check if active session already exists
 	var existing models.Negotiation
-	err := db.Where("buyer_id = ? AND product_id = ? AND status = 'active'", buyerID, req.ProductID).First(&existing).Error
+	err := db.Where("buyer_id = ? AND product_id = ? AND status = 'active'", buyerID, product.ID).First(&existing).Error
 	if err == nil {
 		return c.JSON(fiber.Map{
 			"success":     true,
@@ -161,8 +187,8 @@ func (bc *BargainController) StartNegotiation(c *fiber.Ctx) error {
 	negotiation := models.Negotiation{
 		ID:             negotiationID,
 		BuyerID:        buyerID,
-		ShopID:         req.ShopID,
-		ProductID:      req.ProductID,
+		ShopID:         targetShopID,
+		ProductID:      product.ID,
 		OriginalPrice:  product.BasePrice,
 		BuyerLastOffer: &offer,
 		Status:         "active",
@@ -215,7 +241,7 @@ func (bc *BargainController) StartNegotiation(c *fiber.Ctx) error {
 	})
 
 	// Dispatch FCM push notification to boutique seller via mitreno_seller_channel
-	go bc.dispatchSellerOfferNotification(negotiationID, req.ShopID, buyerID, product.Name, offer)
+	go bc.dispatchSellerOfferNotification(negotiationID, targetShopID, buyerID, product.Name, offer)
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"success":     true,
@@ -667,7 +693,7 @@ func (bc *BargainController) GetCustomerChats(c *fiber.Ctx) error {
 			if err := db.Where("id = ? OR id LIKE ?", shopID, "%42723%").First(&s).Error; err == nil && s.Name != "" {
 				shopName = s.Name
 			} else {
-				shopName = "Mitreno.com"
+				shopName = "Nvilar.com"
 			}
 		}
 
@@ -854,7 +880,7 @@ func (bc *BargainController) GetChatThread(c *fiber.Ctx) error {
 	}
 
 	if neg.ID == "" {
-		// Auto-create single permanent negotiation thread
+		// Auto-create single permanent negotiation thread for a verified product or shop
 		var product models.Product
 		if productID != "" {
 			db.Where("id = ?", productID).First(&product)
@@ -865,11 +891,28 @@ func (bc *BargainController) GetChatThread(c *fiber.Ctx) error {
 			basePrice = 1999
 		}
 
-		if shopID == "" {
+		if product.ShopID != "" {
 			shopID = product.ShopID
 		}
 		if shopID == "" {
-			shopID = "shop_KD56AHEq_42723" // Fallback to Mitreno official boutique
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"success": false,
+				"error":   "Valid product_id or shop_id is required to start a chat thread",
+			})
+		}
+
+		// Ensure buyer exists in users table before inserting negotiation
+		var buyerCheck models.User
+		if err := db.Where("id = ?", callerID).First(&buyerCheck).Error; err != nil {
+			_ = db.Create(&models.User{
+				ID:        callerID,
+				FullName:  "Customer",
+				Phone:     "+91 98000 00000",
+				Role:      "customer",
+				IsActive:  true,
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			})
 		}
 
 		initialOffer := basePrice
@@ -894,10 +937,11 @@ func (bc *BargainController) GetChatThread(c *fiber.Ctx) error {
 	db.Where("negotiation_id = ?", neg.ID).Order("created_at ASC").Find(&messages)
 
 	return c.JSON(fiber.Map{
-		"success":     true,
-		"negotiation": neg,
-		"messages":    messages,
-		"deals":       []fiber.Map{},
+		"success":        true,
+		"negotiation_id": neg.ID,
+		"negotiation":    neg,
+		"messages":       messages,
+		"deals":          []fiber.Map{},
 	})
 }
 
@@ -1371,6 +1415,7 @@ func (bc *BargainController) dispatchCounterOfferNotification(neg *models.Negoti
 			"type":            "chat",
 			"target_role":     "buyer",
 			"conversation_id": neg.ID,
+			"shop_id":         neg.ShopID,
 			"seller_name":     shopName,
 			"deal_status":     "counter_offer",
 			"offer_price":     fmt.Sprintf("%d", price),
@@ -1411,6 +1456,7 @@ func (bc *BargainController) dispatchDealAcceptedNotification(neg *models.Negoti
 			"type":            "chat",
 			"target_role":     "seller",
 			"conversation_id": neg.ID,
+			"shop_id":         neg.ShopID,
 			"buyer_name":      buyerName,
 			"product_title":   productName,
 			"deal_status":     "accepted",
@@ -1432,6 +1478,7 @@ func (bc *BargainController) dispatchDealAcceptedNotification(neg *models.Negoti
 			"type":            "chat",
 			"target_role":     "buyer",
 			"conversation_id": neg.ID,
+			"shop_id":         neg.ShopID,
 			"seller_name":     shopName,
 			"deal_status":     "accepted",
 			"agreed_price":    fmt.Sprintf("%d", acceptedPrice),
@@ -1474,6 +1521,7 @@ func (bc *BargainController) dispatchChatMessageNotification(neg *models.Negotia
 			"type":            "chat",
 			"target_role":     "seller",
 			"conversation_id": neg.ID,
+			"shop_id":         neg.ShopID,
 			"buyer_name":      buyerName,
 			"product_title":   productName,
 			"deal_status":     neg.Status,
@@ -1499,6 +1547,7 @@ func (bc *BargainController) dispatchChatMessageNotification(neg *models.Negotia
 			"type":            "chat",
 			"target_role":     "buyer",
 			"conversation_id": neg.ID,
+			"shop_id":         neg.ShopID,
 			"seller_name":     shopName,
 			"deal_status":     neg.Status,
 		}

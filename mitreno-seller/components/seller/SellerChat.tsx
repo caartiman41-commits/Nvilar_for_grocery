@@ -60,6 +60,8 @@ interface ChatItem {
   last_message: {
     id: string;
     sender_id: string;
+    sender_role?: string;
+    role?: string;
     message_text: string;
     is_counter_offer: boolean;
     offered_price: number | null;
@@ -80,6 +82,8 @@ interface MessageItem {
   id: string;
   negotiation_id: string;
   sender_id: string;
+  sender_role?: string;
+  role?: string;
   message_text: string;
   is_counter_offer: boolean;
   offered_price: number | null;
@@ -162,6 +166,25 @@ export const SellerChat: React.FC<SellerChatProps> = ({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const backendUrl = getBackendUrl();
+
+  // Accurately determine if a message was sent by the seller (vs customer)
+  const isSellerMessage = useCallback(
+    (
+      msg: { sender_id?: string; sender_role?: string; role?: string } | null | undefined,
+      buyerId?: string,
+      chatShopId?: string
+    ) => {
+      if (!msg || msg.sender_id === 'system') return false;
+      if (msg.sender_role === 'seller' || msg.role === 'seller' || msg.sender_id === 'seller') return true;
+      if (msg.sender_role === 'buyer' || msg.role === 'customer' || msg.sender_id === 'buyer' || msg.sender_id === 'customer') return false;
+      if (shopId && msg.sender_id === shopId) return true;
+      if (chatShopId && msg.sender_id === chatShopId) return true;
+      if (buyerId && msg.sender_id === buyerId) return false;
+      if (userId && msg.sender_id === userId) return true;
+      return false;
+    },
+    [shopId, userId]
+  );
 
   // 1. Fetch conversations list
   const fetchChats = useCallback(async () => {
@@ -252,11 +275,11 @@ export const SellerChat: React.FC<SellerChatProps> = ({
 
   // Mark messages seen when seller opens a chat thread
   useEffect(() => {
-    if (!selectedChatId || !userId) return;
+    if (!selectedChatId) return;
     const markSeen = async () => {
       try {
-        await apiClient.post(`/api/customer/chats/${selectedChatId}/seen`, { reader_id: userId });
-        broadcastSeen(selectedChatId, userId);
+        await apiClient.post(`/api/seller/chats/${selectedChatId}/seen`, { reader_id: 'seller' });
+        broadcastSeen(selectedChatId, userId || 'seller');
       } catch (err) {
         // Non-critical
       }
@@ -267,10 +290,10 @@ export const SellerChat: React.FC<SellerChatProps> = ({
   // Broadcast typing indicator as seller types (debounced)
   useEffect(() => {
     if (!selectedChatId || !inputText) return;
-    broadcastTyping(selectedChatId, userId, true);
+    broadcastTyping(selectedChatId, userId || 'seller', true);
     if (typingBroadcastRef.current) clearTimeout(typingBroadcastRef.current);
     typingBroadcastRef.current = setTimeout(() => {
-      broadcastTyping(selectedChatId, userId, false);
+      broadcastTyping(selectedChatId, userId || 'seller', false);
     }, 2500);
     return () => {
       if (typingBroadcastRef.current) clearTimeout(typingBroadcastRef.current);
@@ -295,7 +318,8 @@ export const SellerChat: React.FC<SellerChatProps> = ({
               messages: nextMessages,
             };
           }
-          if (userId && newMsg.sender_id !== userId) {
+          const fromSeller = isSellerMessage(newMsg, prev.negotiation?.buyer_id, prev.negotiation?.shop_id);
+          if (!fromSeller) {
             sellerAudio.playMessageChime();
           }
           return {
@@ -306,14 +330,14 @@ export const SellerChat: React.FC<SellerChatProps> = ({
         fetchChats();
         if (onRefreshMetrics) onRefreshMetrics();
 
-        // Auto-mark incoming messages as seen if we are actively in the chat
-        if (userId && newMsg.sender_id !== userId && !newMsg.seen_at) {
-          fetch(`${backendUrl}/api/customer/chats/${selectedChatId}/seen`, {
+        // Auto-mark incoming customer messages as seen if we are actively in the chat
+        if (!isSellerMessage(newMsg) && !newMsg.seen_at) {
+          fetch(`${backendUrl}/api/seller/chats/${selectedChatId}/seen`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ reader_id: userId }),
+            body: JSON.stringify({ reader_id: 'seller' }),
           }).catch(() => {});
-          broadcastSeen(selectedChatId, userId);
+          broadcastSeen(selectedChatId, userId || 'seller');
         }
       },
       onDealUpdate: (deal) => {
@@ -338,7 +362,7 @@ export const SellerChat: React.FC<SellerChatProps> = ({
         fetchChats();
       },
       onTyping: (senderId, isTyping) => {
-        if (senderId === userId) return;
+        if (senderId === userId || senderId === 'seller') return;
         if (isTyping) {
           setOtherIsTyping(true);
           if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -354,7 +378,7 @@ export const SellerChat: React.FC<SellerChatProps> = ({
           return {
             ...prev,
             messages: prev.messages.map((m) =>
-              Boolean(userId && m.sender_id === userId) && !m.seen_at
+              isSellerMessage(m, prev.negotiation?.buyer_id, prev.negotiation?.shop_id) && !m.seen_at
                 ? { ...m, seen_at: seenAt }
                 : m
             ),
@@ -367,7 +391,7 @@ export const SellerChat: React.FC<SellerChatProps> = ({
       unsubscribe();
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
-  }, [selectedChatId, userId, fetchChats, fetchMessages, onRefreshMetrics, backendUrl]);
+  }, [selectedChatId, userId, fetchChats, fetchMessages, onRefreshMetrics, backendUrl, isSellerMessage]);
 
   // Silent Background Polling (3s interval, never wipes UI with loading spinner)
   useEffect(() => {
@@ -402,14 +426,21 @@ export const SellerChat: React.FC<SellerChatProps> = ({
       if (data.success) {
         setInputText('');
         sellerAudio.playMessageChime();
+        const sentMsg: MessageItem = {
+          ...data.message,
+          sender_id: data.message?.sender_id || 'seller',
+          sender_role: data.message?.sender_role || 'seller',
+          role: data.message?.role || 'seller',
+        };
         // Broadcast over WebSocket directly (<20ms instant delivery to customer!)
-        broadcastChatMessage(selectedChatId, data.message);
-        // Optimistically add message
+        broadcastChatMessage(selectedChatId, sentMsg);
+        // Optimistically add message (deduplicating if realtime already added it)
         setActiveChat(prev => {
           if (!prev) return null;
+          if (prev.messages.some(m => m.id === sentMsg.id)) return prev;
           return {
             ...prev,
-            messages: [...prev.messages, data.message],
+            messages: [...prev.messages, sentMsg],
           };
         });
         fetchChats();
@@ -613,7 +644,7 @@ export const SellerChat: React.FC<SellerChatProps> = ({
 
                 const lastMsgText = chat.last_message?.message_text;
                 const unreadCount = chat.customer_message_count || 0;
-                const isSellerLastMsg = chat.last_message && chat.last_message.sender_id !== chat.buyer_id;
+                const isSellerLastMsg = isSellerMessage(chat.last_message, chat.buyer_id, chat.shop_id);
                 const isLastMsgSeenByCustomer = chat.last_message?.seen_at != null;
 
                 return (
@@ -821,7 +852,7 @@ export const SellerChat: React.FC<SellerChatProps> = ({
                   </div>
                 ) : (
                   activeChat?.messages.map(msg => {
-                    const isSeller = Boolean(userId && msg.sender_id === userId);
+                    const isSeller = isSellerMessage(msg, selectedNegotiation?.buyer_id, selectedNegotiation?.shop_id);
                     const isSystem = msg.sender_id === 'system';
 
                     if (isSystem) {

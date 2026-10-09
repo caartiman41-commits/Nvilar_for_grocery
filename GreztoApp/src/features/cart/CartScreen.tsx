@@ -49,7 +49,10 @@ export const CartScreen = memo(() => {
                 </View>
                 <View style={styles.itemDetails}>
                   <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
-                  <Text style={styles.itemUnitPrice}>{formatINR(item.price)} / UNIT</Text>
+                  {Boolean(item.size) && (
+                    <Text style={styles.itemSizeBadge}>Size: {item.size}</Text>
+                  )}
+                  <Text style={styles.itemUnitPrice}>{formatINR(item.price)} / pc</Text>
                   <Text style={styles.itemTotal}>{formatINR(item.price * item.quantity)}</Text>
                 </View>
                 <View style={styles.actionContainer}>
@@ -153,6 +156,17 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontWeight: '600',
     marginBottom: 4,
+  },
+  itemSizeBadge: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#1E40AF',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+    marginBottom: 3,
   },
   itemUnitPrice: {
     fontSize: 11,

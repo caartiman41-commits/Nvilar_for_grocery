@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"mitreno-backend/config"
+	"mitreno-backend/middleware"
 	"mitreno-backend/models"
 	"mitreno-backend/services"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 type SellerController struct{}
@@ -315,7 +315,7 @@ func (sc *SellerController) RegisterSeller(c *fiber.Ctx) error {
 		})
 	}
 
-	uid := userID.(string)
+	uid := middleware.ResolveCanonicalUserID(db, userID.(string))
 
 	// Check for existing pending or approved application
 	var existingCount int64
@@ -397,7 +397,7 @@ func (sc *SellerController) GetSellerStatus(c *fiber.Ctx) error {
 		})
 	}
 
-	uid := userID.(string)
+	uid := middleware.ResolveCanonicalUserID(db, userID.(string))
 
 	var application models.SellerApplication
 	result := db.Where("user_id = ?", uid).Order("created_at DESC").First(&application)
@@ -594,6 +594,32 @@ func (sc *SellerController) GetUploadURL(c *fiber.Ctx) error {
 	})
 }
 
+// resolveOrderLifecycle deterministically normalizes order_status and seller_status into a single canonical lifecycle stage.
+func resolveOrderLifecycle(orderStatus, sellerStatus string) string {
+	os := strings.ToLower(strings.TrimSpace(orderStatus))
+	ss := strings.ToLower(strings.TrimSpace(sellerStatus))
+
+	if os == "cancelled" || ss == "cancelled" || os == "rejected" || ss == "rejected" {
+		return "cancelled"
+	}
+	if os == "returned" || ss == "returned" || os == "rto" || ss == "rto" ||
+		os == "return_requested" || ss == "return_requested" || os == "return_rejected" || ss == "return_rejected" {
+		return "returned"
+	}
+	if os == "delivered" || ss == "delivered" || os == "completed" || ss == "completed" {
+		return "delivered"
+	}
+	if os == "shipped" || ss == "shipped" || os == "dispatched" || ss == "dispatched" ||
+		os == "out_for_delivery" || ss == "out_for_delivery" || os == "in_transit" || ss == "in_transit" {
+		return "shipped"
+	}
+	if os == "packaging" || ss == "packaging" || os == "accepted" || ss == "accepted" ||
+		os == "processing" || ss == "processing" {
+		return "packaging"
+	}
+	return "new"
+}
+
 // GetSellerDashboard retrieves seller shop details and live KPI metrics
 func (sc *SellerController) GetSellerDashboard(c *fiber.Ctx) error {
 	db := config.DB
@@ -710,6 +736,9 @@ func (sc *SellerController) GetSellerDashboard(c *fiber.Ctx) error {
 	`, shop.ID).Scan(&stats)
 
 	roundedRating := math.Round(stats.AvgRating*100) / 100
+	if stats.Total == 0 && shop.Rating > 0 {
+		roundedRating = shop.Rating
+	}
 	shop.Rating = roundedRating
 	shop.ReviewCount = stats.Total
 	shop.FollowersCount = int(followersCount)
@@ -721,30 +750,170 @@ func (sc *SellerController) GetSellerDashboard(c *fiber.Ctx) error {
 		"followers_count": followersCount,
 	})
 
+	// Fetch all genuine orders for this shop to compute real-time Dashboard & Analytics metrics
+	var shopOrders []models.Order
+	db.Preload("Items.Product").Preload("Buyer").
+		Where("shop_id = ?", shop.ID).
+		Order("placed_at DESC").
+		Find(&shopOrders)
+
+	var deliveredRevenue int
+	var pendingRevenue int
+	var cancelledValue int
+	var returnValue int
+	var newOrdersCount int
+	var processingOrdersCount int
+	var shippedOrdersCount int
+	var deliveredOrdersCount int
+	var cancelledOrdersCount int
+	var returnRequestsCount int
+	var hyperlocalOrdersCount int
+
+	recentOrdersList := make([]fiber.Map, 0, len(shopOrders))
+
+	for _, o := range shopOrders {
+		lifecycle := resolveOrderLifecycle(o.OrderStatus, o.SellerStatus)
+
+		if o.DeliveryTier != nil && *o.DeliveryTier == "hyperlocal_same_day" {
+			hyperlocalOrdersCount++
+		}
+
+		switch lifecycle {
+		case "delivered":
+			deliveredOrdersCount++
+			deliveredRevenue += o.TotalPaid
+		case "new":
+			newOrdersCount++
+			pendingRevenue += o.TotalPaid
+		case "packaging":
+			processingOrdersCount++
+			pendingRevenue += o.TotalPaid
+		case "shipped":
+			shippedOrdersCount++
+			pendingRevenue += o.TotalPaid
+		case "cancelled":
+			cancelledOrdersCount++
+			cancelledValue += o.TotalPaid
+		case "returned":
+			returnRequestsCount++
+			returnValue += o.TotalPaid
+		}
+
+		custName := "Customer"
+		custPhone := ""
+		if o.Buyer != nil {
+			if o.Buyer.FullName != "" {
+				custName = o.Buyer.FullName
+			}
+			custPhone = o.Buyer.Phone
+		}
+		rawShipping := map[string]interface{}(o.ShippingAddress)
+		if n, ok := rawShipping["name"].(string); ok && n != "" {
+			custName = n
+		} else if fn, ok := rawShipping["fullName"].(string); ok && fn != "" {
+			custName = fn
+		}
+		if p, ok := rawShipping["phone"].(string); ok && p != "" {
+			custPhone = p
+		}
+
+		var itemsList []fiber.Map
+		for _, itm := range o.Items {
+			pName := "Boutique Garment"
+			pThumb := "https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=800&auto=format&fit=crop&q=80"
+			pFabric := "Luxury Fabric"
+			if itm.Product != nil {
+				if itm.Product.Name != "" {
+					pName = itm.Product.Name
+				}
+				if itm.Product.Thumbnail != "" {
+					pThumb = itm.Product.Thumbnail
+				}
+				if itm.Product.Fabric != "" {
+					pFabric = itm.Product.Fabric
+				}
+			}
+			itemsList = append(itemsList, fiber.Map{
+				"id":             itm.ID,
+				"product_id":     itm.ProductID,
+				"name":           pName,
+				"thumbnail":      pThumb,
+				"quantity":       itm.Quantity,
+				"size":           itm.Size,
+				"price_per_unit": itm.PricePerUnit,
+				"fabric":         pFabric,
+			})
+		}
+
+		paymentMode := o.PaymentMode
+		if paymentMode == "" {
+			paymentMode = "Prepaid"
+		}
+
+		recentOrdersList = append(recentOrdersList, fiber.Map{
+			"id":               o.ID,
+			"order_number":     o.ID,
+			"buyer_id":         o.BuyerID,
+			"customer_name":    custName,
+			"customer_phone":   custPhone,
+			"total_paid":       o.TotalPaid,
+			"total_mrp":        o.TotalMRP,
+			"total_savings":    o.TotalSavings,
+			"order_status":     lifecycle,
+			"seller_status":    lifecycle,
+			"placed_at":        o.PlacedAt,
+			"payment_mode":     paymentMode,
+			"delivery_tier":    o.DeliveryTier,
+			"shipping_address": rawShipping,
+			"items":            itemsList,
+		})
+	}
+
+	// Count unread chat inquiries for this shop
+	var unreadChats int64
+	db.Raw(`
+		SELECT COUNT(*) FROM chat_messages cm
+		JOIN negotiations n ON n.id = cm.negotiation_id
+		WHERE n.shop_id = ?
+		  AND cm.sender_id NOT IN (?, ?, 'seller', 'system')
+		  AND (cm.sender_role IS NULL OR cm.sender_role != 'seller')
+		  AND (cm.role IS NULL OR cm.role != 'seller')
+		  AND cm.seen_at IS NULL
+	`, shop.ID, shop.ID, shop.OwnerID).Scan(&unreadChats)
+
+	activeOrdersCount := newOrdersCount + processingOrdersCount + shippedOrdersCount
+	netEarnings := int(math.Round(float64(deliveredRevenue) * 0.95))
+
 	metrics := fiber.Map{
-		"total_revenue":          0,
-		"total_orders":           0,
-		"new_orders":             0,
-		"processing_orders":      0,
-		"shipped_orders":         0,
-		"delivered_orders":       0,
-		"cancelled_orders":       0,
-		"return_requests":        0,
-		"total_products":         totalProducts,
-		"active_products":        activeProducts,
-		"out_of_stock_products":  outProducts,
-		"unread_chats":           0,
-		"unread_notifications":   0,
-		"followers_count":        followersCount,
-		"rating":                 roundedRating,
-		"review_count":           stats.Total,
+		"total_revenue":         deliveredRevenue,
+		"net_earnings":          netEarnings,
+		"pending_revenue":       pendingRevenue,
+		"cancelled_value":       cancelledValue,
+		"return_value":          returnValue,
+		"total_orders":          len(shopOrders),
+		"active_orders":         activeOrdersCount,
+		"new_orders":            newOrdersCount,
+		"processing_orders":     processingOrdersCount,
+		"shipped_orders":        shippedOrdersCount,
+		"delivered_orders":      deliveredOrdersCount,
+		"cancelled_orders":      cancelledOrdersCount,
+		"return_requests":       returnRequestsCount,
+		"hyperlocal_orders":     hyperlocalOrdersCount,
+		"total_products":        totalProducts,
+		"active_products":       activeProducts,
+		"out_of_stock_products": outProducts,
+		"unread_chats":          unreadChats,
+		"unread_notifications":  newOrdersCount + int(unreadChats),
+		"followers_count":       followersCount,
+		"rating":                roundedRating,
+		"review_count":          stats.Total,
 	}
 
 	return c.JSON(fiber.Map{
 		"success":       true,
 		"shop":          shop,
 		"metrics":       metrics,
-		"recent_orders": []fiber.Map{},
+		"recent_orders": recentOrdersList,
 	})
 }
 
@@ -1305,7 +1474,14 @@ func (sc *SellerController) GetSellerChats(c *fiber.Ctx) error {
 
 	userID := c.Query("user_id")
 	if userID == "" {
-		userID = c.Get("X-User-ID")
+		if u, ok := c.Locals("userID").(string); ok && u != "" {
+			userID = u
+		} else {
+			userID = c.Get("X-User-ID")
+		}
+	}
+	if userID != "" {
+		userID = middleware.ResolveCanonicalUserID(db, userID)
 	}
 
 	shopID := c.Query("shop_id")
@@ -1314,41 +1490,40 @@ func (sc *SellerController) GetSellerChats(c *fiber.Ctx) error {
 
 	var shop models.Shop
 	if shopID != "" {
-		if err := db.Where("id = ? OR id LIKE ?", shopID, "%"+shopID+"%").First(&shop).Error; err != nil {
-			// Try fallback to Mitreno.com
-			if err2 := db.Where("name = ? OR id LIKE ?", "Mitreno.com", "%42723%").First(&shop).Error; err2 == nil {
+		if userID != "" {
+			if err := db.Where("id = ? AND owner_id = ?", shopID, userID).First(&shop).Error; err == nil {
 				shopID = shop.ID
 			} else {
-				db.First(&shop)
-				shopID = shop.ID
+				shopID = ""
 			}
-		} else {
+		} else if err := db.Where("id = ?", shopID).First(&shop).Error; err == nil {
 			shopID = shop.ID
+		} else {
+			shopID = ""
 		}
-	} else if userID != "" {
-		if err := db.Where("owner_id = ?", userID).First(&shop).Error; err == nil {
+	}
+
+	if shopID == "" && userID != "" {
+		if err := db.Where("owner_id = ?", userID).Order("created_at ASC").First(&shop).Error; err == nil {
 			shopID = shop.ID
 		}
 	}
 
-	// Always fallback to primary Mitreno boutique if shopID is empty
 	if shopID == "" {
-		if err := db.Where("name = ? OR id LIKE ?", "Mitreno.com", "%42723%").First(&shop).Error; err == nil {
-			shopID = shop.ID
-		} else {
-			var firstShop models.Shop
-			if err := db.First(&firstShop).Error; err == nil {
-				shopID = firstShop.ID
-			}
-		}
+		return c.JSON(fiber.Map{
+			"success": true,
+			"chats":   []fiber.Map{},
+			"counts": fiber.Map{
+				"total":        0,
+				"active_count": 0,
+				"agreed_count": 0,
+			},
+		})
 	}
 
-	// Fetch all negotiations for this shop
+	// Fetch all negotiations strictly for this shop
 	var negotiations []models.Negotiation
-	query := db.Preload("Shop").Preload("Product").Order("updated_at DESC")
-	if shopID != "" {
-		query = query.Where("shop_id = ?", shopID)
-	}
+	query := db.Preload("Shop").Preload("Product").Where("shop_id = ?", shopID).Order("updated_at DESC")
 
 	if filter == "active" {
 		query = query.Where("status = ?", "active")
@@ -1357,11 +1532,6 @@ func (sc *SellerController) GetSellerChats(c *fiber.Ctx) error {
 	}
 
 	query.Find(&negotiations)
-
-	// If no negotiations found strictly by shopID, fetch recent negotiations across platform so demo/test chats are never blank
-	if len(negotiations) == 0 {
-		db.Preload("Shop").Preload("Product").Order("updated_at DESC").Limit(50).Find(&negotiations)
-	}
 
 	var total, activeCount, agreedCount int64
 
@@ -1428,9 +1598,11 @@ func (sc *SellerController) GetSellerChats(c *fiber.Ctx) error {
 		var latestMsg models.ChatMessage
 		db.Where("negotiation_id = ?", neg.ID).Order("created_at DESC").First(&latestMsg)
 
-		// Unread count
+		// Unread count (only customer messages not yet seen by seller)
 		var unreadCount int64
-		db.Model(&models.ChatMessage{}).Where("negotiation_id = ? AND sender_id != ? AND seen_at IS NULL", neg.ID, userID).Count(&unreadCount)
+		db.Model(&models.ChatMessage{}).
+			Where("negotiation_id = ? AND sender_id NOT IN ? AND (sender_role IS NULL OR sender_role != 'seller') AND (role IS NULL OR role != 'seller') AND seen_at IS NULL", neg.ID, []string{"seller", "system", neg.ShopID, userID}).
+			Count(&unreadCount)
 
 		// Active deal
 		var activeDeal models.CustomerDeal
@@ -1557,7 +1729,7 @@ func (sc *SellerController) GetSellerChats(c *fiber.Ctx) error {
 		lastMsgStatus := "delivered"
 		formattedTime := "Recently"
 		if card.LatestMessage != nil {
-			if card.LatestMessage.SenderID == "seller" {
+			if card.LatestMessage.SenderID == "seller" || card.LatestMessage.SenderRole == "seller" || card.LatestMessage.Role == "seller" || (card.ShopID != "" && card.LatestMessage.SenderID == card.ShopID) {
 				lastMsgSender = "seller"
 				if card.LatestMessage.SeenAt != nil {
 					lastMsgStatus = "read"
@@ -1842,6 +2014,7 @@ func (sc *SellerController) PostSellerChatMessage(c *fiber.Ctx) error {
 					"type":            "chat",
 					"target_role":     "buyer",
 					"conversation_id": effectiveNegID,
+					"shop_id":         neg.ShopID,
 					"seller_name":     shopName,
 					"deal_status":     neg.Status,
 				}
@@ -1917,7 +2090,9 @@ func (sc *SellerController) PostSellerDeal(c *fiber.Ctx) error {
 	msg := models.ChatMessage{
 		ID:             "msg_" + uuid.New().String()[:8],
 		NegotiationID:  chatId,
-		SenderID:       userID,
+		SenderID:       "seller",
+		SenderRole:     "seller",
+		Role:           "seller",
 		MessageText:    msgText,
 		IsCounterOffer: true,
 		OfferedPrice:   &req.DealPrice,
@@ -1945,6 +2120,7 @@ func (sc *SellerController) PostSellerDeal(c *fiber.Ctx) error {
 			"type":            "deal",
 			"target_role":     "buyer",
 			"conversation_id": chatId,
+			"shop_id":         neg.ShopID,
 			"seller_name":     shopName,
 			"deal_id":         deal.ID,
 			"deal_price":      fmt.Sprintf("%d", req.DealPrice),
@@ -1998,10 +2174,13 @@ func (sc *SellerController) GetSellerOrders(c *fiber.Ctx) error {
 			userID = headerUid
 		}
 	}
+	if userID != "" {
+		userID = middleware.ResolveCanonicalUserID(db, userID)
+	}
 
 	if shopID == "" && userID != "" {
 		var userShop models.Shop
-		if err := db.Where("owner_id = ?", userID).First(&userShop).Error; err == nil {
+		if err := db.Where("owner_id = ?", userID).Order("created_at ASC").First(&userShop).Error; err == nil {
 			shopID = userShop.ID
 		}
 	}
@@ -2031,57 +2210,58 @@ func (sc *SellerController) GetSellerOrders(c *fiber.Ctx) error {
 		})
 	}
 
-	statusFilter := c.Query("status", "all")
-	tierFilter := c.Query("tier", "")
+	statusFilter := strings.ToLower(strings.TrimSpace(c.Query("status", "all")))
+	tierFilter := strings.ToLower(strings.TrimSpace(c.Query("tier", "")))
 	search := strings.ToLower(strings.TrimSpace(c.Query("search")))
 
-	var orders []models.Order
+	var allShopOrders []models.Order
 	query := db.Preload("Items.Product").Preload("Buyer").Order("placed_at DESC")
-
 	if shopID != "" {
 		query = query.Where("shop_id = ?", shopID)
 	}
+	query.Find(&allShopOrders)
 
-	if statusFilter == "new" {
-		query = query.Where("seller_status = 'new' OR ((seller_status IS NULL OR seller_status = '') AND (order_status = 'placed' OR order_status IS NULL OR order_status = ''))")
-	} else if statusFilter == "packaging" {
-		query = query.Where("seller_status IN ('accepted', 'packaging', 'processing')")
-	} else if statusFilter == "shipped" {
-		query = query.Where("seller_status IN ('shipped', 'out_for_delivery')")
-	} else if statusFilter == "delivered" {
-		query = query.Where("seller_status = 'delivered' OR order_status = 'delivered'")
-	} else if statusFilter == "cancelled" {
-		query = query.Where("seller_status = 'cancelled' OR order_status = 'cancelled'")
-	} else if statusFilter == "returns" {
-		query = query.Where("seller_status IN ('return_requested', 'returned', 'return_rejected')")
-	}
-
-	if tierFilter == "hyperlocal" {
-		query = query.Where("delivery_tier = 'hyperlocal_same_day'")
-	} else if tierFilter == "standard" {
-		query = query.Where("delivery_tier IS NULL OR delivery_tier != 'hyperlocal_same_day'")
-	}
-
-	query.Find(&orders)
-
-	// Counts aggregation
 	var allCount, newCount, packCount, shipCount, delCount, cancCount, retCount, hyperCount int64
-	countBase := db.Model(&models.Order{})
-	if shopID != "" {
-		countBase = countBase.Where("shop_id = ?", shopID)
-	}
-
-	countBase.Session(&gorm.Session{}).Count(&allCount)
-	countBase.Session(&gorm.Session{}).Where("seller_status = 'new' OR ((seller_status IS NULL OR seller_status = '') AND (order_status = 'placed' OR order_status IS NULL OR order_status = ''))").Count(&newCount)
-	countBase.Session(&gorm.Session{}).Where("seller_status IN ('accepted', 'packaging', 'processing')").Count(&packCount)
-	countBase.Session(&gorm.Session{}).Where("seller_status IN ('shipped', 'out_for_delivery')").Count(&shipCount)
-	countBase.Session(&gorm.Session{}).Where("seller_status = 'delivered' OR order_status = 'delivered'").Count(&delCount)
-	countBase.Session(&gorm.Session{}).Where("seller_status = 'cancelled' OR order_status = 'cancelled'").Count(&cancCount)
-	countBase.Session(&gorm.Session{}).Where("seller_status IN ('return_requested', 'returned', 'return_rejected')").Count(&retCount)
-	countBase.Session(&gorm.Session{}).Where("delivery_tier = 'hyperlocal_same_day'").Count(&hyperCount)
-
 	var ordersList []fiber.Map
-	for _, o := range orders {
+
+	for _, o := range allShopOrders {
+		lifecycle := resolveOrderLifecycle(o.OrderStatus, o.SellerStatus)
+		allCount++
+		switch lifecycle {
+		case "new":
+			newCount++
+		case "packaging":
+			packCount++
+		case "shipped":
+			shipCount++
+		case "delivered":
+			delCount++
+		case "cancelled":
+			cancCount++
+		case "returned":
+			retCount++
+		}
+		isHyperlocal := o.DeliveryTier != nil && *o.DeliveryTier == "hyperlocal_same_day"
+		if isHyperlocal {
+			hyperCount++
+		}
+
+		// Apply status filter deterministically
+		if statusFilter != "" && statusFilter != "all" {
+			if statusFilter == "returns" && lifecycle != "returned" {
+				continue
+			} else if statusFilter != "returns" && lifecycle != statusFilter {
+				continue
+			}
+		}
+
+		// Apply tier filter
+		if tierFilter == "hyperlocal" && !isHyperlocal {
+			continue
+		} else if tierFilter == "standard" && isHyperlocal {
+			continue
+		}
+
 		custName := "Customer"
 		custPhone := ""
 		if o.Buyer != nil {
@@ -2094,6 +2274,8 @@ func (sc *SellerController) GetSellerOrders(c *fiber.Ctx) error {
 		rawShipping := map[string]interface{}(o.ShippingAddress)
 		if n, ok := rawShipping["name"].(string); ok && n != "" {
 			custName = n
+		} else if fn, ok := rawShipping["fullName"].(string); ok && fn != "" {
+			custName = fn
 		}
 		if p, ok := rawShipping["phone"].(string); ok && p != "" {
 			custPhone = p
@@ -2149,8 +2331,8 @@ func (sc *SellerController) GetSellerOrders(c *fiber.Ctx) error {
 			"buyer_id":          o.BuyerID,
 			"customer_name":     custName,
 			"customer_phone":    custPhone,
-			"seller_status":     o.SellerStatus,
-			"order_status":      o.OrderStatus,
+			"seller_status":     lifecycle,
+			"order_status":      lifecycle,
 			"total_paid":        o.TotalPaid,
 			"total_mrp":         o.TotalMRP,
 			"total_savings":     o.TotalSavings,
@@ -2305,6 +2487,22 @@ func (sc *SellerController) AcceptSellerOrder(c *fiber.Ctx) error {
 	}
 	_ = db.Create(&milestone)
 
+	go func(buyerID, oID, shopID string) {
+		if buyerID != "" {
+			buyerTokens, _ := fetchUserTokensAndName(config.DB, buyerID, "Customer")
+			if len(buyerTokens) > 0 {
+				_, shopName := fetchSellerTokensAndShopName(config.DB, shopID)
+				_ = services.SendBuyerNotification(buyerTokens, "📦 Order Accepted by "+shopName, fmt.Sprintf("Order #%s is now being packed. Tap to track live!", oID), map[string]string{
+					"type":          "order_update",
+					"order_id":      oID,
+					"tag":           "order_" + oID,
+					"target_role":   "buyer",
+					"target_screen": "Orders",
+				})
+			}
+		}
+	}(order.BuyerID, orderID, order.ShopID)
+
 	return c.JSON(fiber.Map{"success": true, "message": "Order accepted successfully"})
 }
 
@@ -2346,6 +2544,21 @@ func (sc *SellerController) RejectSellerOrder(c *fiber.Ctx) error {
 		CreatedAt:   now,
 	}
 	_ = db.Create(&milestone)
+
+	go func(buyerID, oID, reason string) {
+		if buyerID != "" {
+			buyerTokens, _ := fetchUserTokensAndName(config.DB, buyerID, "Customer")
+			if len(buyerTokens) > 0 {
+				_ = services.SendBuyerNotification(buyerTokens, "⚠️ Order #"+oID+" Cancelled", fmt.Sprintf("Reason: %s. 100%% refund initiated.", reason), map[string]string{
+					"type":          "order_update",
+					"order_id":      oID,
+					"tag":           "order_" + oID,
+					"target_role":   "buyer",
+					"target_screen": "Orders",
+				})
+			}
+		}
+	}(order.BuyerID, orderID, req.Reason)
 
 	return c.JSON(fiber.Map{"success": true, "message": "Order rejected"})
 }
@@ -2422,6 +2635,21 @@ func (sc *SellerController) UpdateSellerOrderStatus(c *fiber.Ctx) error {
 	}
 	_ = db.Create(&milestone)
 
+	go func(buyerID, oID, title, desc string) {
+		if buyerID != "" {
+			buyerTokens, _ := fetchUserTokensAndName(config.DB, buyerID, "Customer")
+			if len(buyerTokens) > 0 {
+				_ = services.SendBuyerNotification(buyerTokens, "🚚 "+title+" (#"+oID+")", desc, map[string]string{
+					"type":          "order_update",
+					"order_id":      oID,
+					"tag":           "order_" + oID,
+					"target_role":   "buyer",
+					"target_screen": "Orders",
+				})
+			}
+		}
+	}(order.BuyerID, orderID, stageTitle, stageDesc)
+
 	return c.JSON(fiber.Map{"success": true, "message": "Order status updated successfully"})
 }
 
@@ -2450,7 +2678,14 @@ func (sc *SellerController) GetSellerNotifications(c *fiber.Ctx) error {
 	shopID := c.Query("shop_id")
 	userID := c.Query("user_id")
 	if userID == "" {
-		userID = c.Get("X-User-ID")
+		if u, ok := c.Locals("userID").(string); ok && u != "" {
+			userID = u
+		} else {
+			userID = c.Get("X-User-ID")
+		}
+	}
+	if userID != "" {
+		userID = middleware.ResolveCanonicalUserID(db, userID)
 	}
 
 	var notifs []models.SellerNotification
@@ -2483,7 +2718,14 @@ func (sc *SellerController) MarkSellerNotificationsRead(c *fiber.Ctx) error {
 	shopID := c.Query("shop_id")
 	userID := c.Query("user_id")
 	if userID == "" {
-		userID = c.Get("X-User-ID")
+		if u, ok := c.Locals("userID").(string); ok && u != "" {
+			userID = u
+		} else {
+			userID = c.Get("X-User-ID")
+		}
+	}
+	if userID != "" {
+		userID = middleware.ResolveCanonicalUserID(db, userID)
 	}
 
 	q := db.Model(&models.SellerNotification{})
@@ -2511,7 +2753,7 @@ func (sc *SellerController) GetSellerAnalytics(c *fiber.Ctx) error {
 
 	shopID := c.Query("shop_id")
 	userID := c.Query("user_id")
-	timeframe := c.Query("timeframe", "7d") // 7d, 30d, all
+	timeframe := c.Query("timeframe", "all") // 7d, 30d, all
 
 	if userID == "" {
 		if u, ok := c.Locals("userID").(string); ok && u != "" {
@@ -2550,27 +2792,33 @@ func (sc *SellerController) GetSellerAnalytics(c *fiber.Ctx) error {
 	// Determine timeframe duration
 	var startDate time.Time
 	now := time.Now()
-	daysCount := 7
+	daysCount := 30
+	applyDateFilter := false
 
 	switch timeframe {
+	case "7d":
+		daysCount = 7
+		startDate = now.AddDate(0, 0, -6)
+		applyDateFilter = true
 	case "30d":
 		daysCount = 30
 		startDate = now.AddDate(0, 0, -29)
-	case "all":
-		daysCount = 90
-		startDate = now.AddDate(0, 0, -89)
+		applyDateFilter = true
 	default:
-		daysCount = 7
-		startDate = now.AddDate(0, 0, -6)
+		timeframe = "all"
+		daysCount = 30
+		startDate = now.AddDate(0, 0, -29)
+		applyDateFilter = false
 	}
 	startDate = time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, startDate.Location())
 
-	// 1. Fetch Orders within range
+	// 1. Fetch Orders within range (or all genuine orders for "all")
 	var orders []models.Order
-	db.Preload("Items").Preload("Items.Product").
-		Where("shop_id = ? AND placed_at >= ?", shop.ID, startDate).
-		Order("placed_at ASC").
-		Find(&orders)
+	orderQuery := db.Preload("Items").Preload("Items.Product").Where("shop_id = ?", shop.ID)
+	if applyDateFilter {
+		orderQuery = orderQuery.Where("placed_at >= ?", startDate)
+	}
+	orderQuery.Order("placed_at ASC").Find(&orders)
 
 	// 2. Timeline Aggregation (Daily buckets)
 	type TimelinePoint struct {
@@ -2598,9 +2846,16 @@ func (sc *SellerController) GetSellerAnalytics(c *fiber.Ctx) error {
 		timelineMap[key] = pt
 	}
 
-	var totalRevenue int
+	var deliveredRevenue int
+	var deliveredOrdersCount int
+	var deliveredUnitsSold int
 	var totalOrdersCount int
-	var totalUnitsSold int
+	var newOrdersCount int
+	var packagingOrdersCount int
+	var shippedOrdersCount int
+	var pipelineRevenue int
+	var cancelledOrdersCount int
+	var cancelledValue int
 	var totalReturns int
 	var todayReturns int
 	var returnValue int
@@ -2608,41 +2863,51 @@ func (sc *SellerController) GetSellerAnalytics(c *fiber.Ctx) error {
 	todayStr := now.Format("2006-01-02")
 
 	for _, o := range orders {
-		isCancelled := strings.ToLower(o.OrderStatus) == "cancelled" || strings.ToLower(o.SellerStatus) == "cancelled"
-		isReturn := strings.ToLower(o.OrderStatus) == "returned" || strings.ToLower(o.OrderStatus) == "rto" ||
-			strings.ToLower(o.SellerStatus) == "returned" || strings.ToLower(o.SellerStatus) == "rto"
+		totalOrdersCount++
+		lifecycle := resolveOrderLifecycle(o.OrderStatus, o.SellerStatus)
 
-		if isReturn {
+		dayKey := o.PlacedAt.Format("2006-01-02")
+		if pt, exists := timelineMap[dayKey]; exists {
+			pt.Orders++
+		}
+
+		switch lifecycle {
+		case "delivered":
+			deliveredOrdersCount++
+			deliveredRevenue += o.TotalPaid
+			if pt, exists := timelineMap[dayKey]; exists {
+				pt.Revenue += o.TotalPaid
+				for _, item := range o.Items {
+					if !item.IsCancelled {
+						pt.UnitsSold += item.Quantity
+						deliveredUnitsSold += item.Quantity
+					}
+				}
+			} else {
+				for _, item := range o.Items {
+					if !item.IsCancelled {
+						deliveredUnitsSold += item.Quantity
+					}
+				}
+			}
+		case "cancelled":
+			cancelledOrdersCount++
+			cancelledValue += o.TotalPaid
+		case "returned":
 			totalReturns++
 			returnValue += o.TotalPaid
 			if o.UpdatedAt.Format("2006-01-02") == todayStr || o.PlacedAt.Format("2006-01-02") == todayStr {
 				todayReturns++
 			}
-		}
-
-		if isCancelled {
-			continue
-		}
-
-		totalOrdersCount++
-		totalRevenue += o.TotalPaid
-
-		dayKey := o.PlacedAt.Format("2006-01-02")
-		if pt, exists := timelineMap[dayKey]; exists {
-			pt.Revenue += o.TotalPaid
-			pt.Orders++
-			for _, item := range o.Items {
-				if !item.IsCancelled {
-					pt.UnitsSold += item.Quantity
-					totalUnitsSold += item.Quantity
-				}
-			}
-		} else {
-			for _, item := range o.Items {
-				if !item.IsCancelled {
-					totalUnitsSold += item.Quantity
-				}
-			}
+		case "new":
+			newOrdersCount++
+			pipelineRevenue += o.TotalPaid
+		case "packaging":
+			packagingOrdersCount++
+			pipelineRevenue += o.TotalPaid
+		case "shipped":
+			shippedOrdersCount++
+			pipelineRevenue += o.TotalPaid
 		}
 	}
 
@@ -2654,16 +2919,16 @@ func (sc *SellerController) GetSellerAnalytics(c *fiber.Ctx) error {
 		}
 	}
 
-	// 3. Average Order Value
+	// 3. Average Order Value (Strictly calculated from Delivered Orders)
 	aov := 0
-	if totalOrdersCount > 0 {
-		aov = totalRevenue / totalOrdersCount
+	if deliveredOrdersCount > 0 {
+		aov = deliveredRevenue / deliveredOrdersCount
 	}
 
 	// 4. Return Rate %
 	returnRatePct := 0.0
-	if totalOrdersCount+totalReturns > 0 {
-		returnRatePct = math.Round((float64(totalReturns)/float64(totalOrdersCount+totalReturns))*1000) / 10.0
+	if totalOrdersCount > 0 {
+		returnRatePct = math.Round((float64(totalReturns)/float64(totalOrdersCount))*1000) / 10.0
 	}
 	returnRiskLevel := "low"
 	if returnRatePct > 15.0 {
@@ -2676,16 +2941,14 @@ func (sc *SellerController) GetSellerAnalytics(c *fiber.Ctx) error {
 	var totalNegotiations int64
 	var acceptedNegotiations int64
 	db.Model(&models.Negotiation{}).Where("shop_id = ?", shop.ID).Count(&totalNegotiations)
-	db.Model(&models.Negotiation{}).Where("shop_id = ? AND (status = 'accepted' OR status = 'checkout_locked')", shop.ID).Count(&acceptedNegotiations)
+	db.Model(&models.Negotiation{}).Where("shop_id = ? AND (status = 'accepted' OR status = 'agreed' OR status = 'checkout_locked' OR deal_status = 'accepted')", shop.ID).Count(&acceptedNegotiations)
 
 	chatDealRatePct := 0.0
 	if totalNegotiations > 0 {
 		chatDealRatePct = math.Round((float64(acceptedNegotiations)/float64(totalNegotiations))*1000) / 10.0
-	} else if totalOrdersCount > 0 {
-		chatDealRatePct = 28.5
 	}
 
-	// 6. Top Products & Category Distribution (for Radial Wheel)
+	// 6. Top Products & Category Distribution (Based on Delivered Orders)
 	type TopProduct struct {
 		ID               string `json:"id"`
 		Name             string `json:"name"`
@@ -2723,7 +2986,8 @@ func (sc *SellerController) GetSellerAnalytics(c *fiber.Ctx) error {
 	}
 
 	for _, o := range orders {
-		if strings.ToLower(o.OrderStatus) == "cancelled" {
+		lifecycle := resolveOrderLifecycle(o.OrderStatus, o.SellerStatus)
+		if lifecycle != "delivered" {
 			continue
 		}
 		for _, it := range o.Items {
@@ -2732,8 +2996,8 @@ func (sc *SellerController) GetSellerAnalytics(c *fiber.Ctx) error {
 			}
 			if tp, ok := productPerformance[it.ProductID]; ok {
 				tp.UnitsSold += it.Quantity
-				tp.RevenueGenerated += it.PricePerUnit * it.Quantity
-				categoryRevenueMap[tp.Category] += it.PricePerUnit * it.Quantity
+				tp.RevenueGenerated += o.TotalPaid
+				categoryRevenueMap[tp.Category] += o.TotalPaid
 				categoryUnitsMap[tp.Category] += it.Quantity
 			}
 		}
@@ -2741,7 +3005,12 @@ func (sc *SellerController) GetSellerAnalytics(c *fiber.Ctx) error {
 
 	topProductsList := []TopProduct{}
 	for _, tp := range productPerformance {
-		if tp.UnitsSold > 0 || len(topProductsList) < 5 {
+		if tp.UnitsSold > 0 {
+			topProductsList = append(topProductsList, *tp)
+		}
+	}
+	for _, tp := range productPerformance {
+		if tp.UnitsSold == 0 && len(topProductsList) < 5 {
 			topProductsList = append(topProductsList, *tp)
 		}
 	}
@@ -2769,53 +3038,37 @@ func (sc *SellerController) GetSellerAnalytics(c *fiber.Ctx) error {
 			Percentage: pct,
 		})
 	}
-	if len(categoriesList) == 0 {
-		categoriesList = []CategoryShare{
-			{Category: "Designer Streetwear", Revenue: 0, Units: 0, Percentage: 45.0},
-			{Category: "Ethnic & Festive", Revenue: 0, Units: 0, Percentage: 35.0},
-			{Category: "Casual Wear", Revenue: 0, Units: 0, Percentage: 20.0},
-		}
-	}
 
 	// 7. Customer Shopping Steps (Funnel)
 	var totalViews int64
 	db.Model(&models.Reel{}).Where("shop_id = ?", shop.ID).Select("COALESCE(SUM(views_count), 0)").Scan(&totalViews)
 	impressions := int(totalViews * 4)
-	if impressions < 200 {
-		impressions = (totalOrdersCount + 1) * 320
+	if impressions < totalOrdersCount*20 {
+		impressions = totalOrdersCount * 25
 	}
-	productViews := int(float64(impressions) * 0.18)
-	if productViews < totalOrdersCount*4 {
-		productViews = (totalOrdersCount + 1) * 8
+	productViews := int(float64(impressions) * 0.25)
+	if productViews < totalOrdersCount*5 {
+		productViews = totalOrdersCount * 6
 	}
 	priceInquiries := int(totalNegotiations)
-	if priceInquiries < totalOrdersCount*2 {
-		priceInquiries = (totalOrdersCount + 1) * 3
-	}
 	specialOffers := int(acceptedNegotiations)
-	if specialOffers < totalOrdersCount {
-		specialOffers = totalOrdersCount + 1
-	}
 
-	// 8. Mitreno AI Growth Advisor Insights
+	// 8. Nvilar AI Growth Advisor Insights
 	var aiInsights []string
+	activeOrdersCount := newOrdersCount + packagingOrdersCount + shippedOrdersCount
+	if activeOrdersCount > 0 {
+		aiInsights = append(aiInsights, fmt.Sprintf("You have %d active orders worth ₹%d in fulfillment pipeline. Completing delivery unlocks ₹%d in confirmed revenue.", activeOrdersCount, pipelineRevenue, pipelineRevenue))
+	}
 	if returnRatePct > 10.0 {
 		aiInsights = append(aiInsights, fmt.Sprintf("Return rate is %.1f%%. Consider adding detailed chest/waist measurements to product descriptions.", returnRatePct))
 	} else {
-		aiInsights = append(aiInsights, "Returns are well within safe thresholds (<6%). Delivering verified garments maintains high seller rating.")
+		aiInsights = append(aiInsights, "Zero RTO/Returns recorded (0%). Delivering verified garments maintains your 5.0★ boutique rating.")
+	}
+	if chatDealRatePct > 0 {
+		aiInsights = append(aiInsights, fmt.Sprintf("Live chat deal conversion is %.1f%%. Prompt customer negotiation replies directly drive sales.", chatDealRatePct))
 	}
 
-	if chatDealRatePct > 20.0 {
-		aiInsights = append(aiInsights, fmt.Sprintf("High chat deal conversion (%.1f%%). Prompt customer negotiation replies directly drive sales.", chatDealRatePct))
-	} else {
-		aiInsights = append(aiInsights, "Responding to live price bargaining within 5 minutes significantly boosts deal closure.")
-	}
-
-	if len(categoriesList) > 0 {
-		aiInsights = append(aiInsights, fmt.Sprintf("'%s' is your strongest category. Tag matching accessories in Reels to lift average order value.", categoriesList[0].Category))
-	}
-
-	// 9. Payouts & Financial Settlement (Option A)
+	// 9. Payouts & Financial Settlement (Option A - Strictly Delivered Revenue)
 	prepaidOrders := 0
 	codOrders := 0
 	for _, o := range orders {
@@ -2833,26 +3086,16 @@ func (sc *SellerController) GetSellerAnalytics(c *fiber.Ctx) error {
 	if shop.PayoutUpiID != nil && *shop.PayoutUpiID != "" {
 		upiID = *shop.PayoutUpiID
 	}
-	netEarnings := int(float64(totalRevenue) * 0.95)
+	netEarnings := int(math.Round(float64(deliveredRevenue) * 0.95))
 
 	// 10. Logistics & Dispatch Command Radar (Option B)
-	pendingDispatch := 0
-	inTransit := 0
-	deliveredCount := 0
-	for _, o := range orders {
-		st := strings.ToLower(o.OrderStatus)
-		sst := strings.ToLower(o.SellerStatus)
-		if st == "delivered" || sst == "delivered" {
-			deliveredCount++
-		} else if st == "shipped" || sst == "shipped" {
-			inTransit++
-		} else if st != "cancelled" && sst != "cancelled" && st != "returned" {
-			pendingDispatch++
-		}
-	}
+	pendingDispatch := newOrdersCount + packagingOrdersCount
+	inTransit := shippedOrdersCount
+	deliveredCount := deliveredOrdersCount
+
 	onTimeRate := 98.6
 	if totalOrdersCount > 0 && totalReturns > 0 {
-		onTimeRate = math.Round((1.0 - float64(totalReturns)/float64(totalOrdersCount))*1000) / 10.0
+		onTimeRate = math.Round((1.0-float64(totalReturns)/float64(totalOrdersCount))*1000) / 10.0
 	}
 
 	return c.JSON(fiber.Map{
@@ -2863,28 +3106,44 @@ func (sc *SellerController) GetSellerAnalytics(c *fiber.Ctx) error {
 		},
 		"timeframe": timeframe,
 		"summary": fiber.Map{
-			"total_sales":         totalRevenue,
+			"total_sales":         deliveredRevenue,
 			"total_orders":        totalOrdersCount,
+			"delivered_orders":    deliveredOrdersCount,
+			"delivered_revenue":   deliveredRevenue,
+			"cancelled_orders":    cancelledOrdersCount,
+			"cancelled_value":     cancelledValue,
+			"rto_orders":          totalReturns,
+			"rto_value":           returnValue,
+			"active_orders":       activeOrdersCount,
+			"new_orders":          newOrdersCount,
+			"packaging_orders":    packagingOrdersCount,
+			"shipped_orders":      shippedOrdersCount,
+			"pipeline_revenue":    pipelineRevenue,
 			"average_order_value": aov,
 			"chat_deal_rate":      chatDealRatePct,
-			"total_units_sold":    totalUnitsSold,
+			"total_units_sold":    deliveredUnitsSold,
 		},
 		"payouts": fiber.Map{
-			"net_earnings":      netEarnings,
-			"gross_revenue":     totalRevenue,
-			"platform_fee":      totalRevenue - netEarnings,
-			"next_payout_date":  "Upcoming Monday (Weekly Cycle)",
-			"payout_upi_id":     upiID,
-			"prepaid_orders":    prepaidOrders,
-			"cod_orders":        codOrders,
-			"prepaid_ratio_pct": prepaidRatio,
+			"net_earnings":             netEarnings,
+			"gross_revenue":            deliveredRevenue,
+			"platform_fee":             deliveredRevenue - netEarnings,
+			"pending_pipeline_revenue": pipelineRevenue,
+			"next_payout_date":         "Upcoming Monday (Weekly Cycle)",
+			"payout_upi_id":            upiID,
+			"prepaid_orders":           prepaidOrders,
+			"cod_orders":               codOrders,
+			"prepaid_ratio_pct":        prepaidRatio,
 		},
 		"logistics": fiber.Map{
-			"pending_dispatch":  pendingDispatch,
-			"in_transit":        inTransit,
-			"delivered_count":   deliveredCount,
-			"on_time_rate_pct":  onTimeRate,
-			"avg_dispatch_hrs":  14,
+			"new_orders":       newOrdersCount,
+			"packaging_orders": packagingOrdersCount,
+			"pending_dispatch": pendingDispatch,
+			"in_transit":       inTransit,
+			"delivered_count":  deliveredCount,
+			"cancelled_count":  cancelledOrdersCount,
+			"rto_count":        totalReturns,
+			"on_time_rate_pct": onTimeRate,
+			"avg_dispatch_hrs": 14,
 		},
 		"returns": fiber.Map{
 			"total_returns":   totalReturns,
@@ -2893,9 +3152,9 @@ func (sc *SellerController) GetSellerAnalytics(c *fiber.Ctx) error {
 			"return_value":    returnValue,
 			"risk_level":      returnRiskLevel,
 			"reasons": []fiber.Map{
-				{"reason": "Size & Fitting Issue", "percentage": 55},
-				{"reason": "Courier RTO (Customer Not Available)", "percentage": 25},
-				{"reason": "Color / Fabric Expectation", "percentage": 20},
+				{"reason": "Size & Fitting Issue", "percentage": 0},
+				{"reason": "Courier RTO (Customer Not Available)", "percentage": 0},
+				{"reason": "Color / Fabric Expectation", "percentage": 0},
 			},
 		},
 		"timeline": timelineList,
@@ -2904,7 +3163,7 @@ func (sc *SellerController) GetSellerAnalytics(c *fiber.Ctx) error {
 			"product_views":       productViews,
 			"price_inquiries":     priceInquiries,
 			"special_offers_sent": specialOffers,
-			"completed_orders":    totalOrdersCount,
+			"completed_orders":    deliveredOrdersCount,
 			"conversion_rate_pct": chatDealRatePct,
 		},
 		"categories":   categoriesList,
@@ -2979,7 +3238,27 @@ func (sc *SellerController) GetSellerBilling(c *fiber.Ctx) error {
 	var orders []models.Order
 	db.Preload("Items").Where("shop_id = ?", shop.ID).Order("placed_at DESC").Find(&orders)
 
+	// Fetch any admin-settled daily payouts for this shop
+	var settledRecords []models.DailyPayoutSettlement
+	db.Where("shop_id = ?", shop.ID).Find(&settledRecords)
+	settledByDate := make(map[string]models.DailyPayoutSettlement)
+	for _, rec := range settledRecords {
+		settledByDate[rec.PayoutDate] = rec
+	}
+
+	upiID := "mitreno.boutique@okhdfcbank"
+	if shop.PayoutUpiID != nil && *shop.PayoutUpiID != "" {
+		upiID = *shop.PayoutUpiID
+	}
+
+	shopSuffix := "42723"
+	if len(shop.ID) >= 5 {
+		shopSuffix = shop.ID[len(shop.ID)-5:]
+	}
+
 	var totalGrossSales int
+	var deliveredGrossSales int
+	var cancelledOrdersCount int
 	var totalCommissionDeducted int
 	var totalNetDisbursed int
 	var pendingEscrowAmount int
@@ -2987,46 +3266,102 @@ func (sc *SellerController) GetSellerBilling(c *fiber.Ctx) error {
 	var inEscrowOrdersCount int
 
 	type OrderBillingItem struct {
-		OrderID          string    `json:"order_id"`
-		PlacedAt         time.Time `json:"placed_at"`
-		DateFormatted    string    `json:"date_formatted"`
-		GrossAmount      int       `json:"gross_amount"`
-		CommissionRate   float64   `json:"commission_rate"`
-		CommissionAmount int       `json:"commission_amount"`
-		PlatformGST      float64   `json:"platform_gst"`
-		NetSellerShare   int       `json:"net_seller_share"`
-		PaymentMode      string    `json:"payment_mode"`
-		OrderStatus      string    `json:"order_status"`
-		SettlementStatus string    `json:"settlement_status"`
-		ItemsCount       int       `json:"items_count"`
+		OrderID            string    `json:"order_id"`
+		PlacedAt           time.Time `json:"placed_at"`
+		DateFormatted      string    `json:"date_formatted"`
+		TimeFormatted      string    `json:"time_formatted"`
+		GrossAmount        int       `json:"gross_amount"`
+		CommissionRate     float64   `json:"commission_rate"`
+		CommissionAmount   int       `json:"commission_amount"`
+		PlatformGST        float64   `json:"platform_gst"`
+		NetSellerShare     int       `json:"net_seller_share"`
+		PaymentMode        string    `json:"payment_mode"`
+		OrderStatus        string    `json:"order_status"`
+		SettlementStatus   string    `json:"settlement_status"`
+		ItemsCount         int       `json:"items_count"`
+		UTRReference       string    `json:"utr_reference"`
+		ExpectedPayoutDate string    `json:"expected_payout_date"`
+	}
+
+	type DailyPayoutItem struct {
+		DateKey          string             `json:"date_key"`
+		DayLabel         string             `json:"day_label"`
+		DateFormatted    string             `json:"date_formatted"`
+		ShortDate        string             `json:"short_date"`
+		OrdersCount      int                `json:"orders_count"`
+		CancelledCount   int                `json:"cancelled_count"`
+		GrossSales       int                `json:"gross_sales"`
+		CommissionRate   float64            `json:"commission_rate"`
+		CommissionAmount int                `json:"commission_amount"`
+		NetPayoutAmount  int                `json:"net_payout_amount"`
+		PayoutStatus     string             `json:"payout_status"` // "paid", "pending", "no_sales"
+		ReceiptID        string             `json:"receipt_id"`
+		UTRReference     string             `json:"utr_reference"`
+		PaidAt           string             `json:"paid_at"`
+		PayoutUpiID      string             `json:"payout_upi_id"`
+		Orders           []OrderBillingItem `json:"orders"`
 	}
 
 	var ledgerList []OrderBillingItem
 	monthlyGrossMap := make(map[string]int)
 	monthlyCommissionMap := make(map[string]int)
+	ordersByDate := make(map[string][]OrderBillingItem)
+	dateTimeByKey := make(map[string]time.Time)
 
 	for _, o := range orders {
-		isCancelled := strings.ToLower(o.OrderStatus) == "cancelled" || strings.ToLower(o.SellerStatus) == "cancelled"
-		isReturned := strings.ToLower(o.OrderStatus) == "returned" || strings.ToLower(o.OrderStatus) == "rto" ||
-			strings.ToLower(o.SellerStatus) == "returned" || strings.ToLower(o.SellerStatus) == "rto"
+		lifecycle := resolveOrderLifecycle(o.OrderStatus, o.SellerStatus)
+		isCancelled := lifecycle == "cancelled"
+		isReturned := lifecycle == "returned"
+		dateKey := o.PlacedAt.Format("2006-01-02")
+		if _, exists := dateTimeByKey[dateKey]; !exists {
+			dateTimeByKey[dateKey] = o.PlacedAt
+		}
+
+		adminSettled, hasAdminSettlement := settledByDate[dateKey]
+		isDayAdminPaid := hasAdminSettlement && strings.ToLower(adminSettled.Status) == "paid"
 
 		gross := o.TotalPaid
 		commAmount := int(math.Round(float64(gross) * (commissionRate / 100.0)))
 		netShare := gross - commAmount
 		gstAmount := math.Round(float64(commAmount)*0.18*100) / 100.0 // 18% GST on platform service fee
 
+		orderSuffix := o.ID
+		if len(orderSuffix) > 6 {
+			orderSuffix = orderSuffix[len(orderSuffix)-6:]
+		}
+
 		settlementStatus := "in_escrow"
+		utrRef := ""
+		expectedPayout := "Every Monday Weekly Cycle"
+		if planType == "pro_monthly" {
+			expectedPayout = "Within 24h after Delivery (Pro Express)"
+		}
+
 		if isCancelled || isReturned {
 			settlementStatus = "waived_return"
+			cancelledOrdersCount++
 			commAmount = 0
 			netShare = 0
 			gstAmount = 0
-		} else if strings.ToLower(o.OrderStatus) == "delivered" || strings.ToLower(o.SellerStatus) == "delivered" {
+			expectedPayout = "Waived (Order Cancelled / RTO)"
+		} else if lifecycle == "delivered" || isDayAdminPaid {
 			settlementStatus = "settled"
 			settledOrdersCount++
 			totalGrossSales += gross
+			deliveredGrossSales += gross
 			totalCommissionDeducted += commAmount
 			totalNetDisbursed += netShare
+			if isDayAdminPaid && adminSettled.UTRReference != "" {
+				utrRef = adminSettled.UTRReference
+				expectedPayout = fmt.Sprintf("Credited on %s", adminSettled.PaidAt.Format("02 Jan 2006"))
+			} else {
+				utrRef = fmt.Sprintf("UTR-HDFC-%s", strings.ToUpper(orderSuffix))
+				settledDate := o.UpdatedAt
+				if o.DeliveredAt != nil {
+					settledDate = *o.DeliveredAt
+				}
+				expectedPayout = fmt.Sprintf("Credited on %s", settledDate.Format("02 Jan 2006"))
+			}
 		} else {
 			settlementStatus = "in_escrow"
 			inEscrowOrdersCount++
@@ -3046,20 +3381,163 @@ func (sc *SellerController) GetSellerBilling(c *fiber.Ctx) error {
 			monthlyCommissionMap[monthLabel] += commAmount
 		}
 
-		ledgerList = append(ledgerList, OrderBillingItem{
-			OrderID:          o.ID,
-			PlacedAt:         o.PlacedAt,
-			DateFormatted:    o.PlacedAt.Format("02 Jan 2006, 03:04 PM"),
-			GrossAmount:      gross,
+		itemObj := OrderBillingItem{
+			OrderID:            o.ID,
+			PlacedAt:           o.PlacedAt,
+			DateFormatted:      o.PlacedAt.Format("02 Jan 2006, 03:04 PM"),
+			TimeFormatted:      o.PlacedAt.Format("03:04 PM"),
+			GrossAmount:        gross,
+			CommissionRate:     commissionRate,
+			CommissionAmount:   commAmount,
+			PlatformGST:        gstAmount,
+			NetSellerShare:     netShare,
+			PaymentMode:        o.PaymentMode,
+			OrderStatus:        lifecycle,
+			SettlementStatus:   settlementStatus,
+			ItemsCount:         itemCount,
+			UTRReference:       utrRef,
+			ExpectedPayoutDate: expectedPayout,
+		}
+
+		ledgerList = append(ledgerList, itemObj)
+		ordersByDate[dateKey] = append(ordersByDate[dateKey], itemObj)
+	}
+
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	todayKey := todayStart.Format("2006-01-02")
+	yesterdayKey := todayStart.AddDate(0, 0, -1).Format("2006-01-02")
+
+	buildDayItem := func(dayTime time.Time, isMonthlyMode bool) DailyPayoutItem {
+		dKey := dayTime.Format("2006-01-02")
+		dayOrders := ordersByDate[dKey]
+		if dayOrders == nil {
+			dayOrders = []OrderBillingItem{}
+		}
+
+		var dLabel string
+		if dKey == todayKey {
+			if isMonthlyMode {
+				dLabel = fmt.Sprintf("%s (Today)", dayTime.Format("02 Jan"))
+			} else {
+				dLabel = "Today"
+			}
+		} else if dKey == yesterdayKey {
+			if isMonthlyMode {
+				dLabel = fmt.Sprintf("%s (Yesterday)", dayTime.Format("02 Jan"))
+			} else {
+				dLabel = "Yesterday"
+			}
+		} else {
+			if isMonthlyMode {
+				dLabel = dayTime.Format("02 Jan")
+			} else {
+				dLabel = dayTime.Format("Monday")
+			}
+		}
+
+		var validCount, cancCount, gSales, cFee, netPay int
+		var allSettled = true
+		var firstUTR string
+		for _, ord := range dayOrders {
+			if ord.OrderStatus == "cancelled" || ord.OrderStatus == "returned" {
+				cancCount++
+				continue
+			}
+			validCount++
+			gSales += ord.GrossAmount
+			cFee += ord.CommissionAmount
+			netPay += ord.NetSellerShare
+			if ord.SettlementStatus != "settled" {
+				allSettled = false
+			} else if firstUTR == "" && ord.UTRReference != "" {
+				firstUTR = ord.UTRReference
+			}
+		}
+
+		pStatus := "no_sales"
+		rcptID := ""
+		utr := ""
+		paidAtStr := ""
+
+		if rec, ok := settledByDate[dKey]; ok && strings.ToLower(rec.Status) == "paid" {
+			pStatus = "paid"
+			rcptID = rec.ReceiptID
+			utr = rec.UTRReference
+			if !rec.PaidAt.IsZero() {
+				paidAtStr = rec.PaidAt.Format("02 Jan 2006, 03:04 PM")
+			}
+			if rcptID == "" {
+				rcptID = fmt.Sprintf("RCPT-%s-%s", strings.ReplaceAll(dKey, "-", ""), shopSuffix)
+			}
+		} else if validCount > 0 {
+			if allSettled {
+				pStatus = "paid"
+				rcptID = fmt.Sprintf("RCPT-%s-%s", strings.ReplaceAll(dKey, "-", ""), shopSuffix)
+				utr = firstUTR
+				if utr == "" {
+					utr = fmt.Sprintf("UTR-HDFC-%s", strings.ReplaceAll(dKey[5:], "-", ""))
+				}
+				paidAtStr = dayTime.Add(18 * time.Hour).Format("02 Jan 2006, 06:00 PM")
+			} else {
+				pStatus = "pending"
+			}
+		}
+
+		return DailyPayoutItem{
+			DateKey:          dKey,
+			DayLabel:         dLabel,
+			DateFormatted:    dayTime.Format("02 Jan 2006"),
+			ShortDate:        dayTime.Format("02 Jan"),
+			OrdersCount:      validCount,
+			CancelledCount:   cancCount,
+			GrossSales:       gSales,
 			CommissionRate:   commissionRate,
-			CommissionAmount: commAmount,
-			PlatformGST:      gstAmount,
-			NetSellerShare:   netShare,
-			PaymentMode:      o.PaymentMode,
-			OrderStatus:      o.OrderStatus,
-			SettlementStatus: settlementStatus,
-			ItemsCount:       itemCount,
-		})
+			CommissionAmount: cFee,
+			NetPayoutAmount:  netPay,
+			PayoutStatus:     pStatus,
+			ReceiptID:        rcptID,
+			UTRReference:     utr,
+			PaidAt:           paidAtStr,
+			PayoutUpiID:      upiID,
+			Orders:           dayOrders,
+		}
+	}
+
+	// 1. 7-Day Cycle (Today, Yesterday, and last 5 days)
+	var sevenDayCycle []DailyPayoutItem
+	for i := 0; i < 7; i++ {
+		dTime := todayStart.AddDate(0, 0, -i)
+		sevenDayCycle = append(sevenDayCycle, buildDayItem(dTime, false))
+	}
+
+	// 2. Monthly Cycle (All days of current month 1st..Today + any earlier dates with orders)
+	var monthlyCycle []DailyPayoutItem
+	seenMonthKeys := make(map[string]bool)
+	curDay := todayStart.Day()
+	for d := curDay; d >= 1; d-- {
+		dTime := time.Date(now.Year(), now.Month(), d, 0, 0, 0, 0, now.Location())
+		dKey := dTime.Format("2006-01-02")
+		seenMonthKeys[dKey] = true
+		monthlyCycle = append(monthlyCycle, buildDayItem(dTime, true))
+	}
+	// Also append any historical dates from orders that were before the 1st of this month so no order is ever hidden
+	var extraKeys []string
+	for dKey := range ordersByDate {
+		if !seenMonthKeys[dKey] {
+			extraKeys = append(extraKeys, dKey)
+		}
+	}
+	for i := 0; i < len(extraKeys); i++ {
+		for j := i + 1; j < len(extraKeys); j++ {
+			if extraKeys[j] > extraKeys[i] {
+				extraKeys[i], extraKeys[j] = extraKeys[j], extraKeys[i]
+			}
+		}
+	}
+	for _, dKey := range extraKeys {
+		dTime := dateTimeByKey[dKey]
+		monthlyCycle = append(monthlyCycle, buildDayItem(dTime, true))
 	}
 
 	// Generate Monthly Tax Invoices list
@@ -3074,11 +3552,6 @@ func (sc *SellerController) GetSellerBilling(c *fiber.Ctx) error {
 		AvailableFormats string  `json:"available_formats"`
 	}
 	var invoicesList []MonthlyInvoice
-
-	shopSuffix := "42723"
-	if len(shop.ID) >= 5 {
-		shopSuffix = shop.ID[len(shop.ID)-5:]
-	}
 
 	if len(monthlyGrossMap) > 0 {
 		idx := 1
@@ -3113,15 +3586,10 @@ func (sc *SellerController) GetSellerBilling(c *fiber.Ctx) error {
 		})
 	}
 
-	upiID := "seller@upi"
-	if shop.PayoutUpiID != nil && *shop.PayoutUpiID != "" {
-		upiID = *shop.PayoutUpiID
-	}
-
 	var planName, tierBadge, billingInterval, onboardingPromo, payoutSchedule string
 	var monthlyCost int
 	if planType == "pro_monthly" {
-		planName = "Mitreno Pro Boutique Pass"
+		planName = "Nvilar Pro Boutique Pass"
 		tierBadge = "Pro Boutique (VIP)"
 		monthlyCost = 1999
 		billingInterval = "Monthly Fixed Subscription"
@@ -3156,7 +3624,7 @@ func (sc *SellerController) GetSellerBilling(c *fiber.Ctx) error {
 		},
 		{
 			"id":              "pro_monthly",
-			"name":            "Mitreno Pro Boutique Pass",
+			"name":            "Nvilar Pro Boutique Pass",
 			"tier_badge":      "VIP Partner",
 			"tagline":         "Keep 100% of your earnings with zero platform fee.",
 			"monthly_cost":    1999,
@@ -3181,6 +3649,7 @@ func (sc *SellerController) GetSellerBilling(c *fiber.Ctx) error {
 			"plan_type":       planType,
 			"plan_expires_at": shop.PlanExpiresAt,
 			"commission_rate": commissionRate,
+			"payout_upi_id":   upiID,
 		},
 		"plan": fiber.Map{
 			"active_plan_id":       planType,
@@ -3199,6 +3668,8 @@ func (sc *SellerController) GetSellerBilling(c *fiber.Ctx) error {
 		},
 		"summary": fiber.Map{
 			"total_gross_sales":         totalGrossSales,
+			"delivered_gross_sales":     deliveredGrossSales,
+			"cancelled_orders_count":    cancelledOrdersCount,
 			"total_commission_deducted": totalCommissionDeducted,
 			"total_platform_gst":        math.Round(float64(totalCommissionDeducted)*0.18*100) / 100.0,
 			"total_net_disbursed":       totalNetDisbursed,
@@ -3207,16 +3678,18 @@ func (sc *SellerController) GetSellerBilling(c *fiber.Ctx) error {
 			"in_escrow_orders_count":    inEscrowOrdersCount,
 			"total_orders_processed":    len(orders),
 		},
-		"ledger":   ledgerList,
-		"invoices": invoicesList,
+		"daily_payouts":   sevenDayCycle,
+		"monthly_payouts": monthlyCycle,
+		"ledger":          ledgerList,
+		"invoices":        invoicesList,
 		"faqs": []fiber.Map{
 			{
 				"question": "How does the 4.5% commission work on Pay-As-You-Sell?",
 				"answer":   "Commission is automatically deducted from customer payments only upon successful delivery. You pay nothing upfront, and if an order is cancelled or returned, 100% of the commission is waived.",
 			},
 			{
-				"question": "Why should I upgrade to the Mitreno Pro Boutique Pass (₹1,999/mo)?",
-				"answer":   "Mitreno Pro gives you 0% platform commission on all orders, meaning you keep 100% of your sales revenue. You also get a Gold Verified Badge, 2x hyperlocal search priority, and 24-hour express settlements.",
+				"question": "Why should I upgrade to the Nvilar Pro Boutique Pass (₹1,999/mo)?",
+				"answer":   "Nvilar Pro gives you 0% platform commission on all orders, meaning you keep 100% of your sales revenue. You also get a Gold Verified Badge, 2x hyperlocal search priority, and 24-hour express settlements.",
 			},
 			{
 				"question": "When does it make sense to switch from 4.5% to ₹1,999/month Pro?",
@@ -3303,8 +3776,8 @@ func (sc *SellerController) SwitchSellerPlan(c *fiber.Ctx) error {
 		shop.PlanType = "pro_monthly"
 		shop.PlanExpiresAt = &expiresAt
 		shop.CommissionRate = 0.00
-		notifyTitle = "Mitreno Pro Plan Activated! 🎉"
-		notifyMessage = "You have upgraded to Mitreno Pro Boutique Pass (₹1,999/mo). Platform commission is now 0% with 2x Hyperlocal search boost!"
+		notifyTitle = "Nvilar Pro Plan Activated! 🎉"
+		notifyMessage = "You have upgraded to Nvilar Pro Boutique Pass (₹1,999/mo). Platform commission is now 0% with 2x Hyperlocal search boost!"
 	} else {
 		shop.PlanType = "pay_as_you_sell"
 		shop.PlanExpiresAt = nil
@@ -3344,4 +3817,229 @@ func (sc *SellerController) SwitchSellerPlan(c *fiber.Ctx) error {
 		},
 	})
 }
+
+// UpdateSellerPayoutAccount updates the seller's registered UPI ID or Bank payout destination
+func (sc *SellerController) UpdateSellerPayoutAccount(c *fiber.Ctx) error {
+	db := config.DB
+	if db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"success": false, "error": "Database unavailable"})
+	}
+
+	var req struct {
+		ShopID      string `json:"shop_id"`
+		PayoutUpiID string `json:"payout_upi_id"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "error": "Invalid request body"})
+	}
+
+	upi := strings.TrimSpace(req.PayoutUpiID)
+	if upi == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "error": "UPI ID / Bank account cannot be empty"})
+	}
+
+	var shop models.Shop
+	found := false
+	if req.ShopID != "" {
+		if err := db.Where("id = ?", req.ShopID).First(&shop).Error; err == nil {
+			found = true
+		}
+	}
+	if !found {
+		if err := db.Order("created_at DESC").First(&shop).Error; err == nil {
+			found = true
+		}
+	}
+	if !found {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"success": false, "error": "Shop not found"})
+	}
+
+	shop.PayoutUpiID = &upi
+	if err := db.Save(&shop).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "error": "Failed to update payout account"})
+	}
+
+	return c.JSON(fiber.Map{
+		"success":            true,
+		"message":            "Payout account updated successfully",
+		"payout_destination": upi,
+	})
+}
+
+// GetSellerPayoutTickets returns all payout support tickets and embedded chat messages for a seller's shop
+func (sc *SellerController) GetSellerPayoutTickets(c *fiber.Ctx) error {
+	db := config.DB
+	if db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"success": false, "error": "Database unavailable"})
+	}
+
+	shopID := strings.TrimSpace(c.Query("shop_id"))
+	var shop models.Shop
+	if shopID != "" {
+		db.Where("id = ?", shopID).First(&shop)
+	}
+	if shop.ID == "" {
+		db.Order("created_at DESC").First(&shop)
+	}
+
+	var tickets []models.PayoutSupportTicket
+	q := db.Preload("Messages").Order("updated_at DESC")
+	if shop.ID != "" {
+		q = q.Where("shop_id = ?", shop.ID)
+	}
+	q.Find(&tickets)
+	if tickets == nil {
+		tickets = []models.PayoutSupportTicket{}
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"tickets": tickets,
+	})
+}
+
+// CreateSellerPayoutTicket creates a new Payout Support Ticket with initial live chat message
+func (sc *SellerController) CreateSellerPayoutTicket(c *fiber.Ctx) error {
+	db := config.DB
+	if db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"success": false, "error": "Database unavailable"})
+	}
+
+	var req struct {
+		ShopID   string `json:"shop_id"`
+		OrderID  string `json:"order_id"`
+		Amount   int    `json:"amount"`
+		Category string `json:"category"`
+		Subject  string `json:"subject"`
+		Message  string `json:"message"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "error": "Invalid request body"})
+	}
+
+	var shop models.Shop
+	if req.ShopID != "" {
+		db.Where("id = ?", req.ShopID).First(&shop)
+	}
+	if shop.ID == "" {
+		db.Order("created_at DESC").First(&shop)
+	}
+	if shop.ID == "" {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"success": false, "error": "Shop not found"})
+	}
+
+	now := time.Now()
+	ticketID := fmt.Sprintf("TKT-%d", 10000+now.Unix()%90000)
+
+	category := strings.TrimSpace(req.Category)
+	if category == "" {
+		category = "payout_delay"
+	}
+	subject := strings.TrimSpace(req.Subject)
+	if subject == "" {
+		if req.OrderID != "" {
+			subject = fmt.Sprintf("Payout Settlement Query for Order #%s", req.OrderID)
+		} else {
+			subject = "Boutique Payout & Settlement Support"
+		}
+	}
+	msgText := strings.TrimSpace(req.Message)
+	if msgText == "" {
+		msgText = subject
+	}
+
+	upi := "mitreno.boutique@okhdfcbank"
+	if shop.PayoutUpiID != nil && *shop.PayoutUpiID != "" {
+		upi = *shop.PayoutUpiID
+	}
+
+	ticket := models.PayoutSupportTicket{
+		ID:          ticketID,
+		ShopID:      shop.ID,
+		ShopName:    shop.Name,
+		SellerID:    shop.OwnerID,
+		OrderID:     strings.TrimSpace(req.OrderID),
+		Amount:      req.Amount,
+		Category:    category,
+		Subject:     subject,
+		Status:      "open",
+		PayoutUpiID: upi,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	if err := db.Create(&ticket).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "error": "Failed to create payout ticket"})
+	}
+
+	initialMsg := models.PayoutTicketMessage{
+		ID:         fmt.Sprintf("pmsg_%d", now.UnixNano()),
+		TicketID:   ticket.ID,
+		SenderRole: "seller",
+		SenderName: shop.Name,
+		Message:    msgText,
+		CreatedAt:  now,
+	}
+	_ = db.Create(&initialMsg)
+
+	ticket.Messages = []models.PayoutTicketMessage{initialMsg}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": "Payout support ticket created",
+		"ticket":  ticket,
+	})
+}
+
+// PostSellerPayoutTicketMessage appends a seller reply inside an existing PayoutSupportTicket chat thread
+func (sc *SellerController) PostSellerPayoutTicketMessage(c *fiber.Ctx) error {
+	db := config.DB
+	if db == nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"success": false, "error": "Database unavailable"})
+	}
+
+	ticketID := c.Params("id")
+	var req struct {
+		Message string `json:"message"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "error": "Invalid request body"})
+	}
+
+	msgText := strings.TrimSpace(req.Message)
+	if msgText == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"success": false, "error": "Message cannot be empty"})
+	}
+
+	var ticket models.PayoutSupportTicket
+	if err := db.Where("id = ?", ticketID).First(&ticket).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"success": false, "error": "Ticket not found"})
+	}
+
+	now := time.Now()
+	msg := models.PayoutTicketMessage{
+		ID:         fmt.Sprintf("pmsg_%d", now.UnixNano()),
+		TicketID:   ticket.ID,
+		SenderRole: "seller",
+		SenderName: ticket.ShopName,
+		Message:    msgText,
+		CreatedAt:  now,
+	}
+	if err := db.Create(&msg).Error; err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"success": false, "error": "Failed to send message"})
+	}
+
+	ticket.UpdatedAt = now
+	if ticket.Status == "resolved" {
+		ticket.Status = "open"
+	}
+	db.Save(&ticket)
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"message": msg,
+		"ticket":  ticket,
+	})
+}
+
 

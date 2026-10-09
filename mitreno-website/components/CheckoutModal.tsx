@@ -52,7 +52,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   items,
   onOrderSuccess,
 }) => {
-  const { user, isGuest, requireAuth } = useAuth();
+  const { user, dbUser, isGuest, requireAuth } = useAuth();
   const [step, setStep] = useState<'address' | 'confirm' | 'payment'>('address');
 
   // Form States
@@ -196,7 +196,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       const cleanLat = latitude !== 'Detecting...' ? latitude : '26.13449';
       const cleanLon = longitude !== 'Detecting...' ? longitude : '91.81353';
 
-      const buyerId = user?.uid || ('usr_customer_' + (cleanPhone.replace(/\D/g, '').slice(-8) || Date.now().toString().slice(-8)));
+      const buyerId = dbUser?.id || user?.uid || ('usr_customer_' + (cleanPhone.replace(/\D/g, '').slice(-8) || Date.now().toString().slice(-8)));
 
       const payload = {
         buyer_id: buyerId,
@@ -299,7 +299,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         fees,
         total: finalTotalAmount,
         customer: {
-          fullName: fullName || 'Mitreno Customer',
+          fullName: fullName || 'Nvilar Customer',
           phone: phone || '+91 98201 44521',
           addressLine: nearbyArea || 'Boutique Residence',
           city: city || 'Mumbai',
@@ -417,7 +417,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </button>
             <div>
               <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-200 block">
-                Mitreno Fast Checkout
+                Nvilar Fast Checkout
               </span>
               <h2 className="text-base font-black text-white tracking-tight">
                 {step === 'address' ? 'Add Delivery Address' : step === 'confirm' ? 'Review & Confirm' : 'Secure Payment'}
@@ -774,7 +774,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <div className="bg-gradient-to-r from-amber-50 to-emerald-50 p-3 rounded-xl border border-amber-200/80 shadow-2xs flex items-center justify-between">
                   <div>
                     <span className="text-[11px] font-black uppercase tracking-wider text-neutral-900 block">
-                      Mitreno Direct Privilege
+                      Nvilar Direct Privilege
                     </span>
                     <span className="text-[10px] font-semibold text-neutral-600">
                       Instant ₹100 Cashback credited on UPI & Prepaid Cards
@@ -892,7 +892,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     </div>
                   </div>
 
-                  {/* 3. Mitreno PayLater & Easy EMI */}
+                  {/* 3. Nvilar PayLater & Easy EMI */}
                   <div 
                     onClick={() => setPaymentMethod('emi')}
                     className={`p-3 sm:p-3.5 rounded-xl border-2 transition-all cursor-pointer ${
@@ -913,7 +913,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         <div className="flex items-center justify-between mb-0.5">
                           <h4 className="text-xs font-black text-neutral-950 flex items-center gap-1.5">
                             <CalendarDays className="w-3.5 h-3.5 text-[#1246B8]" />
-                            Mitreno PayLater & No-Cost EMI
+                            Nvilar PayLater & No-Cost EMI
                           </h4>
                           <span className="text-[9px] font-extrabold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">0% INTEREST</span>
                         </div>
@@ -996,7 +996,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <div className="flex justify-center items-center gap-2 py-2 text-neutral-400">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                   <p className="text-[10px] font-bold text-neutral-600">
-                    Mitreno Buyer Guarantee • 100% Verified Authentic Products
+                    Nvilar Buyer Guarantee • 100% Verified Authentic Products
                   </p>
                 </div>
               </motion.div>

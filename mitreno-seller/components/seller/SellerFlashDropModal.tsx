@@ -302,7 +302,7 @@ export const SellerFlashDropModal: React.FC<SellerFlashDropModalProps> = ({
               {isSubmitting ? (
                 <>
                   <div className="w-4 h-4 rounded-full border-2 border-neutral-950 border-t-transparent animate-spin" />
-                  <span>Pinning to Top of Mitreno...</span>
+                  <span>Pinning to Top of Nvilar...</span>
                 </>
               ) : (
                 <>

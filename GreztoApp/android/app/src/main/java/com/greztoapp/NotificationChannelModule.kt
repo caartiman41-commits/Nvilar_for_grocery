@@ -18,21 +18,78 @@ class NotificationChannelModule(private val reactContext: ReactApplicationContex
 
     companion object {
         private var activeReactContext: ReactApplicationContext? = null
+        private var pendingNotificationExtras: Map<String, String>? = null
+
+        private val NOTIFICATION_KEYS = listOf(
+            "from_notification_tap",
+            "conversation_id",
+            "conversationId",
+            "negotiation_id",
+            "negotiationId",
+            "order_id",
+            "orderId",
+            "target_role",
+            "role",
+            "type",
+            "product_id",
+            "productId",
+            "action",
+            "click_action",
+            "target_screen",
+            "shop_id",
+            "seller_name",
+            "buyer_name"
+        )
+
+        fun hasNotificationExtras(intent: android.content.Intent?): Boolean {
+            if (intent == null) return false
+            val extras = intent.extras ?: return false
+            for (key in NOTIFICATION_KEYS) {
+                if (extras.containsKey(key)) {
+                    return true
+                }
+            }
+            val action = intent.action ?: ""
+            return action.startsWith("com.mitreno.app.NOTIFICATION_TAP") ||
+                action.startsWith("OPEN_") ||
+                action == "FLUTTER_NOTIFICATION_CLICK"
+        }
 
         fun sendNotificationEvent(intent: android.content.Intent?) {
-            if (intent == null) return
-            val extras = intent.extras ?: return
-            val context = activeReactContext ?: return
+            if (!hasNotificationExtras(intent)) return
+            val extras = intent?.extras ?: return
             try {
-                val map = Arguments.createMap()
+                val extracted = mutableMapOf<String, String>()
                 for (key in extras.keySet()) {
                     val value = extras.get(key)
                     if (value != null) {
-                        map.putString(key, value.toString())
+                        extracted[key] = value.toString()
                     }
                 }
-                context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                    ?.emit("onNativeNotificationTapped", map)
+                if (extracted.isEmpty()) return
+
+                // Clear notification keys from intent so resuming from recents doesn't re-trigger
+                for (key in NOTIFICATION_KEYS) {
+                    intent.removeExtra(key)
+                }
+                if (intent.action?.startsWith("com.mitreno.app.NOTIFICATION_TAP") == true ||
+                    intent.action?.startsWith("OPEN_") == true) {
+                    intent.action = android.content.Intent.ACTION_MAIN
+                }
+
+                val context = activeReactContext
+                if (context != null && context.hasActiveReactInstance()) {
+                    pendingNotificationExtras = null
+                    val map = Arguments.createMap()
+                    for ((k, v) in extracted) {
+                        map.putString(k, v)
+                    }
+                    context.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+                        ?.emit("onNativeNotificationTapped", map)
+                } else {
+                    // Store in pendingNotificationExtras only when JS listener isn't mounted yet (cold start)
+                    pendingNotificationExtras = extracted
+                }
             } catch (e: Exception) {
                 android.util.Log.w("NotificationChannelModule", "Failed to emit notification event: ${e.message}")
             }
@@ -44,6 +101,25 @@ class NotificationChannelModule(private val reactContext: ReactApplicationContex
     }
 
     override fun getName(): String = "NotificationChannelModule"
+
+    @ReactMethod
+    fun consumeInitialNotification(promise: Promise) {
+        try {
+            val pending = pendingNotificationExtras
+            pendingNotificationExtras = null
+            if (pending != null && pending.isNotEmpty()) {
+                val map = Arguments.createMap()
+                for ((k, v) in pending) {
+                    map.putString(k, v)
+                }
+                promise.resolve(map)
+            } else {
+                promise.resolve(null)
+            }
+        } catch (e: Exception) {
+            promise.resolve(null)
+        }
+    }
 
     @ReactMethod
     fun initializeChannels(promise: Promise) {

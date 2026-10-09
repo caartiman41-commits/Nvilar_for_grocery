@@ -102,10 +102,20 @@ func (fs *FCMService) SendPushNotification(payload FCMNotificationPayload) error
 
 	clickAction := payload.ClickAction
 	if clickAction == "" {
-		switch channelID {
-		case ChannelSeller:
+		notifType := ""
+		targetRole := ""
+		if payload.Data != nil {
+			notifType = payload.Data["type"]
+			targetRole = payload.Data["target_role"]
+		}
+		switch {
+		case notifType == "new_order" || (notifType == "order" && targetRole == "seller"):
+			clickAction = "OPEN_SELLER_ORDERS"
+		case notifType == "order_update" || (notifType == "order" && targetRole == "buyer"):
+			clickAction = "OPEN_BUYER_ORDERS"
+		case channelID == ChannelSeller || targetRole == "seller":
 			clickAction = "OPEN_SELLER_CHAT"
-		case ChannelBuyer:
+		case channelID == ChannelBuyer || targetRole == "buyer":
 			clickAction = "OPEN_BUYER_CHAT"
 		default:
 			clickAction = "OPEN_ORDER_DETAILS"
@@ -124,6 +134,8 @@ func (fs *FCMService) SendPushNotification(payload FCMNotificationPayload) error
 	}
 	payload.Data["title"] = payload.Title
 	payload.Data["body"] = payload.Body
+	payload.Data["click_action"] = clickAction
+	payload.Data["from_notification_tap"] = "true"
 	if payload.ImageURL != "" {
 		payload.Data["image_url"] = payload.ImageURL
 	}
@@ -171,6 +183,8 @@ func (fs *FCMService) SendPushNotification(payload FCMNotificationPayload) error
 				Body:     payload.Body,
 				ImageURL: payload.ImageURL,
 			}
+			// Leave ClickAction empty on AndroidNotification so Android OS always launches
+			// the package default launcher MainActivity with all payload.Data extras attached.
 			androidNotif := &messaging.AndroidNotification{
 				Title:               payload.Title,
 				Body:                payload.Body,
@@ -180,7 +194,6 @@ func (fs *FCMService) SendPushNotification(payload FCMNotificationPayload) error
 				Tag:                 tag,
 				ChannelID:           channelID,
 				Sound:               sound,
-				ClickAction:         clickAction,
 				VibrateTimingMillis: vibration,
 				Priority:            messaging.PriorityHigh,
 				Visibility:          messaging.VisibilityPublic,

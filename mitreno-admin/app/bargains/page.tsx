@@ -202,7 +202,7 @@ export default function LiveBargainsPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Editable Form States
-  const [campaignTitle, setCampaignTitle] = useState('Mitreno High-Volume Live Bargain Drop');
+  const [campaignTitle, setCampaignTitle] = useState('Nvilar High-Volume Live Bargain Drop');
   const [isActive, setIsActive] = useState(true);
   const [durationMinutes, setDurationMinutes] = useState(240);
   const [hideWhenExpired, setHideWhenExpired] = useState(true);

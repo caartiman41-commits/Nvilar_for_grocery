@@ -522,7 +522,7 @@ export const SellerProducts: React.FC<SellerProductsProps> = ({
                       setIsFlashDropModalOpen(true);
                     }}
                     className="px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 bg-gradient-to-r from-amber-500 via-rose-500 to-amber-600 text-neutral-950 font-black shadow-sm hover:shadow-md hover:-translate-y-0.5"
-                    title="Launch 15-Min Flash Surge Drop (Get Free Top Rank on Mitreno)"
+                    title="Launch 15-Min Flash Surge Drop (Get Free Top Rank on Nvilar)"
                   >
                     <Flame className="w-3.5 h-3.5 fill-current text-neutral-950 animate-pulse" />
                     <span>⚡ Flash Drop</span>
@@ -669,7 +669,7 @@ export const SellerProducts: React.FC<SellerProductsProps> = ({
         }}
         product={flashDropProduct}
         onSuccess={() => {
-          triggerToast('⚡ Flash Surge Drop launched! Product is now pinned to the Top of Mitreno.');
+          triggerToast('⚡ Flash Surge Drop launched! Product is now pinned to the Top of Nvilar.');
           fetchProducts();
           if (onRefreshMetrics) onRefreshMetrics();
         }}

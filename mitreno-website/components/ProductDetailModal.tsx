@@ -321,7 +321,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     if (typeof window !== 'undefined' && navigator.share) {
       navigator.share({
         title: activeProduct.name,
-        text: `Check out ${activeProduct.name} on Mitreno!`,
+        text: `Check out ${activeProduct.name} on Nvilar!`,
         url: window.location.href,
       }).catch(() => {});
     } else if (typeof window !== 'undefined' && navigator.clipboard) {
@@ -736,7 +736,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           </div>
         </div>
 
-        {/* Delivery Details & Trust Perks Section (Mitreno Flagship Standard) */}
+        {/* Delivery Details & Trust Perks Section (Nvilar Flagship Standard) */}
         <div className="bg-white mt-2 p-4 shadow-2xs">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-bold text-neutral-900 uppercase tracking-wide flex items-center gap-2">
@@ -1055,7 +1055,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           </div>
         </div>
 
-        {/* Mitreno Curated 2-Column Edge-to-Edge Feed: "More Products You May Like" */}
+        {/* Nvilar Curated 2-Column Edge-to-Edge Feed: "More Products You May Like" */}
         <div className="bg-white mt-2 pt-3 pb-4 shadow-2xs mb-6">
           <div className="flex items-center justify-between mb-3 px-2">
             <div>

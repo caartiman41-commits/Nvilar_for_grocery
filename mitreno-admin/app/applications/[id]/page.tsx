@@ -969,7 +969,7 @@ export default function ApplicationDetailPage() {
                   <div>
                     <h4 className="text-sm font-extrabold text-neutral-900">Ready to make a verification decision?</h4>
                     <p className="text-xs text-neutral-500 mt-0.5 font-medium">
-                      Approving instantly registers the boutique store on Mitreno and sends Email &amp; FCM notifications.
+                      Approving instantly registers the boutique store on Nvilar and sends Email &amp; FCM notifications.
                     </p>
                   </div>
 

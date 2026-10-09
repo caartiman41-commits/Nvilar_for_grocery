@@ -235,7 +235,7 @@ export const SellerAds: React.FC<SellerAdsProps> = ({
           <div className="space-y-1">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 border border-purple-200 text-purple-700 text-xs font-semibold">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Mitreno Ad Engine & Sponsored Placements</span>
+              <span>Nvilar Ad Engine & Sponsored Placements</span>
             </div>
             <h2 className="text-2xl font-extrabold text-neutral-950 tracking-tight">
               Ads, Billboards & Sponsored Slots 🚀

@@ -35,7 +35,7 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
 			"status":  "healthy",
-			"service": "Mitreno High-Power Native Go Backend",
+			"service": "Nvilar High-Power Native Go Backend",
 			"version": "1.0.0",
 		})
 	})
@@ -143,7 +143,11 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	sellerGroup.Post("/upload-doc", sellerAuth, sellerCtrl.GetUploadURL)
 	sellerGroup.Get("/analytics", sellerCtrl.GetSellerAnalytics)
 	sellerGroup.Get("/billing", sellerCtrl.GetSellerBilling)
+	sellerGroup.Put("/billing/payout-account", sellerCtrl.UpdateSellerPayoutAccount)
 	sellerGroup.Post("/plan/switch", sellerCtrl.SwitchSellerPlan)
+	sellerGroup.Get("/payout-tickets", sellerCtrl.GetSellerPayoutTickets)
+	sellerGroup.Post("/payout-tickets", sellerCtrl.CreateSellerPayoutTicket)
+	sellerGroup.Post("/payout-tickets/:id/messages", sellerCtrl.PostSellerPayoutTicketMessage)
 	sellerGroup.Post("/flash-drop/launch", controllers.LaunchFlashDrop)
 	sellerGroup.Post("/flash-drop/end", controllers.EndFlashDrop)
 	sellerGroup.Get("/campaign/invites", campaignCtrl.GetSellerCampaignInvites)
@@ -155,7 +159,11 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	guardedSeller.Get("/dashboard", sellerCtrl.GetSellerDashboard)
 	guardedSeller.Get("/analytics", sellerCtrl.GetSellerAnalytics)
 	guardedSeller.Get("/billing", sellerCtrl.GetSellerBilling)
+	guardedSeller.Put("/billing/payout-account", sellerCtrl.UpdateSellerPayoutAccount)
 	guardedSeller.Post("/plan/switch", sellerCtrl.SwitchSellerPlan)
+	guardedSeller.Get("/payout-tickets", sellerCtrl.GetSellerPayoutTickets)
+	guardedSeller.Post("/payout-tickets", sellerCtrl.CreateSellerPayoutTicket)
+	guardedSeller.Post("/payout-tickets/:id/messages", sellerCtrl.PostSellerPayoutTicketMessage)
 	guardedSeller.Post("/flash-drop/launch", controllers.LaunchFlashDrop)
 	guardedSeller.Post("/flash-drop/end", controllers.EndFlashDrop)
 	guardedSeller.Get("/profile", sellerCtrl.GetSellerProfile)
@@ -193,6 +201,11 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	adminGroup := api.Group("/admin", middleware.AdminAuthMiddleware(cfg.AdminKey))
 	adminGroup.Get("/dashboard", adminCtrl.GetDashboardStats)
 	adminGroup.Get("/analytics", adminCtrl.GetMarketplaceAnalytics)
+	adminGroup.Get("/payout-tickets", adminCtrl.ListAdminPayoutTickets)
+	adminGroup.Post("/payout-tickets/:id/messages", adminCtrl.PostAdminPayoutTicketMessage)
+	adminGroup.Patch("/payout-tickets/:id/status", adminCtrl.UpdateAdminPayoutTicketStatus)
+	adminGroup.Get("/daily-payouts", adminCtrl.ListAdminDailyPayouts)
+	adminGroup.Post("/daily-payouts/settle", adminCtrl.SettleAdminDailyPayout)
 
 	// 8.0 Admin Live Bargain Campaign Engine & 6-Bento Slots
 	adminGroup.Get("/campaigns/bargain-engine", campaignCtrl.GetActiveBargainCampaign)

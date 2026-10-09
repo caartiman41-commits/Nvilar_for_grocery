@@ -368,7 +368,7 @@ export const SellerOnboardingScreen = memo(() => {
           </View>
           <Text style={styles.alreadyRegisteredTitle}>Already Registered!</Text>
           <Text style={styles.alreadyRegisteredSubtitle}>
-            Your mobile number is already registered as an active Mitreno Boutique Seller. You have full access to your Boutique Studio dashboard.
+            Your mobile number is already registered as an active Nvilar Boutique Seller. You have full access to your Boutique Studio dashboard.
           </Text>
           <TouchableOpacity
             style={styles.openStudioButton}

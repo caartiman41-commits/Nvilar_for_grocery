@@ -67,7 +67,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = memo(({
     onReportSeller(reason);
     Alert.alert(
       'Report Submitted',
-      `Thank you for reporting ${sellerName}. Reason: "${reason}". Our Mitreno Trust & Safety team will inspect this conversation within 2 hours.`,
+      `Thank you for reporting ${sellerName}. Reason: "${reason}". Our Nvilar Trust & Safety team will inspect this conversation within 2 hours.`,
       [{ text: 'OK' }]
     );
   };
@@ -141,7 +141,7 @@ export const ChatInfoModal: React.FC<ChatInfoModalProps> = memo(({
                         <Icon name="check-decagram" size={14} color="#2563EB" style={{ marginLeft: 4 }} />
                       )}
                     </View>
-                    <Text style={styles.boutiqueSubtitle}>Mitreno Verified Partner</Text>
+                    <Text style={styles.boutiqueSubtitle}>Nvilar Verified Partner</Text>
                   </View>
                 </View>
 

@@ -238,13 +238,15 @@ export const CheckoutScreen = memo(() => {
   const checkoutProduct = useMemo(() => {
     if (directItem) {
       return {
-        id: directItem.id,
+        id: directItem.productId || directItem.id,
+        shopId: directItem.shopId || directItem.shop_id || '',
+        shop_id: directItem.shop_id || directItem.shopId || '',
         name: directItem.name || 'Handcrafted Chikankari Kurta',
         price: directItem.price || 3500,
         originalPrice: directItem.originalPrice || Math.round((directItem.price || 3500) * 1.4),
         image: directItem.image || 'https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?w=900&auto=format&fit=crop&q=80',
         size: directItem.size || 'L',
-        boutiqueName: directItem.boutiqueName || 'Mitreno.com',
+        boutiqueName: directItem.boutiqueName || 'Nvilar.com',
         discountBadge: directItem.discountBadge || '30% OFF',
       };
     }
@@ -253,24 +255,28 @@ export const CheckoutScreen = memo(() => {
     if (firstCartItem) {
       return {
         id: firstCartItem.id,
+        shopId: (firstCartItem as any).shopId || (firstCartItem as any).shop_id || '',
+        shop_id: (firstCartItem as any).shop_id || (firstCartItem as any).shopId || '',
         name: firstCartItem.name,
         price: firstCartItem.price,
         originalPrice: Math.round(firstCartItem.price * 1.43),
         image: firstCartItem.image || 'https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?w=900&auto=format&fit=crop&q=80',
         size: firstCartItem.unitLabel || 'L',
-        boutiqueName: 'Mitreno.com',
+        boutiqueName: (firstCartItem as any).boutiqueName || 'Nvilar.com',
         discountBadge: '30% OFF',
       };
     }
     // Fallback product
     return {
       id: 'default-kurta',
+      shopId: '',
+      shop_id: '',
       name: 'Handcrafted Chikankari Kurta',
       price: 3500,
       originalPrice: 5000,
       image: 'https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?w=900&auto=format&fit=crop&q=80',
       size: 'L',
-      boutiqueName: 'Mitreno.com',
+      boutiqueName: 'Nvilar.com',
       discountBadge: '30% OFF',
     };
   }, [directItem, cartItems]);
@@ -661,7 +667,7 @@ export const CheckoutScreen = memo(() => {
         image: checkoutProduct.image,
         size: checkoutProduct.size,
         boutiqueName: checkoutProduct.boutiqueName,
-        shop_id: (checkoutProduct as any).shop_id || (checkoutProduct as any).shopId || (checkoutProduct.boutiqueName === 'Mitreno.com' ? 'shop_KD56AHEq_42723' : undefined),
+        shop_id: checkoutProduct.shop_id || checkoutProduct.shopId || undefined,
         discountBadge: checkoutProduct.discountBadge,
       },
     ];
@@ -805,7 +811,7 @@ export const CheckoutScreen = memo(() => {
           </TouchableOpacity>
 
           <View style={styles.headerTitleCol}>
-            <Text style={styles.headerSubtitle}>MITRENO FAST CHECKOUT</Text>
+            <Text style={styles.headerSubtitle}>NVILAR FAST CHECKOUT</Text>
             <Text style={styles.headerMainTitle}>
               {currentStep === 1
                 ? step1SubView === 'form'
@@ -1410,10 +1416,10 @@ export const CheckoutScreen = memo(() => {
               </View>
             </LinearGradient>
 
-            {/* MITRENO DIRECT PRIVILEGE Cashback Banner */}
+            {/* NVILAR DIRECT PRIVILEGE Cashback Banner */}
             <View style={styles.privilegeBanner}>
               <View style={styles.privilegeTopRow}>
-                <Text style={styles.privilegeTitle}>MITRENO DIRECT PRIVILEGE</Text>
+                <Text style={styles.privilegeTitle}>NVILAR DIRECT PRIVILEGE</Text>
                 <View style={styles.autoAppliedBadge}>
                   <Text style={styles.autoAppliedText}>AUTO APPLIED</Text>
                 </View>
