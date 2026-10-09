@@ -190,7 +190,7 @@ func (fs *FCMService) SendPushNotification(payload FCMNotificationPayload) error
 				Body:                payload.Body,
 				ImageURL:            payload.ImageURL,
 				Icon:                "ic_notification",
-				Color:               "#E11D48",
+				Color:               "#00863A",
 				Tag:                 tag,
 				ChannelID:           channelID,
 				Sound:               sound,

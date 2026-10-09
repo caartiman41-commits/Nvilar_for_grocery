@@ -18,6 +18,7 @@ export interface ProductSizeSelectorProps {
   minOrder?: number;
   sizeQuantities?: Record<string, number>;
   unitPrice?: number;
+  onViewCart?: () => void;
 }
 
 export const ProductSizeSelector: React.FC<ProductSizeSelectorProps> = memo(({
@@ -27,6 +28,7 @@ export const ProductSizeSelector: React.FC<ProductSizeSelectorProps> = memo(({
   minOrder = 6,
   sizeQuantities = {},
   unitPrice,
+  onViewCart,
 }) => {
   const [sizeChartVisible, setSizeChartVisible] = useState(false);
 
@@ -128,8 +130,22 @@ export const ProductSizeSelector: React.FC<ProductSizeSelectorProps> = memo(({
       {totalSelectedPieces > 0 && (
         <View style={styles.bagSelectionCard}>
           <View style={styles.bagSelectionHeader}>
-            <Icon name="clipboard-check-outline" size={14} color="#059669" style={{ marginRight: 5 }} />
-            <Text style={styles.bagSelectionTitle}>Your Bag Selection:</Text>
+            <View style={styles.bagSelectionTitleRow}>
+              <Icon name="clipboard-check-outline" size={14} color="#059669" style={{ marginRight: 5 }} />
+              <Text style={styles.bagSelectionTitle}>Your Bag Selection:</Text>
+            </View>
+
+            {onViewCart && (
+              <TouchableOpacity
+                style={styles.viewCartHeaderBtn}
+                onPress={onViewCart}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.viewCartHeaderText}>View Cart</Text>
+                <Icon name="arrow-right" size={12} color="#15803D" style={{ marginLeft: 3 }} />
+              </TouchableOpacity>
+            )}
           </View>
 
           <View style={styles.bagSelectionItemsRow}>
@@ -345,13 +361,34 @@ const styles = StyleSheet.create({
   bagSelectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 6,
+  },
+  bagSelectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   bagSelectionTitle: {
     fontSize: 11.5,
     fontWeight: '800',
     color: '#15803D',
     letterSpacing: 0.2,
+  },
+  viewCartHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+  },
+  viewCartHeaderText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#15803D',
+    letterSpacing: 0.1,
   },
   bagSelectionItemsRow: {
     flexDirection: 'row',

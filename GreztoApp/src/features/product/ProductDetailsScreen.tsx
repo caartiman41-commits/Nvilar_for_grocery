@@ -29,6 +29,7 @@ import { ProductSellerDelivery } from './components/ProductSellerDelivery';
 import { ProductSpecifications } from './components/ProductSpecifications';
 import { ProductRecommendations } from './components/ProductRecommendations';
 import { ProductDetailsSkeleton } from './components/ProductDetailsSkeleton';
+import { FloatingCartSummary } from '../../components/FloatingCartSummary';
 
 export const ProductDetailsScreen: React.FC = memo(() => {
   const insets = useSafeAreaInsets();
@@ -215,6 +216,11 @@ export const ProductDetailsScreen: React.FC = memo(() => {
     return map;
   }, [cartItems, productData.id]);
 
+  const totalCartItems = useMemo(
+    () => cartItems.reduce((acc, item) => acc + item.quantity, 0),
+    [cartItems]
+  );
+
   const selectedSizeCartItemId = `${productData.id}_${selectedSize}`;
   const cartQuantityForSelectedSize = sizeQuantities[selectedSize] || 0;
 
@@ -284,13 +290,12 @@ export const ProductDetailsScreen: React.FC = memo(() => {
   }, [cartItems, selectedSizeCartItemId, updateQuantity, addItem, productData, selectedSize, triggerTooltip]);
 
   const handleDecrement = useCallback(() => {
-    const minOrder = productData.minOrder || 6;
-    if (cartQuantityForSelectedSize <= minOrder) {
+    if (cartQuantityForSelectedSize <= 1) {
       removeItem(selectedSizeCartItemId);
     } else {
       updateQuantity(selectedSizeCartItemId, cartQuantityForSelectedSize - 1);
     }
-  }, [cartQuantityForSelectedSize, productData.minOrder, removeItem, selectedSizeCartItemId, updateQuantity]);
+  }, [cartQuantityForSelectedSize, removeItem, selectedSizeCartItemId, updateQuantity]);
 
   const handleBuyNow = useCallback((customPrice?: number) => {
     if (productData.inStock === false) {
@@ -433,6 +438,7 @@ export const ProductDetailsScreen: React.FC = memo(() => {
           minOrder={productData.minOrder || 6}
           sizeQuantities={sizeQuantities}
           unitPrice={productData.price}
+          onViewCart={() => navigation.navigate('BagTab')}
         />
 
         {/* 3. Middle Product Info Section (Seamless Plane aligned to 12px margin) */}
@@ -607,18 +613,15 @@ export const ProductDetailsScreen: React.FC = memo(() => {
                     activeOpacity={0.7}
                   >
                     <Icon
-                      name={cartQuantityForSelectedSize <= (productData.minOrder || 6) ? "trash-can-outline" : "minus"}
+                      name="minus"
                       size={18}
-                      color="#E11D48"
+                      color="#0D7B48"
                     />
                   </TouchableOpacity>
 
                   <View style={styles.stepperCenterInfo}>
                     <Text style={styles.stepperQtyText}>
-                      {cartQuantityForSelectedSize} Pieces
-                    </Text>
-                    <Text style={styles.stepperPiecesSub}>
-                      Size {selectedSize} • {formatINR(cartQuantityForSelectedSize * productData.price)}
+                      {cartQuantityForSelectedSize} {cartQuantityForSelectedSize === 1 ? 'Piece' : 'Pieces'}
                     </Text>
                   </View>
 
@@ -627,7 +630,7 @@ export const ProductDetailsScreen: React.FC = memo(() => {
                     onPress={() => handleIncrement(1)}
                     activeOpacity={0.7}
                   >
-                    <Icon name="plus" size={18} color="#E11D48" />
+                    <Icon name="plus" size={18} color="#0D7B48" />
                   </TouchableOpacity>
                 </View>
               )}
@@ -635,6 +638,14 @@ export const ProductDetailsScreen: React.FC = memo(() => {
           </>
         )}
       </View>
+
+      {/* Floating Wholesale Cart Summary Pill with Upward Quick-Peek Drawer */}
+      {totalCartItems > 0 && (
+        <FloatingCartSummary
+          onPress={() => navigation.navigate('BagTab')}
+          bottomOffset={Math.max(insets.bottom, 12) + 68}
+        />
+      )}
     </View>
   );
 });
@@ -884,11 +895,16 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 46,
     borderRadius: 14,
-    backgroundColor: '#E11D48',
+    backgroundColor: '#E50914',
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 10,
+    shadowColor: '#E50914',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.48,
+    shadowRadius: 6,
+    elevation: 4,
   },
   buyNowText: {
     fontSize: 14,
@@ -900,13 +916,16 @@ const styles = StyleSheet.create({
     flex: 1.5,
     height: 46,
     borderRadius: 14,
-    backgroundColor: '#FFF1F2',
-    borderWidth: 1.5,
-    borderColor: '#FECDD3',
+    backgroundColor: '#0D7B48', // Clean Forest Green when added
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 6,
+    shadowColor: '#0D7B48',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
+    elevation: 3,
   },
   stepperActionBtn: {
     width: 36,
@@ -917,23 +936,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
   },
   stepperCenterInfo: {
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 6,
   },
   stepperQtyText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
-    color: '#9F1239',
-  },
-  stepperPiecesSub: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#E11D48',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
   outOfStockPillDetail: {
     alignSelf: 'flex-start',

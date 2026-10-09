@@ -303,10 +303,15 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E11D48', // Pure Flat Vivid Cherry Red
+    backgroundColor: '#E50914', // Pure Vibrant Warm Red
     paddingVertical: 6.5,
     paddingHorizontal: 6,
     borderRadius: 14,
+    shadowColor: '#E50914',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.48,
+    shadowRadius: 6,
+    elevation: 4,
   },
   buyBtnText: {
     color: '#FFFFFF',
