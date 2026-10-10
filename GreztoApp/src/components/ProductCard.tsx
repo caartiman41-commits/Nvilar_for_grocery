@@ -58,8 +58,13 @@ export const ProductCard: React.FC<ProductCardProps> = memo(({
       onPress={onPress}
       activeOpacity={onPress ? 0.75 : 1}
     >
-      {/* 3:4 Vertical Portrait Image Container */}
-      <View style={styles.imageContainer}>
+      {/* Image Container */}
+      <View
+        style={[
+          styles.imageContainer,
+          image?.includes('bing.net') && { backgroundColor: '#FFFFFF', padding: 6 },
+        ]}
+      >
         <FastImage 
           source={{
             uri: image,
@@ -67,7 +72,11 @@ export const ProductCard: React.FC<ProductCardProps> = memo(({
             cache: FastImage.cacheControl.immutable,
           }} 
           style={styles.image as any} 
-          resizeMode={FastImage.resizeMode.cover}
+          resizeMode={
+            image?.includes('bing.net')
+              ? FastImage.resizeMode.contain
+              : FastImage.resizeMode.cover
+          }
         />
 
         {/* Bottom-Left Clean White Rating & Reviews Pill Badge */}

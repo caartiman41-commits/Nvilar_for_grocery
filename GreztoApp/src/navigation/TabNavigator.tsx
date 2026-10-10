@@ -5,7 +5,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { HomeScreen } from '../features/home/HomeScreen';
-import { DropsScreen } from '../features/drops/DropsScreen';
 import { ChatsScreen } from '../features/chats/ChatsScreen';
 import { ProfileScreen } from '../features/profile/ProfileScreen';
 import { CartScreen } from '../features/cart/CartScreen';
@@ -40,11 +39,11 @@ const TAB_CONFIGS: Record<string, TabConfig> = {
     inactiveIcon: 'compass-outline',
     iconFamily: 'Ionicons',
   },
-  DropsTab: {
-    label: 'Drops',
-    activeIcon: 'movie-play',
-    inactiveIcon: 'movie-play-outline',
-    iconFamily: 'MaterialCommunityIcons',
+  BagTab: {
+    label: 'Bag',
+    activeIcon: 'bag-handle',
+    inactiveIcon: 'bag-handle-outline',
+    iconFamily: 'Ionicons',
   },
   ChatsTab: {
     label: 'Chats',
@@ -57,12 +56,6 @@ const TAB_CONFIGS: Record<string, TabConfig> = {
     label: 'Profile',
     activeIcon: 'person-circle',
     inactiveIcon: 'person-circle-outline',
-    iconFamily: 'Ionicons',
-  },
-  BagTab: {
-    label: 'Bag',
-    activeIcon: 'bag-handle',
-    inactiveIcon: 'bag-handle-outline',
     iconFamily: 'Ionicons',
   },
 };
@@ -203,10 +196,9 @@ export const TabNavigator = () => {
       }}
     >
       <Tab.Screen name="ExploreTab" component={HomeScreen} />
-      <Tab.Screen name="DropsTab" component={DropsScreen} />
+      <Tab.Screen name="BagTab" component={CartScreen} />
       <Tab.Screen name="ChatsTab" component={ChatsScreen} />
       <Tab.Screen name="ProfileTab" component={ProfileScreen} />
-      <Tab.Screen name="BagTab" component={CartScreen} />
     </Tab.Navigator>
   );
 };

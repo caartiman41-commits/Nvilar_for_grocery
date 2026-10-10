@@ -122,7 +122,7 @@ export const BoutiqueStoreScreen: React.FC = memo(() => {
   const [userRating, setUserRating] = useState<number>(0);
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<'shop' | 'drops' | 'reviews'>('shop');
+  const [activeTab, setActiveTab] = useState<'shop' | 'reviews'>('shop');
 
   // Rate Modal State
   const [isRateModalOpen, setIsRateModalOpen] = useState(false);
@@ -584,7 +584,7 @@ export const BoutiqueStoreScreen: React.FC = memo(() => {
           </View>
         </View>
 
-        {/* 5. TAB SWITCHER (Shop, Drops, Reviews) */}
+        {/* 5. TAB SWITCHER (Shop, Reviews) */}
         <View style={styles.tabBar}>
           <TouchableOpacity
             style={[styles.tabItem, activeTab === 'shop' && styles.activeTabItem]}
@@ -599,22 +599,6 @@ export const BoutiqueStoreScreen: React.FC = memo(() => {
             />
             <Text style={[styles.tabItemText, activeTab === 'shop' && styles.activeTabText]}>
               Shop ({products.length})
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.tabItem, activeTab === 'drops' && styles.activeTabItem]}
-            onPress={() => setActiveTab('drops')}
-            activeOpacity={0.8}
-          >
-            <Icon
-              name="movie-play-outline"
-              size={17}
-              color={activeTab === 'drops' ? '#0F172A' : '#64748B'}
-              style={{ marginRight: 5 }}
-            />
-            <Text style={[styles.tabItemText, activeTab === 'drops' && styles.activeTabText]}>
-              Drops ({reels.length})
             </Text>
           </TouchableOpacity>
 
@@ -720,49 +704,6 @@ export const BoutiqueStoreScreen: React.FC = memo(() => {
                   </TouchableOpacity>
                 );
               })
-            )}
-          </View>
-        )}
-
-        {activeTab === 'drops' && (
-          <View style={styles.reelsGrid}>
-            {reels.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Icon name="movie-play-outline" size={48} color="#94A3B8" />
-                <Text style={styles.emptyTitle}>No Runway Drops Yet</Text>
-                <Text style={styles.emptySubtitle}>
-                  Stay tuned! Video drops and runway showcases will be featured here soon.
-                </Text>
-              </View>
-            ) : (
-              reels.map((reel) => (
-                <View key={reel.id} style={styles.reelCard}>
-                  <FastImage
-                    source={{
-                      uri:
-                        reel.thumbnail_url ||
-                        'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&auto=format&fit=crop&q=80',
-                    }}
-                    style={styles.reelThumbnail as any}
-                    resizeMode={FastImage.resizeMode.cover}
-                  />
-                  <View style={styles.reelOverlay}>
-                    <View style={styles.reelStatsRow}>
-                      <View style={styles.reelStatBadge}>
-                        <Icon name="play" size={11} color="#FFFFFF" style={{ marginRight: 2 }} />
-                        <Text style={styles.reelStatText}>{reel.views_count || 124}</Text>
-                      </View>
-                      <View style={styles.reelStatBadge}>
-                        <Icon name="heart" size={11} color="#EF4444" style={{ marginRight: 2 }} />
-                        <Text style={styles.reelStatText}>{reel.likes_count || 28}</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.reelCaption} numberOfLines={2}>
-                      {reel.caption || 'Runway collection preview'}
-                    </Text>
-                  </View>
-                </View>
-              ))
             )}
           </View>
         )}

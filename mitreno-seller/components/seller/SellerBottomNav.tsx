@@ -86,12 +86,6 @@ export const SellerBottomNav: React.FC<SellerBottomNavProps> = ({
       desc: 'Stories, bio & showroom grid',
     },
     {
-      id: 'reels',
-      label: 'Reels & Drops',
-      icon: Film,
-      desc: 'Upload visual drops for city feed',
-    },
-    {
       id: 'ads',
       label: 'Ads & Promotions',
       icon: Sparkles,
@@ -153,14 +147,14 @@ export const SellerBottomNav: React.FC<SellerBottomNavProps> = ({
         <button
           onClick={() => setShowMoreDrawer(true)}
           className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all duration-150 ${
-            ['profile', 'reels', 'ads', 'analytics', 'settings'].includes(activeTab)
+            ['profile', 'ads', 'analytics', 'settings'].includes(activeTab)
               ? 'text-amber-600 font-bold'
               : 'text-neutral-500 font-medium hover:text-neutral-900'
           }`}
         >
           <MoreHorizontal className="w-5 h-5" />
           <span className="text-[10px] mt-1 tracking-tight">More</span>
-          {['profile', 'reels', 'ads', 'analytics', 'settings'].includes(activeTab) && (
+          {['profile', 'ads', 'analytics', 'settings'].includes(activeTab) && (
             <div className="w-1 h-1 rounded-full bg-amber-600 mt-0.5" />
           )}
         </button>

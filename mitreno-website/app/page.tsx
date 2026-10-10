@@ -16,7 +16,6 @@ import { MitrenoAIChat } from '@/components/MitrenoAIChat';
 import { UserProfileModal } from '@/components/UserProfileModal';
 import { NegotiationInbox } from '@/components/NegotiationInbox';
 import { BargainChatRoom } from '@/components/BargainChatRoom';
-import { LocalVideoFeed } from '@/components/LocalVideoFeed';
 import { ReserveInStoreModal } from '@/components/ReserveInStoreModal';
 import { ShopProfileModal } from '@/components/ShopProfileModal';
 import { ToastContainer, ToastMessage } from '@/components/ToastNotification';
@@ -730,24 +729,6 @@ export default function HomePage() {
                   }}
                 />
               )}
-            </motion.div>
-          )}
-
-          {currentBottomNavTab === 'feed' && (
-            <motion.div
-              key="video-feed"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <LocalVideoFeed
-                products={liveProducts}
-                onOpenProduct={(product) => setSelectedProductForPdp(product)}
-                onMakeOffer={(product) => openBargainChat(product)}
-                onAddToCart={handleAddToCart}
-                onBack={() => setCurrentBottomNavTab('home')}
-              />
             </motion.div>
           )}
 

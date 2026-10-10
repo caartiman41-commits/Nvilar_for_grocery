@@ -50,6 +50,10 @@ export interface StudioProduct {
   id: string;
   title: string;
   category: string;
+  vertical?: 'electronics' | 'pharmacy' | 'ration' | 'beauty' | 'decor' | 'kids' | 'cold_drinks' | 'footwear' | 'imported' | 'fashion' | 'others';
+  subcategoryId?: string;
+  subTypeId?: string;
+  unitSpec?: string;
   price: number;
   originalPrice: number;
   discountPercent: number;

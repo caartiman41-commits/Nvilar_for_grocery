@@ -105,12 +105,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ pendingCount = 0 }) 
       active: pathname.startsWith('/ads'),
     },
     {
-      title: 'Reels Moderation',
-      href: '/reels',
-      icon: Film,
-      active: pathname.startsWith('/reels'),
-    },
-    {
       title: 'Security & Keys',
       href: '/settings',
       icon: Shield,

@@ -27,7 +27,6 @@ import { SellerNearbyOrders } from './SellerNearbyOrders';
 import { SellerProducts } from './SellerProducts';
 import { SellerChat } from './SellerChat';
 import { SellerProfile } from './SellerProfile';
-import { SellerReels } from './SellerReels';
 import { SellerAds } from './SellerAds';
 import { SellerAnalytics } from './SellerAnalytics';
 import { SellerBilling } from './SellerBilling';
@@ -626,17 +625,6 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                       </div>
 
                       <div 
-                        onClick={() => setActiveTab('reels')}
-                        className="p-3 rounded-2xl bg-neutral-50 border border-neutral-200/90 hover:border-rose-300 hover:bg-white shadow-2xs hover:shadow-xs cursor-pointer transition-all flex items-start gap-2.5"
-                      >
-                        <Sparkles className="w-4 h-4 text-rose-600 shrink-0 mt-0.5 stroke-[2.5]" />
-                        <div>
-                          <h4 className="text-xs font-extrabold text-neutral-950">Upload Fashion Reel</h4>
-                          <p className="text-[11px] text-neutral-600 mt-0.5 font-medium">Showcase runway fits and tag your catalog products.</p>
-                        </div>
-                      </div>
-
-                      <div 
                         onClick={() => setActiveTab('ads')}
                         className="p-3 rounded-2xl bg-neutral-50 border border-neutral-200/80 hover:border-purple-300 cursor-pointer transition-colors flex items-start gap-2.5"
                       >
@@ -700,15 +688,6 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
               userId={userId}
               shopId={shop?.id}
               onRefreshMetrics={fetchDashboardData}
-              onNavigateToTab={(t: string) => setActiveTab(t as SellerTab)}
-            />
-          )}
-
-          {/* TAB 6: REELS & DROPS (Phase 6 Live) */}
-          {activeTab === 'reels' && (
-            <SellerReels
-              userId={userId}
-              shopId={shop?.id}
               onNavigateToTab={(t: string) => setActiveTab(t as SellerTab)}
             />
           )}

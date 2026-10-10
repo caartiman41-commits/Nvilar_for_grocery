@@ -29,16 +29,6 @@ export const INITIAL_STUDIO_BANNERS: StudioBanner[] = [
     actionText: 'View Radar',
   },
   {
-    id: 'banner_reels',
-    tag: 'RUNWAY REELS',
-    title: 'Tag Garments in Video Reels',
-    subtitle: 'Short fashion videos generate 300% more buyer inquiries & instant bargain purchases.',
-    badgeText: 'TRENDING',
-    gradientColors: ['#831843', '#DB2777'],
-    iconName: 'video-vintage',
-    actionText: 'Post Reel',
-  },
-  {
     id: 'banner_quality',
     tag: 'LUXURY BENCHMARK',
     title: 'Verified Merchant Compliance',

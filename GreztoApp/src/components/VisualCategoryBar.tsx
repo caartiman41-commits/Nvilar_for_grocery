@@ -10,14 +10,19 @@ import {
 } from 'react-native';
 import { colors } from '../theme/colors';
 
-// Local Transparent Cutout Category Icons (Real Human Fashion Models)
-const CAT_ICON_ALL = require('../assets/category-icons/cat_all.png');
-const CAT_ICON_MEN = require('../assets/category-icons/cat_men.png');
-const CAT_ICON_WOMEN = require('../assets/category-icons/cat_women.png');
-const CAT_ICON_KIDS = require('../assets/category-icons/cat_kids.png');
-const CAT_ICON_ETHNIC = require('../assets/category-icons/cat_ethnic.png');
-const CAT_ICON_STREETWEAR = require('../assets/category-icons/cat_streetwear.png');
+// Local Transparent Cutout Category Icons (Multi-Vertical Wholesale Super-App)
+const CAT_ICON_ALL = require('../assets/category-icons/cat_all_summary.png');
+const CAT_ICON_ELECTRONICS = require('../assets/categories/electronics/elec_fans_coolers.png');
+const CAT_ICON_PHARMACY = require('../assets/categories/pharmacy/pharm_cough_cold_fever.png');
+const CAT_ICON_RATION = require('../assets/categories/ration/ration_atta_maida_sooji.png');
+const CAT_ICON_BEAUTY = require('../assets/categories/beauty/beauty_lip_cosmetics.png');
+const CAT_ICON_KIDS = require('../assets/categories/kids/kids_diaper.png');
+const CAT_ICON_COLD_DRINKS = require('../assets/categories/cold_drinks/drinks_cola_fizzy.png');
+const CAT_ICON_FASHION = require('../assets/category-icons/cat_all.png');
 const CAT_ICON_FOOTWEAR = require('../assets/category-icons/cat_footwear.png');
+const CAT_ICON_DECOR = require('../assets/category-icons/cat_decor.png');
+const CAT_ICON_IMPORTED = require('../assets/category-icons/cat_imported.png');
+const CAT_ICON_OTHERS = require('../assets/category-icons/cat_others.png');
 
 export interface VisualCategoryItem {
   id: string;
@@ -34,16 +39,28 @@ export const VISUAL_CATEGORIES: VisualCategoryItem[] = [
     localIcon: CAT_ICON_ALL,
   },
   {
-    id: 'men',
-    label: 'Men',
-    image: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=300&auto=format&fit=crop&q=80',
-    localIcon: CAT_ICON_MEN,
+    id: 'electronics',
+    label: 'Electronics',
+    image: 'https://images.unsplash.com/photo-1550985543-f47f38aeee65?w=300&auto=format&fit=crop&q=80',
+    localIcon: CAT_ICON_ELECTRONICS,
   },
   {
-    id: 'women',
-    label: 'Women',
-    image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
-    localIcon: CAT_ICON_WOMEN,
+    id: 'pharmacy',
+    label: 'Pharmacy',
+    image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=300&auto=format&fit=crop&q=80',
+    localIcon: CAT_ICON_PHARMACY,
+  },
+  {
+    id: 'ration',
+    label: 'Ration',
+    image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=300&auto=format&fit=crop&q=80',
+    localIcon: CAT_ICON_RATION,
+  },
+  {
+    id: 'beauty',
+    label: 'Beauty',
+    image: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=300&auto=format&fit=crop&q=80',
+    localIcon: CAT_ICON_BEAUTY,
   },
   {
     id: 'kids',
@@ -52,22 +69,40 @@ export const VISUAL_CATEGORIES: VisualCategoryItem[] = [
     localIcon: CAT_ICON_KIDS,
   },
   {
-    id: 'ethnic',
-    label: 'Ethnic',
-    image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=300&auto=format&fit=crop&q=80',
-    localIcon: CAT_ICON_ETHNIC,
+    id: 'cold_drinks',
+    label: 'Cold Drinks',
+    image: 'https://images.unsplash.com/photo-1554866585-cd94860890b7?w=300&auto=format&fit=crop&q=80',
+    localIcon: CAT_ICON_COLD_DRINKS,
   },
   {
-    id: 'streetwear',
-    label: 'Streetwear',
-    image: 'https://images.unsplash.com/photo-1552374196-1ab2a1c593e8?w=300&auto=format&fit=crop&q=80',
-    localIcon: CAT_ICON_STREETWEAR,
+    id: 'fashion',
+    label: 'Fashion',
+    image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=300&auto=format&fit=crop&q=80',
+    localIcon: CAT_ICON_FASHION,
   },
   {
     id: 'footwear',
     label: 'Footwear',
     image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=300&auto=format&fit=crop&q=80',
     localIcon: CAT_ICON_FOOTWEAR,
+  },
+  {
+    id: 'decor',
+    label: 'Decor',
+    image: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=300&auto=format&fit=crop&q=80',
+    localIcon: CAT_ICON_DECOR,
+  },
+  {
+    id: 'imported',
+    label: 'Imported',
+    image: 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?w=300&auto=format&fit=crop&q=80',
+    localIcon: CAT_ICON_IMPORTED,
+  },
+  {
+    id: 'others',
+    label: 'Others',
+    image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=300&auto=format&fit=crop&q=80',
+    localIcon: CAT_ICON_OTHERS,
   },
 ];
 
@@ -152,8 +187,8 @@ const styles = StyleSheet.create({
   },
   categoryItem: {
     alignItems: 'center',
-    marginRight: 12,
-    width: 58,
+    marginRight: 10,
+    width: 64,
   },
   iconContainer: {
     width: 52,

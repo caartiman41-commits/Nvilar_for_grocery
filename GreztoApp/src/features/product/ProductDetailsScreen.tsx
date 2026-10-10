@@ -19,8 +19,13 @@ import { formatINR } from '../../utils/formatters';
 import { InteractionManager } from '../../utils/InteractionManager';
 import { useCartStore } from '../cart/cartStore';
 import { getProductDetailById } from './productData';
-import { ProductDetailItem } from './types';
+import { ProductDetailItem, ProductSpecificationItem } from './types';
 import { ProductService, BackendProduct } from '../../services/ProductService';
+import {
+  WHOLESALE_CATALOG_PRODUCTS,
+  detectWholesaleTaxonomy,
+  WholesaleVerticalId,
+} from '../home/data/wholesaleHubData';
 
 import { ProductTopSearchBar } from './components/ProductTopSearchBar';
 import { ProductImageGallery } from './components/ProductImageGallery';
@@ -31,6 +36,94 @@ import { ProductRecommendations } from './components/ProductRecommendations';
 import { ProductDetailsSkeleton } from './components/ProductDetailsSkeleton';
 import { FloatingCartSummary } from '../../components/FloatingCartSummary';
 
+function buildCategorySpecificationsAndStory(
+  vertical: WholesaleVerticalId,
+  productName: string,
+  unitSpec: string,
+  minOrder: number,
+  sellerSpec?: string,
+  sellerGrade?: string
+): { specifications: ProductSpecificationItem[]; productStory: string } {
+  const lower = productName.toLowerCase();
+
+  if (vertical === 'electronics') {
+    let techSpec = sellerSpec || 'Commercial Heavy-Duty Grade';
+    if (lower.includes('kettle')) techSpec = '1500W Auto-Cut • 1.5L Stainless Steel';
+    else if (lower.includes('induction')) techSpec = '1600W Push-Button • Crystal Glass Plate';
+    else if (lower.includes('fan')) techSpec = 'High-Speed 100% Copper Winding Motor';
+    else if (lower.includes('charger') || lower.includes('cable')) techSpec = 'Fast Charge Output • Surge Protected';
+    else if (lower.includes('earbud') || lower.includes('neckband') || lower.includes('speaker'))
+      techSpec = 'Bluetooth 5.3 • Deep Bass & Long Battery';
+    else if (lower.includes('bulb') || lower.includes('batten') || lower.includes('light'))
+      techSpec = 'Cool Daylight 6500K • 4kV Surge Protection';
+    else if (lower.includes('iron')) techSpec = '1000W Non-Stick Soleplate • Thermal Fuse';
+    else if (lower.includes('mixer')) techSpec = '750W Heavy-Duty Copper Motor • 3 SS Jars';
+
+    return {
+      specifications: [
+        { key: 'pack', label: 'WHOLESALE PACK / LOT', value: unitSpec },
+        { key: 'tech', label: 'TECHNICAL SPECIFICATION', value: techSpec },
+        { key: 'warranty', label: 'WARRANTY & GUARANTEE', value: sellerGrade || '1 Year Manufacturer Warranty' },
+        { key: 'cert', label: 'CERTIFICATION', value: 'BIS & ISI Certified Wholesale Lot' },
+        { key: 'moq', label: 'MINIMUM ORDER (MOQ)', value: `${minOrder} Units` },
+        { key: 'origin', label: 'COUNTRY OF ORIGIN', value: 'Made in India IN' },
+      ],
+      productStory: `Factory-sealed wholesale lot of ${productName} supplied in ${unitSpec}. Tested for commercial durability, BIS/ISI safety compliance, and high retailer resale margin with full counter warranty support.`,
+    };
+  }
+
+  if (vertical === 'ration') {
+    let gradeVal = sellerSpec || 'Sortex Cleaned Grade-A Mandi Lot';
+    if (lower.includes('rice') || lower.includes('basmati')) gradeVal = 'Aged Extra-Long Grain Sortex Cleaned';
+    else if (lower.includes('atta') || lower.includes('besan') || lower.includes('maida'))
+      gradeVal = '100% Pure Chakki Fresh Mill Grade';
+    else if (lower.includes('oil') || lower.includes('ghee'))
+      gradeVal = '100% Pure Agmark & FSSAI Fortified';
+    else if (lower.includes('masala') || lower.includes('haldi') || lower.includes('mirch') || lower.includes('jeera'))
+      gradeVal = 'A-Grade Whole / Cryo-Ground Aroma Locked';
+    else if (lower.includes('almond') || lower.includes('kaju') || lower.includes('raisin'))
+      gradeVal = 'Handpicked Export Quality Jumbo Grade';
+
+    return {
+      specifications: [
+        { key: 'pack', label: 'PACK / BORI WEIGHT', value: unitSpec },
+        { key: 'grade', label: 'QUALITY & MANDI GRADE', value: gradeVal },
+        { key: 'safety', label: 'FOOD SAFETY LICENSE', value: '100% FSSAI & Agmark Verified' },
+        { key: 'shelf', label: 'SHELF LIFE', value: sellerGrade || '12 Months from Packaging' },
+        { key: 'packaging', label: 'PACKAGING TYPE', value: 'Moisture-Proof Heavy Mandi Pack' },
+        { key: 'moq', label: 'MINIMUM ORDER (MOQ)', value: `${minOrder} Packs / Boris` },
+      ],
+      productStory: `Direct Mandi & Mill wholesale supply of ${productName} packed in ${unitSpec}. Hygienically processed, moisture-sealed, and lab-verified under FSSAI standards for kirana stores, supermarkets, and Horeca buyers.`,
+    };
+  }
+
+  if (vertical === 'pharmacy') {
+    return {
+      specifications: [
+        { key: 'pack', label: 'PHARMA PACK SIZE', value: unitSpec },
+        { key: 'comp', label: 'COMPOSITION & STANDARD', value: sellerSpec || 'WHO-GMP & IP Certified Formulation' },
+        { key: 'expiry', label: 'EXPIRY / SHELF LIFE', value: sellerGrade || 'Long Expiry (18–24 Months)' },
+        { key: 'supply', label: 'STOCKIST SOURCE', value: 'Authorized Pharma Distributor Lot' },
+        { key: 'storage', label: 'STORAGE CONDITION', value: 'Cool & Dry Chemist Storage' },
+        { key: 'moq', label: 'MINIMUM ORDER (MOQ)', value: `${minOrder} Boxes / Units` },
+      ],
+      productStory: `100% genuine batch-verified pharmaceutical & surgical wholesale stock of ${productName} (${unitSpec}). Sourced directly from authorized WHO-GMP compliant stockists with long expiry for medical stores and clinics.`,
+    };
+  }
+
+  return {
+    specifications: [
+      { key: 'pack', label: 'WHOLESALE PACK UNIT', value: unitSpec },
+      { key: 'grade', label: 'QUALITY & GRADE', value: sellerSpec || '100% Original Sealed Wholesale Lot' },
+      { key: 'shelf', label: 'DURABILITY / SHELF LIFE', value: sellerGrade || '24 Months Retail Ready' },
+      { key: 'moq', label: 'MINIMUM ORDER (MOQ)', value: `${minOrder} Units` },
+      { key: 'margin', label: 'RETAIL MARGIN TIER', value: 'High-Margin B2B Wholesale' },
+      { key: 'origin', label: 'COUNTRY OF ORIGIN', value: 'Verified Wholesale Supply' },
+    ],
+    productStory: `Curated B2B wholesale lot of ${productName} (${unitSpec}). Sealed retail-ready packaging designed for high counter turnover and maximum shopkeeper profit margin.`,
+  };
+}
+
 export const ProductDetailsScreen: React.FC = memo(() => {
   const insets = useSafeAreaInsets();
   const route = useRoute<any>();
@@ -39,6 +132,44 @@ export const ProductDetailsScreen: React.FC = memo(() => {
   // Extract route parameters with robust fallback
   const passedProduct = route.params?.product;
   const productId = route.params?.productId || passedProduct?.id || 'p1';
+
+  // Lookup matching wholesale catalog item if available
+  const catalogMatch = useMemo(
+    () => WHOLESALE_CATALOG_PRODUCTS.find((p) => p.id === productId),
+    [productId]
+  );
+
+  // Determine exact wholesale vertical (Electronics, Ration, Pharmacy, Beauty, Home, Kids, Imported, or Fashion)
+  const resolvedVertical: WholesaleVerticalId = useMemo(() => {
+    if (passedProduct?.vertical) return passedProduct.vertical;
+    if (catalogMatch?.vertical) return catalogMatch.vertical;
+    const detected = detectWholesaleTaxonomy(
+      `${passedProduct?.name || ''} ${passedProduct?.category || ''}`
+    );
+    if (detected?.vertical) return detected.vertical;
+    const lowerId = String(productId).toLowerCase();
+    if (lowerId.startsWith('elec_')) return 'electronics';
+    if (lowerId.startsWith('rat_')) return 'ration';
+    if (lowerId.startsWith('pharma_')) return 'pharmacy';
+    if (lowerId.startsWith('bty_')) return 'beauty';
+    if (lowerId.startsWith('home_')) return 'home';
+    if (lowerId.startsWith('kids_')) return 'kids';
+    if (lowerId.startsWith('imp_')) return 'imported';
+    return 'fashion';
+  }, [passedProduct, catalogMatch, productId]);
+
+  const isFashion = resolvedVertical === 'fashion';
+
+  const resolvedUnitSpec = useMemo(() => {
+    if (passedProduct?.unitSpec) return passedProduct.unitSpec;
+    if (catalogMatch?.unitSpec) return catalogMatch.unitSpec;
+    if (passedProduct?.setRatio && !passedProduct.setRatio.includes('S:1')) {
+      return passedProduct.setRatio;
+    }
+    const detected = detectWholesaleTaxonomy(passedProduct?.name || '');
+    if (detected?.suggestedUnit) return detected.suggestedUnit;
+    return isFashion ? 'S:1, M:2, L:2, XL:1' : 'Master Wholesale Pack';
+  }, [passedProduct, catalogMatch, isFashion]);
 
   const fallbackProduct: ProductDetailItem = useMemo(() => {
     if (
@@ -50,24 +181,59 @@ export const ProductDetailsScreen: React.FC = memo(() => {
     ) {
       return {
         ...passedProduct,
-        minOrder: passedProduct.minOrder || 6,
-        setRatio: passedProduct.setRatio || 'S:1, M:2, L:2, XL:1',
+        minOrder: passedProduct.minOrder || (isFashion ? 6 : 4),
+        setRatio: resolvedUnitSpec,
       } as ProductDetailItem;
     }
 
+    const primaryImg =
+      catalogMatch?.image ||
+      passedProduct?.image ||
+      passedProduct?.images?.[0];
+
     const base = getProductDetailById(
       productId,
-      passedProduct?.name,
-      passedProduct?.price,
-      passedProduct?.image || passedProduct?.images?.[0],
-      passedProduct?.boutiqueName || passedProduct?.boutiqueTag
+      passedProduct?.name || catalogMatch?.name,
+      passedProduct?.price || catalogMatch?.price,
+      primaryImg,
+      passedProduct?.boutiqueName || passedProduct?.boutiqueTag || catalogMatch?.boutiqueName
     );
+
+    const resolvedMinOrder =
+      passedProduct?.minOrder || catalogMatch?.minOrder || (isFashion ? base.minOrder || 6 : 4);
+
+    if (!isFashion) {
+      const catDetails = buildCategorySpecificationsAndStory(
+        resolvedVertical,
+        passedProduct?.name || catalogMatch?.name || base.name,
+        resolvedUnitSpec,
+        resolvedMinOrder,
+        passedProduct?.fabric,
+        passedProduct?.gsm
+      );
+      return {
+        ...base,
+        name: passedProduct?.name || catalogMatch?.name || base.name,
+        price: passedProduct?.price || catalogMatch?.price || base.price,
+        originalPrice:
+          passedProduct?.originalPrice ||
+          catalogMatch?.originalPrice ||
+          base.originalPrice,
+        images: primaryImg ? [primaryImg] : [base.images[0]],
+        minOrder: resolvedMinOrder,
+        setRatio: resolvedUnitSpec,
+        specifications: catDetails.specifications,
+        productStory: catDetails.productStory,
+        sizes: [],
+      };
+    }
+
     return {
       ...base,
-      minOrder: passedProduct?.minOrder || base.minOrder || 6,
+      minOrder: resolvedMinOrder,
       setRatio: passedProduct?.setRatio || base.setRatio || 'S:1, M:2, L:2, XL:1',
     };
-  }, [productId, passedProduct]);
+  }, [productId, passedProduct, catalogMatch, isFashion, resolvedVertical, resolvedUnitSpec]);
 
   const [liveBackendProduct, setLiveBackendProduct] = useState<BackendProduct | null>(null);
 
@@ -90,8 +256,8 @@ export const ProductDetailsScreen: React.FC = memo(() => {
     if (!liveBackendProduct) {
       return {
         ...fallbackProduct,
-        minOrder: passedProduct?.minOrder || fallbackProduct.minOrder || 6,
-        setRatio: passedProduct?.setRatio || fallbackProduct.setRatio || 'S:1, M:2, L:2, XL:1',
+        minOrder: passedProduct?.minOrder || fallbackProduct.minOrder || (isFashion ? 6 : 4),
+        setRatio: resolvedUnitSpec,
         shopId: passedShopId,
         seller: {
           ...fallbackProduct.seller,
@@ -103,8 +269,8 @@ export const ProductDetailsScreen: React.FC = memo(() => {
     const orig = bp.original_price || bp.base_price;
     const disc = bp.discount_percent || (orig > bp.base_price ? Math.round(((orig - bp.base_price) / orig) * 100) : 0);
     const resolvedShopId = bp.shop?.id || bp.shop_id || passedShopId;
-    const resolvedMinOrder = bp.min_order_quantity || passedProduct?.minOrder || fallbackProduct.minOrder || 6;
-    const resolvedSetRatio = bp.set_ratio || passedProduct?.setRatio || fallbackProduct.setRatio || 'S:1, M:2, L:2, XL:1';
+    const resolvedMinOrder = bp.min_order_quantity || passedProduct?.minOrder || fallbackProduct.minOrder || (isFashion ? 6 : 4);
+    const resolvedSetRatio = bp.set_ratio || resolvedUnitSpec;
     return {
       ...fallbackProduct,
       id: bp.id,
@@ -115,7 +281,12 @@ export const ProductDetailsScreen: React.FC = memo(() => {
       minOrder: resolvedMinOrder,
       setRatio: resolvedSetRatio,
       shopId: resolvedShopId,
-      images: bp.gallery_images && bp.gallery_images.length > 0 ? bp.gallery_images : [bp.thumbnail, ...fallbackProduct.images.slice(1)],
+      images:
+        bp.gallery_images && bp.gallery_images.length > 0
+          ? bp.gallery_images
+          : isFashion
+          ? [bp.thumbnail, ...fallbackProduct.images.slice(1)]
+          : [bp.thumbnail || fallbackProduct.images[0]],
       seller: bp.shop
         ? {
             shopId: resolvedShopId,
@@ -130,38 +301,54 @@ export const ProductDetailsScreen: React.FC = memo(() => {
             ...fallbackProduct.seller,
             shopId: resolvedShopId,
           },
-      specifications: [
-        {
-          key: 'fabric',
-          label: 'FABRIC & MATERIAL',
-          value: bp.fabric || (fallbackProduct.specifications?.find((s) => s.key === 'fabric')?.value || '100% Cotton'),
-        },
-        {
-          key: 'density',
-          label: 'FABRIC DENSITY',
-          value: bp.gsm ? `${bp.gsm} GSM` : (fallbackProduct.specifications?.find((s) => s.key === 'density')?.value || '180 GSM Heavyweight'),
-        },
-        {
-          key: 'fit',
-          label: 'FIT SILHOUETTE',
-          value: bp.fit || (fallbackProduct.specifications?.find((s) => s.key === 'fit')?.value || 'Oversized Fit'),
-        },
-        ...(fallbackProduct.specifications || []).filter((s) => !['fabric', 'density', 'fit'].includes(s.key)),
-      ],
-      sizes: bp.variants && bp.variants.length > 0 ? bp.variants.map((v) => ({ size: v.size, stock: v.stock })) : fallbackProduct.sizes,
+      specifications: isFashion
+        ? [
+            {
+              key: 'fabric',
+              label: 'FABRIC & MATERIAL',
+              value: bp.fabric || (fallbackProduct.specifications?.find((s) => s.key === 'fabric')?.value || '100% Cotton'),
+            },
+            {
+              key: 'density',
+              label: 'FABRIC DENSITY',
+              value: bp.gsm ? `${bp.gsm} GSM` : (fallbackProduct.specifications?.find((s) => s.key === 'density')?.value || '180 GSM Heavyweight'),
+            },
+            {
+              key: 'fit',
+              label: 'FIT SILHOUETTE',
+              value: bp.fit || (fallbackProduct.specifications?.find((s) => s.key === 'fit')?.value || 'Oversized Fit'),
+            },
+            ...(fallbackProduct.specifications || []).filter((s) => !['fabric', 'density', 'fit'].includes(s.key)),
+          ]
+        : buildCategorySpecificationsAndStory(
+            resolvedVertical,
+            bp.name,
+            resolvedSetRatio,
+            resolvedMinOrder,
+            bp.fabric,
+            bp.gsm ? `${bp.gsm}` : undefined
+          ).specifications,
+      sizes: isFashion
+        ? bp.variants && bp.variants.length > 0
+          ? bp.variants.map((v) => ({ size: v.size, stock: v.stock }))
+          : fallbackProduct.sizes
+        : [],
       inStock: bp.is_active !== undefined ? bp.is_active : (fallbackProduct.inStock ?? true),
     };
-  }, [fallbackProduct, liveBackendProduct, passedProduct]);
+  }, [fallbackProduct, liveBackendProduct, passedProduct, isFashion, resolvedUnitSpec, resolvedVertical]);
 
   // Screen State
   const [selectedSize, setSelectedSize] = useState<string>(
     productData.sizes?.[0]?.size || 'M'
   );
-  const [isAdded, setIsAdded] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
+  // Navigate to Shopping Bag helper that works from any Stack or Tab screen
+  const navigateToBag = useCallback(() => {
+    navigation.navigate('MainTabs', { screen: 'BagTab' });
+  }, [navigation]);
+
   // Preload product gallery images & defer heavy below-the-fold components
-  // (Specifications, Recommendations, Delivery) until native transition completes
   useEffect(() => {
     if (productData.images && productData.images.length > 0) {
       FastImage.preload(
@@ -194,13 +381,13 @@ export const ProductDetailsScreen: React.FC = memo(() => {
     return productData.badgeText || 'SPECIAL PRICE';
   }, [productData.priceHistory, productData.price, productData.originalPrice, productData.badgeText]);
 
-  // Cart items & Multi-Size Wholesale Quantities
+  // Cart items & Multi-Size / Wholesale Lot Quantities
   const cartItems = useCartStore((s) => s.items);
   const addItem = useCartStore((s) => s.addItem);
   const updateQuantity = useCartStore((s) => s.updateQuantity);
   const removeItem = useCartStore((s) => s.removeItem);
 
-  // Map quantities by size for this product
+  // Map quantities by size for fashion products
   const sizeQuantities = useMemo(() => {
     const map: Record<string, number> = {};
     cartItems.forEach((item) => {
@@ -216,13 +403,25 @@ export const ProductDetailsScreen: React.FC = memo(() => {
     return map;
   }, [cartItems, productData.id]);
 
+  // Total quantity in cart for non-fashion product
+  const nonFashionCartEntry = useMemo(() => {
+    return cartItems.find(
+      (i) => i.id === productData.id || i.productId === productData.id
+    );
+  }, [cartItems, productData.id]);
+
   const totalCartItems = useMemo(
     () => cartItems.reduce((acc, item) => acc + item.quantity, 0),
     [cartItems]
   );
 
-  const selectedSizeCartItemId = `${productData.id}_${selectedSize}`;
-  const cartQuantityForSelectedSize = sizeQuantities[selectedSize] || 0;
+  const selectedSizeCartItemId = isFashion
+    ? `${productData.id}_${selectedSize}`
+    : nonFashionCartEntry?.id || productData.id;
+
+  const cartQuantityForSelectedSize = isFashion
+    ? sizeQuantities[selectedSize] || 0
+    : nonFashionCartEntry?.quantity || 0;
 
   // Tooltip Popover state & animated opacity
   const [showMoqTooltip, setShowMoqTooltip] = useState(false);
@@ -253,41 +452,91 @@ export const ProductDetailsScreen: React.FC = memo(() => {
       Alert.alert('Out of Stock', `"${productData.name}" is currently out of stock.`);
       return;
     }
-    const minOrder = productData.minOrder || 6;
-    addItem({
-      id: selectedSizeCartItemId,
-      productId: productData.id,
-      size: selectedSize,
-      name: `${productData.name} (${selectedSize})`,
-      price: productData.price,
-      quantity: minOrder,
-      image: productData.images[0],
-      discountBadge: `${productData.discountPercent}% OFF`,
-      unitLabel: `Size ${selectedSize} • ${minOrder} pcs`,
-    });
-    triggerTooltip();
-  }, [addItem, productData, selectedSize, selectedSizeCartItemId, triggerTooltip]);
-
-  const handleIncrement = useCallback((delta: number = 1) => {
-    const existing = cartItems.find((i) => i.id === selectedSizeCartItemId);
-    if (existing) {
-      updateQuantity(selectedSizeCartItemId, existing.quantity + delta);
-    } else {
-      const minOrder = productData.minOrder || 6;
+    const minOrder = productData.minOrder || (isFashion ? 6 : 4);
+    if (isFashion) {
       addItem({
         id: selectedSizeCartItemId,
         productId: productData.id,
         size: selectedSize,
         name: `${productData.name} (${selectedSize})`,
         price: productData.price,
-        quantity: Math.max(minOrder, delta),
+        quantity: minOrder,
         image: productData.images[0],
         discountBadge: `${productData.discountPercent}% OFF`,
-        unitLabel: `Size ${selectedSize} • ${Math.max(minOrder, delta)} pcs`,
+        unitLabel: `Size ${selectedSize} • ${minOrder} pcs`,
       });
+    } else {
+      addItem({
+        id: productData.id,
+        productId: productData.id,
+        name: productData.name,
+        price: productData.price,
+        quantity: minOrder,
+        image: productData.images[0],
+        discountBadge: `${productData.discountPercent}% OFF`,
+        unitLabel: resolvedUnitSpec,
+      });
+    }
+    triggerTooltip();
+  }, [addItem, productData, isFashion, selectedSize, selectedSizeCartItemId, resolvedUnitSpec, triggerTooltip]);
+
+  const handleSelectLotQuantity = useCallback(
+    (lotQty: number) => {
+      if (productData.inStock === false) {
+        Alert.alert('Out of Stock', `"${productData.name}" is currently out of stock.`);
+        return;
+      }
+      if (nonFashionCartEntry) {
+        updateQuantity(nonFashionCartEntry.id, lotQty);
+      } else {
+        addItem({
+          id: productData.id,
+          productId: productData.id,
+          name: productData.name,
+          price: productData.price,
+          quantity: lotQty,
+          image: productData.images[0],
+          discountBadge: `${productData.discountPercent}% OFF`,
+          unitLabel: resolvedUnitSpec,
+        });
+      }
+    },
+    [productData, nonFashionCartEntry, updateQuantity, addItem, resolvedUnitSpec]
+  );
+
+  const handleIncrement = useCallback((delta: number = 1) => {
+    const existing = cartItems.find((i) => i.id === selectedSizeCartItemId);
+    if (existing) {
+      updateQuantity(selectedSizeCartItemId, existing.quantity + delta);
+    } else {
+      const minOrder = productData.minOrder || (isFashion ? 6 : 4);
+      if (isFashion) {
+        addItem({
+          id: selectedSizeCartItemId,
+          productId: productData.id,
+          size: selectedSize,
+          name: `${productData.name} (${selectedSize})`,
+          price: productData.price,
+          quantity: Math.max(minOrder, delta),
+          image: productData.images[0],
+          discountBadge: `${productData.discountPercent}% OFF`,
+          unitLabel: `Size ${selectedSize} • ${Math.max(minOrder, delta)} pcs`,
+        });
+      } else {
+        addItem({
+          id: productData.id,
+          productId: productData.id,
+          name: productData.name,
+          price: productData.price,
+          quantity: Math.max(minOrder, delta),
+          image: productData.images[0],
+          discountBadge: `${productData.discountPercent}% OFF`,
+          unitLabel: resolvedUnitSpec,
+        });
+      }
       triggerTooltip();
     }
-  }, [cartItems, selectedSizeCartItemId, updateQuantity, addItem, productData, selectedSize, triggerTooltip]);
+  }, [cartItems, selectedSizeCartItemId, updateQuantity, addItem, productData, isFashion, selectedSize, resolvedUnitSpec, triggerTooltip]);
 
   const handleDecrement = useCallback(() => {
     if (cartQuantityForSelectedSize <= 1) {
@@ -312,20 +561,21 @@ export const ProductDetailsScreen: React.FC = memo(() => {
         name: productData.name,
         price: finalPrice,
         originalPrice: productData.originalPrice,
-        quantity: 1,
+        quantity: productData.minOrder || (isFashion ? 6 : 4),
         image: productData.images[0],
         discountBadge: `${productData.discountPercent}% OFF`,
-        size: selectedSize,
+        size: isFashion ? selectedSize : undefined,
+        unitLabel: isFashion ? `Size ${selectedSize}` : resolvedUnitSpec,
         boutiqueName: productData.seller?.name || 'Verified Boutique',
       }
     });
-  }, [navigation, productData, selectedSize]);
+  }, [navigation, productData, isFashion, selectedSize, resolvedUnitSpec]);
 
   const handleShare = useCallback(async () => {
     try {
       await Share.share({
         title: productData.name,
-        message: `Check out ${productData.name} from ${productData.seller.name} for ${formatINR(productData.price)} on Nvilar!`,
+        message: `Check out ${productData.name} from ${productData.seller.name} for ${formatINR(productData.price)} on Mitreno!`,
       });
     } catch {
       // Dismissed
@@ -358,7 +608,7 @@ export const ProductDetailsScreen: React.FC = memo(() => {
   }, [navigation]);
 
   const handleViewAllSimilar = useCallback(() => {
-    navigation.navigate('ExploreTab');
+    navigation.navigate('MainTabs', { screen: 'ExploreTab' });
   }, [navigation]);
 
   // Dynamic Scroll-Reactive Header Animation (Flipkart style)
@@ -404,7 +654,7 @@ export const ProductDetailsScreen: React.FC = memo(() => {
       <ProductTopSearchBar
         onBack={() => navigation.goBack()}
         onSearch={() => navigation.navigate('Search' as any)}
-        onCartPress={() => navigation.navigate('BagTab' as any)}
+        onCartPress={navigateToBag}
         translateY={headerTranslateY}
       />
 
@@ -430,15 +680,19 @@ export const ProductDetailsScreen: React.FC = memo(() => {
           productTitle={productData.name}
         />
 
-        {/* 2. Top Size Selector Card (Customizable Size-Wise Wholesale) */}
+        {/* 2. Category-Adaptive Wholesale Pack / Size Selector Card */}
         <ProductSizeSelector
           sizes={productData.sizes}
           selectedSize={selectedSize}
           onSelectSize={setSelectedSize}
-          minOrder={productData.minOrder || 6}
+          minOrder={productData.minOrder || (isFashion ? 6 : 4)}
           sizeQuantities={sizeQuantities}
           unitPrice={productData.price}
-          onViewCart={() => navigation.navigate('BagTab')}
+          onViewCart={navigateToBag}
+          vertical={resolvedVertical}
+          unitSpec={resolvedUnitSpec}
+          cartQuantityForProduct={cartQuantityForSelectedSize}
+          onSelectLotQuantity={handleSelectLotQuantity}
         />
 
         {/* 3. Middle Product Info Section (Seamless Plane aligned to 12px margin) */}
@@ -490,7 +744,12 @@ export const ProductDetailsScreen: React.FC = memo(() => {
             <View style={styles.setTotalRow}>
               <Icon name="package-variant-closed" size={15} color="#2563EB" style={{ marginRight: 6 }} />
               <Text style={styles.setTotalText}>
-                Wholesale Minimum: <Text style={styles.setTotalBold}>{productData.minOrder || 6} pieces per size</Text>
+                Wholesale Minimum:{' '}
+                <Text style={styles.setTotalBold}>
+                  {isFashion
+                    ? `${productData.minOrder || 6} pieces per size`
+                    : `${productData.minOrder || 4} units (${resolvedUnitSpec})`}
+                </Text>
               </Text>
             </View>
             <View style={styles.profitEstimateRow}>
@@ -532,7 +791,7 @@ export const ProductDetailsScreen: React.FC = memo(() => {
               specifications={productData.specifications}
               productStory={productData.productStory}
               sku={productData.sku}
-              minOrder={productData.minOrder || 6}
+              minOrder={productData.minOrder || (isFashion ? 6 : 4)}
               setRatio={productData.setRatio}
             />
 
@@ -589,7 +848,7 @@ export const ProductDetailsScreen: React.FC = memo(() => {
                   <View style={styles.tooltipBubble}>
                     <Icon name="information" size={13} color="#FFFFFF" style={{ marginRight: 5 }} />
                     <Text style={styles.tooltipText}>
-                      Minimum order should be {productData.minOrder || 6}
+                      Minimum order should be {productData.minOrder || (isFashion ? 6 : 4)}
                     </Text>
                   </View>
                   <View style={styles.tooltipArrowDown} />
@@ -621,7 +880,7 @@ export const ProductDetailsScreen: React.FC = memo(() => {
 
                   <View style={styles.stepperCenterInfo}>
                     <Text style={styles.stepperQtyText}>
-                      {cartQuantityForSelectedSize} {cartQuantityForSelectedSize === 1 ? 'Piece' : 'Pieces'}
+                      {cartQuantityForSelectedSize} {cartQuantityForSelectedSize === 1 ? 'Unit' : 'Units'}
                     </Text>
                   </View>
 
@@ -642,7 +901,7 @@ export const ProductDetailsScreen: React.FC = memo(() => {
       {/* Floating Wholesale Cart Summary Pill with Upward Quick-Peek Drawer */}
       {totalCartItems > 0 && (
         <FloatingCartSummary
-          onPress={() => navigation.navigate('BagTab')}
+          onPress={navigateToBag}
           bottomOffset={Math.max(insets.bottom, 12) + 68}
         />
       )}

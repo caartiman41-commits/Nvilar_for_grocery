@@ -619,7 +619,7 @@ export const StudioCatalogTab: React.FC = memo(() => {
 
               {/* Header */}
               <View style={styles.detailsSheetHeader}>
-                <Text style={styles.detailsSheetTitle}>Garment Details</Text>
+                <Text style={styles.detailsSheetTitle}>Wholesale Product Details</Text>
                 <TouchableOpacity
                   style={styles.sheetCloseBtn}
                   onPress={() => setSelectedProductForDetails(null)}
@@ -709,19 +709,37 @@ export const StudioCatalogTab: React.FC = memo(() => {
 
                 {/* Specifications Grid */}
                 <View style={styles.detailsSectionBox}>
-                  <Text style={styles.detailsSectionHeading}>FABRIC & FIT SPECIFICATIONS</Text>
+                  <Text style={styles.detailsSectionHeading}>
+                    {selectedProductForDetails.vertical === 'fashion'
+                      ? 'FABRIC & FIT SPECIFICATIONS'
+                      : 'WHOLESALE B2B SPECIFICATIONS'}
+                  </Text>
                   <View style={styles.specsChipsGrid}>
                     <View style={styles.specChipItem}>
-                      <Text style={styles.specChipLabel}>FABRIC</Text>
+                      <Text style={styles.specChipLabel}>
+                        {selectedProductForDetails.vertical === 'fashion' ? 'FABRIC' : 'GRADE / SPEC'}
+                      </Text>
                       <Text style={styles.specChipValue}>{selectedProductForDetails.fabric}</Text>
                     </View>
                     <View style={styles.specChipItem}>
-                      <Text style={styles.specChipLabel}>WEIGHT / GSM</Text>
+                      <Text style={styles.specChipLabel}>
+                        {selectedProductForDetails.vertical === 'fashion'
+                          ? 'WEIGHT / GSM'
+                          : 'WARRANTY / SHELF LIFE'}
+                      </Text>
                       <Text style={styles.specChipValue}>{selectedProductForDetails.gsm}</Text>
                     </View>
                     <View style={styles.specChipItem}>
-                      <Text style={styles.specChipLabel}>SILHOUETTE</Text>
-                      <Text style={styles.specChipValue}>{selectedProductForDetails.fit}</Text>
+                      <Text style={styles.specChipLabel}>
+                        {selectedProductForDetails.vertical === 'fashion'
+                          ? 'SILHOUETTE'
+                          : 'PACK UNIT'}
+                      </Text>
+                      <Text style={styles.specChipValue}>
+                        {selectedProductForDetails.unitSpec ||
+                          selectedProductForDetails.setRatio ||
+                          selectedProductForDetails.fit}
+                      </Text>
                     </View>
                     <View style={styles.specChipItem}>
                       <Text style={styles.specChipLabel}>TOTAL SOLD</Text>
@@ -730,29 +748,57 @@ export const StudioCatalogTab: React.FC = memo(() => {
                   </View>
                 </View>
 
-                {/* Size & Stock Breakdown */}
+                {/* Size / Wholesale Stock Breakdown */}
                 <View style={styles.detailsSectionBox}>
-                  <Text style={styles.detailsSectionHeading}>SIZE & INVENTORY STOCK</Text>
-                  <View style={styles.sizeStockGrid}>
-                    {selectedProductForDetails.sizes.map((s) => (
-                      <View
-                        key={s.size}
-                        style={[
-                          styles.detailSizePill,
-                          s.stock === 0 && styles.detailSizePillZero,
-                        ]}
-                      >
-                        <Text
+                  <Text style={styles.detailsSectionHeading}>
+                    {selectedProductForDetails.vertical === 'fashion'
+                      ? 'SIZE & INVENTORY STOCK'
+                      : 'AVAILABLE WHOLESALE STOCK'}
+                  </Text>
+                  {selectedProductForDetails.vertical === 'fashion' ? (
+                    <View style={styles.sizeStockGrid}>
+                      {selectedProductForDetails.sizes.map((s) => (
+                        <View
+                          key={s.size}
                           style={[
-                            styles.detailSizePillText,
-                            s.stock === 0 && styles.detailSizePillTextZero,
+                            styles.detailSizePill,
+                            s.stock === 0 && styles.detailSizePillZero,
                           ]}
                         >
-                          {s.size}: <Text style={{ fontWeight: '800' }}>{s.stock} pcs</Text>
+                          <Text
+                            style={[
+                              styles.detailSizePillText,
+                              s.stock === 0 && styles.detailSizePillTextZero,
+                            ]}
+                          >
+                            {s.size}: <Text style={{ fontWeight: '800' }}>{s.stock} pcs</Text>
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <View style={styles.sizeStockGrid}>
+                      <View style={styles.detailSizePill}>
+                        <Text style={styles.detailSizePillText}>
+                          {selectedProductForDetails.unitSpec ||
+                            selectedProductForDetails.setRatio ||
+                            'Wholesale Lot'}
+                          :{' '}
+                          <Text style={{ fontWeight: '800' }}>
+                            {selectedProductForDetails.sizes.reduce((acc, s) => acc + s.stock, 0)} units in stock
+                          </Text>
                         </Text>
                       </View>
-                    ))}
-                  </View>
+                      <View style={styles.detailSizePill}>
+                        <Text style={styles.detailSizePillText}>
+                          MOQ:{' '}
+                          <Text style={{ fontWeight: '800' }}>
+                            Min {selectedProductForDetails.minOrder || 4} units
+                          </Text>
+                        </Text>
+                      </View>
+                    </View>
+                  )}
                 </View>
 
                 {/* Action Buttons */}
@@ -767,7 +813,7 @@ export const StudioCatalogTab: React.FC = memo(() => {
                     activeOpacity={0.8}
                   >
                     <Icon name="pencil" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                    <Text style={styles.detailsEditBtnText}>Edit Garment</Text>
+                    <Text style={styles.detailsEditBtnText}>Edit Product</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity

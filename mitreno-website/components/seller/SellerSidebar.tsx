@@ -27,7 +27,6 @@ export type SellerTab =
   | 'products'
   | 'chat'
   | 'profile'
-  | 'reels'
   | 'ads'
   | 'analytics'
   | 'billing'
@@ -140,11 +139,6 @@ export const SellerSidebar: React.FC<SellerSidebarProps> = ({
       id: 'profile',
       label: 'Store Profile',
       icon: Store,
-    },
-    {
-      id: 'reels',
-      label: 'Reels & Drops',
-      icon: Film,
     },
     {
       id: 'ads',

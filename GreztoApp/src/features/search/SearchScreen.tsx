@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   TextInput,
   FlatList,
-  ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import FastImage from 'react-native-fast-image';
@@ -19,6 +19,27 @@ import { AppHeader } from '../../components/AppHeader';
 import { ProductService, BackendProduct } from '../../services/ProductService';
 import { formatINR } from '../../utils/formatters';
 import { SearchSkeleton } from './components/SearchSkeleton';
+import {
+  WHOLESALE_CATALOG_PRODUCTS,
+  detectVerticalFromQuery,
+  recordUserSearchInterest,
+  recordProductViewInterest,
+} from '../home/data/wholesaleHubData';
+import { useSellerStore } from '../seller/sellerStore';
+
+const QUICK_SEARCH_CHIPS = [
+  { label: '⚡ Electronics', query: 'Electronics' },
+  { label: '🌀 Ceiling Fan & Cooler', query: 'Fan' },
+  { label: '👟 Crocs & Footwear', query: 'Crocs' },
+  { label: '👗 Fashion & Sarees', query: 'Saree' },
+  { label: '💄 Beauty & Lipsticks', query: 'Lipstick' },
+  { label: '🥤 Cold Drinks & Coffee', query: 'Cold Drink' },
+  { label: '🌾 Ration, Atta & Masala', query: 'Atta' },
+  { label: '🧸 Kids, Diapers & Toys', query: 'Diaper' },
+  { label: '💊 Pharmacy & Dolo', query: 'Dolo' },
+  { label: '🛋️ Decor & Bedsheets', query: 'Bedsheet' },
+  { label: '🍫 Imported & Ramen', query: 'Ferrero' },
+];
 
 export const SearchScreen = () => {
   const navigation = useNavigation<any>();
@@ -26,8 +47,10 @@ export const SearchScreen = () => {
   const [results, setResults] = useState<BackendProduct[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const sellerProducts = useSellerStore((s) => s.products);
+  const sellerProfile = useSellerStore((s) => s.profile);
 
-  // Debounced live search query to Go backend
+  // Debounced live search across All 12 Wholesale Categories + Backend + Auto-Interest Recording
   useEffect(() => {
     const trimmed = query.trim();
     if (trimmed.length < 2) {
@@ -40,24 +63,91 @@ export const SearchScreen = () => {
     setIsLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const res = await ProductService.getProducts({ q: trimmed });
-        setResults(res.products || []);
+        // 1. Record user search interest so 'All' tab on Home auto-recommends this category at the top!
+        recordUserSearchInterest(trimmed);
+
+        const qLower = trimmed.toLowerCase();
+        const detected = detectVerticalFromQuery(trimmed);
+
+        // 2. Match from Seller Studio + Multi-Vertical Wholesale Catalog (165+ items across all 12 categories)
+        const sellerAsCatalog = sellerProducts.map((sp) => ({
+          id: sp.id,
+          name: sp.title,
+          base_price: sp.price,
+          original_price: sp.originalPrice > sp.price ? sp.originalPrice : Math.round(sp.price * 1.35),
+          thumbnail: sp.imageUri,
+          vertical: sp.vertical || 'fashion',
+          subcategoryId: sp.subcategoryId || '',
+          shop: { name: sellerProfile?.name || 'Verified Wholesale Hub' },
+        }));
+
+        const catalogMapped = WHOLESALE_CATALOG_PRODUCTS.map((wp) => ({
+          id: wp.id,
+          name: wp.name,
+          base_price: wp.price,
+          original_price: wp.originalPrice,
+          thumbnail: wp.image,
+          vertical: wp.vertical,
+          subcategoryId: wp.subcategoryId,
+          shop: { name: wp.boutiqueName },
+        }));
+
+        const localPool = [...sellerAsCatalog, ...catalogMapped];
+        const localMatches = localPool.filter((item) => {
+          const nameMatch = item.name.toLowerCase().includes(qLower);
+          const shopMatch = (item.shop?.name || '').toLowerCase().includes(qLower);
+          const subMatch = detected.subcategoryId && item.subcategoryId === detected.subcategoryId;
+          const vertMatch = detected.vertical && item.vertical === detected.vertical;
+          return nameMatch || shopMatch || subMatch || vertMatch;
+        });
+
+        // Sort exact title matches ahead of category-wide matches
+        localMatches.sort((a, b) => {
+          const aExact = a.name.toLowerCase().includes(qLower) ? 1 : 0;
+          const bExact = b.name.toLowerCase().includes(qLower) ? 1 : 0;
+          return bExact - aExact;
+        });
+
+        // 3. Also fetch from Go backend if available and merge deduplicated
+        let backendItems: BackendProduct[] = [];
+        try {
+          const res = await ProductService.getProducts({ q: trimmed });
+          backendItems = res.products || [];
+        } catch {
+          backendItems = [];
+        }
+
+        const seenIds = new Set<string>();
+        const combined: BackendProduct[] = [];
+        for (const it of [...(localMatches as any[]), ...backendItems]) {
+          if (!seenIds.has(it.id)) {
+            seenIds.add(it.id);
+            combined.push(it);
+          }
+        }
+
+        setResults(combined);
         setHasSearched(true);
       } catch {
         setResults([]);
       } finally {
         setIsLoading(false);
       }
-    }, 300);
+    }, 240);
 
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, sellerProducts, sellerProfile]);
 
-  const renderProductItem = ({ item }: { item: BackendProduct }) => (
+  const renderProductItem = ({ item }: { item: BackendProduct & { vertical?: string; subcategoryId?: string } }) => (
     <TouchableOpacity
       style={styles.resultItem}
       activeOpacity={0.75}
-      onPress={() =>
+      onPress={() => {
+        recordProductViewInterest({
+          name: item.name,
+          vertical: item.vertical,
+          subcategoryId: item.subcategoryId,
+        });
         navigation.navigate('ProductDetails', {
           productId: item.id,
           product: {
@@ -68,16 +158,16 @@ export const SearchScreen = () => {
             image: item.thumbnail,
             boutiqueName: item.shop?.name || 'Verified Boutique',
           },
-        })
-      }
+        });
+      }}
     >
       <FastImage
         source={{ uri: item.thumbnail }}
         style={styles.thumbnail as any}
-        resizeMode={FastImage.resizeMode.cover}
+        resizeMode={FastImage.resizeMode.contain}
       />
       <View style={styles.itemInfo}>
-        <Text style={styles.productName} numberOfLines={1}>
+        <Text style={styles.productName} numberOfLines={2}>
           {item.name}
         </Text>
         <Text style={styles.boutiqueText} numberOfLines={1}>
@@ -102,7 +192,7 @@ export const SearchScreen = () => {
         <Icon name="search" size={20} color={colors.textMuted} />
         <TextInput
           style={styles.input}
-          placeholder="Search 'Kurta', 'Denim', 'Hoodie' or boutique..."
+          placeholder="Search Electronics, Fan, Crocs, Saree, Drinks, Atta..."
           placeholderTextColor={colors.textMuted}
           value={query}
           onChangeText={setQuery}
@@ -115,13 +205,42 @@ export const SearchScreen = () => {
         )}
       </View>
 
+      {query.trim().length < 2 && (
+        <View style={{ paddingHorizontal: spacing.md, marginBottom: 10 }}>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textMuted, marginBottom: 8 }}>
+            POPULAR CATEGORIES (AUTO-PERSONALIZES HOME FEED)
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {QUICK_SEARCH_CHIPS.map((chip) => (
+              <TouchableOpacity
+                key={chip.label}
+                onPress={() => setQuery(chip.query)}
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 20,
+                  paddingHorizontal: 12,
+                  paddingVertical: 7,
+                  marginRight: 8,
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textPrimary }}>
+                  {chip.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
       {isLoading ? (
         <SearchSkeleton count={6} />
       ) : hasSearched && results.length === 0 ? (
         <View style={styles.centerContainer}>
           <MaterialIcon name="magnify-close" size={44} color={colors.textMuted} />
-          <Text style={styles.emptyTitle}>No matching styles found</Text>
-          <Text style={styles.emptySubtitle}>Try searching with different keywords like 'Oversized' or 'Chikankari'</Text>
+          <Text style={styles.emptyTitle}>No matching items found</Text>
+          <Text style={styles.emptySubtitle}>Try searching 'Electronics', 'Fan', 'Crocs', 'Kurti', 'Cold Drink' or 'Atta'</Text>
         </View>
       ) : (
         <FlatList

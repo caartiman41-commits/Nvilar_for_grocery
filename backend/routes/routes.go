@@ -19,7 +19,6 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 	authCtrl := controllers.NewAuthController()
 	shopCtrl := controllers.NewShopController()
 	prodCtrl := controllers.NewProductController()
-	reelsCtrl := controllers.NewReelsController(cfg)
 	bargainCtrl := controllers.NewBargainController()
 	orderCtrl := controllers.NewOrderController()
 	adminCtrl := controllers.NewAdminController()
@@ -81,13 +80,6 @@ func SetupRoutes(app *fiber.App, cfg *config.Config) {
 
 	// 3.1 Live Flash Surge Drops
 	api.Get("/flash-drops/active", controllers.GetActiveFlashDrops)
-
-	// 4. Reels & Cloudflare R2 Video Engine
-	reelsGroup := api.Group("/reels")
-	reelsGroup.Get("/", reelsCtrl.GetReelsFeed)
-	reelsGroup.Post("/:id/like", reelsCtrl.LikeReel)
-	reelsGroup.Post("/:id/view", reelsCtrl.IncrementViews)
-	reelsGroup.Post("/upload-url", middleware.FirebaseAuthMiddleware(), reelsCtrl.GetPresignedUploadURL)
 
 	// 5. Live Bargaining & Negotiations
 	api.Get("/campaigns/bargain-engine", campaignCtrl.GetActiveBargainCampaign)

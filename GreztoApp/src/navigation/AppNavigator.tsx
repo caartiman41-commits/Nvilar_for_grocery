@@ -14,6 +14,7 @@ import { StudioChatTab } from '../features/seller/studio/tabs/StudioChatTab';
 import { ChatsScreen } from '../features/chats/ChatsScreen';
 import { ChatConversationScreen } from '../features/chats/ChatConversationScreen';
 import { BoutiqueStoreScreen } from '../features/seller/BoutiqueStoreScreen';
+import { CategoryProductsScreen } from '../features/home/CategoryProductsScreen';
 import { MitrenoBootSplash } from '../components/MitrenoBootSplash';
 
 import { useAuthStore } from '../features/auth/authStore';
@@ -127,6 +128,15 @@ export const AppNavigator = () => {
           options={{
             animation: 'slide_from_right',
             animationDuration: 220,
+            freezeOnBlur: true,
+          }}
+        />
+        <Stack.Screen
+          name="CategoryProducts"
+          component={CategoryProductsScreen}
+          options={{
+            animation: 'slide_from_right',
+            animationDuration: 210,
             freezeOnBlur: true,
           }}
         />

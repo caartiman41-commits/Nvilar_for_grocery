@@ -485,172 +485,89 @@ export const StudioProfileTab: React.FC<StudioProfileTabProps> = memo(({
           </TouchableOpacity>
         </View>
 
-        {/* 5. Clean Sub-Tab Switcher (Products vs Reels) */}
+        {/* 5. Clean Sub-Tab Header (Products) */}
         <View style={styles.tabSwitcher}>
           <TouchableOpacity
-            style={[styles.subTabButton, activeSubTab === 'products' && styles.subTabButtonActive]}
+            style={[styles.subTabButton, styles.subTabButtonActive]}
             onPress={() => setActiveSubTab('products')}
             activeOpacity={0.8}
           >
-            <Text
-              style={[
-                styles.subTabText,
-                activeSubTab === 'products' && styles.subTabTextActive,
-              ]}
-            >
+            <Text style={[styles.subTabText, styles.subTabTextActive]}>
               Products ({products.length})
             </Text>
-            {activeSubTab === 'products' && <View style={styles.activeTabIndicator} />}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.subTabButton, activeSubTab === 'reels' && styles.subTabButtonActive]}
-            onPress={() => setActiveSubTab('reels')}
-            activeOpacity={0.8}
-          >
-            <Text
-              style={[
-                styles.subTabText,
-                activeSubTab === 'reels' && styles.subTabTextActive,
-              ]}
-            >
-              Reels ({profile.reels?.length || 0})
-            </Text>
-            {activeSubTab === 'reels' && <View style={styles.activeTabIndicator} />}
+            <View style={styles.activeTabIndicator} />
           </TouchableOpacity>
         </View>
 
-        {/* 6. SubTab Content Area */}
-        {activeSubTab === 'products' ? (
-          /* Products Grid (2 columns) */
-          <View style={styles.catalogGrid}>
-            {products.map((product: StudioProduct) => (
-              <View key={product.id} style={styles.productCard}>
-                <View style={styles.productImageWrap}>
-                  <FastImage
-                    source={{
-                      uri: product.imageUri,
-                      priority: FastImage.priority.normal,
-                      cache: FastImage.cacheControl.immutable,
-                    }}
-                    style={styles.productImage as any}
-                    resizeMode={FastImage.resizeMode.cover}
-                  />
-
-                  {/* Discount / Boost badges */}
-                  {product.discountPercent > 0 && (
-                    <View style={styles.discountBadge}>
-                      <Text style={styles.discountBadgeText}>{product.discountPercent}% OFF</Text>
-                    </View>
-                  )}
-                  {product.isBoosted && (
-                    <View style={styles.boostedBadge}>
-                      <Icon name="lightning-bolt" size={10} color="#FFFFFF" />
-                      <Text style={styles.boostedBadgeText}>BOOSTED</Text>
-                    </View>
-                  )}
-
-                  {/* Stock Quick Toggle Button */}
-                  <TouchableOpacity
-                    style={[
-                      styles.stockToggleBadge,
-                      product.inStock ? styles.stockIn : styles.stockOut,
-                    ]}
-                    onPress={() => toggleStockStatus(product.id)}
-                    activeOpacity={0.8}
-                  >
-                    <View
-                      style={[
-                        styles.stockDot,
-                        { backgroundColor: product.inStock ? '#10B981' : '#EF4444' },
-                      ]}
-                    />
-                    <Text style={styles.stockToggleText}>
-                      {product.inStock ? 'In Stock' : 'Out'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Details */}
-                <View style={styles.productDetails}>
-                  <Text style={styles.productCategory}>{product.category}</Text>
-                  <Text style={styles.productTitle} numberOfLines={1}>
-                    {product.title}
-                  </Text>
-                  <Text style={styles.productFabric} numberOfLines={1}>
-                    {product.fabric} • {product.gsm}
-                  </Text>
-
-                  <View style={styles.productPriceRow}>
-                    <Text style={styles.productPrice}>₹{product.price}</Text>
-                    {product.originalPrice > product.price && (
-                      <Text style={styles.productOriginalPrice}>₹{product.originalPrice}</Text>
-                    )}
-                  </View>
-                </View>
-              </View>
-            ))}
-          </View>
-        ) : (
-          /* Runway Reels Grid (2-column video cards) */
-          <View style={styles.reelsGrid}>
-            {(profile.reels || []).map((reel: RunwayReel) => (
-              <TouchableOpacity
-                key={reel.id}
-                style={styles.reelCard}
-                onPress={() => setSelectedReel(reel)}
-                activeOpacity={0.85}
-              >
+        {/* 6. Products Grid (2 columns) */}
+        <View style={styles.catalogGrid}>
+          {products.map((product: StudioProduct) => (
+            <View key={product.id} style={styles.productCard}>
+              <View style={styles.productImageWrap}>
                 <FastImage
                   source={{
-                    uri: reel.thumbnail,
+                    uri: product.imageUri,
                     priority: FastImage.priority.normal,
                     cache: FastImage.cacheControl.immutable,
                   }}
-                  style={styles.reelThumbnail as any}
+                  style={styles.productImage as any}
                   resizeMode={FastImage.resizeMode.cover}
                 />
 
-                <LinearGradient
-                  colors={['rgba(0,0,0,0.6)', 'transparent', 'rgba(0,0,0,0.85)']}
-                  style={styles.reelGradient}
-                />
-
-                {/* Top Metrics: Views & Likes */}
-                <View style={styles.reelTopRow}>
-                  <View style={styles.reelMetricChip}>
-                    <Icon name="eye-outline" size={12} color="#FFFFFF" style={{ marginRight: 3 }} />
-                    <Text style={styles.reelMetricText}>{reel.views}</Text>
+                {/* Discount / Boost badges */}
+                {product.discountPercent > 0 && (
+                  <View style={styles.discountBadge}>
+                    <Text style={styles.discountBadgeText}>{product.discountPercent}% OFF</Text>
                   </View>
-
-                  <View style={styles.reelMetricChip}>
-                    <Icon name="heart-outline" size={12} color="#FFFFFF" style={{ marginRight: 3 }} />
-                    <Text style={styles.reelMetricText}>{reel.likes}</Text>
+                )}
+                {product.isBoosted && (
+                  <View style={styles.boostedBadge}>
+                    <Icon name="lightning-bolt" size={10} color="#FFFFFF" />
+                    <Text style={styles.boostedBadgeText}>BOOSTED</Text>
                   </View>
-                </View>
+                )}
 
-                {/* Center Play Icon */}
-                <View style={styles.reelPlayWrap}>
-                  <Icon name="play-circle" size={40} color="rgba(255,255,255,0.85)" />
-                </View>
-
-                {/* Bottom Garment Tag Chip */}
-                <View style={styles.reelBottomInfo}>
-                  <Text style={styles.reelTitle} numberOfLines={1}>
-                    {reel.title}
+                {/* Stock Quick Toggle Button */}
+                <TouchableOpacity
+                  style={[
+                    styles.stockToggleBadge,
+                    product.inStock ? styles.stockIn : styles.stockOut,
+                  ]}
+                  onPress={() => toggleStockStatus(product.id)}
+                  activeOpacity={0.8}
+                >
+                  <View
+                    style={[
+                      styles.stockDot,
+                      { backgroundColor: product.inStock ? '#10B981' : '#EF4444' },
+                    ]}
+                  />
+                  <Text style={styles.stockToggleText}>
+                    {product.inStock ? 'In Stock' : 'Out'}
                   </Text>
-                  <View style={styles.taggedGarmentChip}>
-                    <Icon name="tag-outline" size={11} color="#059669" style={{ marginRight: 3 }} />
-                    <Text style={styles.taggedGarmentTitle} numberOfLines={1}>
-                      {reel.taggedGarmentTitle}
-                    </Text>
-                    <Text style={styles.taggedGarmentPrice}>₹{reel.taggedPrice}</Text>
-                  </View>
+                </TouchableOpacity>
+              </View>
+
+              {/* Details */}
+              <View style={styles.productDetails}>
+                <Text style={styles.productCategory}>{product.category}</Text>
+                <Text style={styles.productTitle} numberOfLines={1}>
+                  {product.title}
+                </Text>
+                <Text style={styles.productFabric} numberOfLines={1}>
+                  {product.fabric} • {product.gsm}
+                </Text>
+
+                <View style={styles.productPriceRow}>
+                  <Text style={styles.productPrice}>₹{product.price}</Text>
+                  {product.originalPrice > product.price && (
+                    <Text style={styles.productOriginalPrice}>₹{product.originalPrice}</Text>
+                  )}
                 </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+              </View>
+            </View>
+          ))}
+        </View>
       </ScrollView>
 
       {/* 7. Leave Note Modal */}

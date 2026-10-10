@@ -115,19 +115,6 @@ export const SellerWelcomeModal: React.FC<SellerWelcomeModalProps> = ({
               <p className="text-xs text-neutral-500 mt-0.5">Bargain directly and offer customer-exclusive custom pricing deals.</p>
             </div>
           </div>
-
-          <div className="flex items-start gap-3.5 p-3.5 rounded-2xl bg-neutral-50/80 border border-neutral-200/80 hover:border-neutral-300 hover:bg-neutral-50 transition-colors">
-            <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 mt-0.5">
-              <Flame className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold text-neutral-900">Publish Reels & Drops</h4>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">Step 3</span>
-              </div>
-              <p className="text-xs text-neutral-500 mt-0.5">Reach thousands of shoppers via visual video commerce in your city.</p>
-            </div>
-          </div>
         </div>
 
         {/* CTA Button */}

@@ -4,7 +4,7 @@
     <color name="notification_color">#00863A</color>
     <color name="notification_accent">#2255BC</color>
     <color name="notification_badge">#00863A</color>
-    <color name="ic_launcher_background">#F5F5F0</color>
+    <color name="ic_launcher_background">#1A6AFF</color>
     <color name="grezto_gold">#E6A524</color>
     <color name="grezto_charcoal">#161A20</color>
 </resources>

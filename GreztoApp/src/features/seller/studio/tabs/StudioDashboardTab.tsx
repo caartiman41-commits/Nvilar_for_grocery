@@ -147,8 +147,6 @@ export const StudioDashboardTab: React.FC<StudioDashboardTabProps> = memo(({
         onOpenCatalog?.();
       } else if (banner.id === 'banner_hyperlocal' || banner.actionText.includes('Radar')) {
         onOpenOrders?.();
-      } else if (banner.id === 'banner_reels' || banner.actionText.includes('Reel')) {
-        onOpenProfile?.();
       } else {
         showToast({
           type: 'info',
@@ -157,7 +155,7 @@ export const StudioDashboardTab: React.FC<StudioDashboardTabProps> = memo(({
         });
       }
     },
-    [onOpenCatalog, onOpenOrders, onOpenProfile]
+    [onOpenCatalog, onOpenOrders]
   );
 
   // ----------------------------------------------------
@@ -648,25 +646,7 @@ export const StudioDashboardTab: React.FC<StudioDashboardTabProps> = memo(({
           <Icon name="chevron-right" size={18} color="#94A3B8" />
         </TouchableOpacity>
 
-        {/* Action 2: Upload Fashion Reel */}
-        <TouchableOpacity
-          style={styles.growthCard}
-          onPress={onOpenProfile}
-          activeOpacity={0.75}
-        >
-          <View style={[styles.growthIconCircle, { backgroundColor: '#FCE7F3' }]}>
-            <Icon name="video-vintage" size={20} color="#DB2777" />
-          </View>
-          <View style={styles.growthTextGroup}>
-            <Text style={styles.growthCardTitle}>Upload Fashion Reel</Text>
-            <Text style={styles.growthCardDesc}>
-              Showcase runway fits and tag your catalog products
-            </Text>
-          </View>
-          <Icon name="chevron-right" size={18} color="#94A3B8" />
-        </TouchableOpacity>
-
-        {/* Action 3: Promote in City */}
+        {/* Action 2: Promote in City */}
         <TouchableOpacity
           style={styles.growthCard}
           onPress={() => {

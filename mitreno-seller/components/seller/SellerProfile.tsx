@@ -953,18 +953,6 @@ export const SellerProfile: React.FC<SellerProfileProps> = ({
         </button>
 
         <button
-          onClick={() => setActiveTab('reels')}
-          className={`py-3 flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
-            activeTab === 'reels'
-              ? 'border-neutral-950 text-neutral-950 font-black'
-              : 'border-transparent text-neutral-500 hover:text-neutral-900'
-          }`}
-        >
-          <Film className="w-4 h-4" />
-          <span>REELS ({reels.length})</span>
-        </button>
-
-        <button
           onClick={() => setActiveTab('about')}
           className={`py-3 flex items-center gap-2 border-b-2 transition-colors cursor-pointer ${
             activeTab === 'about'
@@ -1055,61 +1043,6 @@ export const SellerProfile: React.FC<SellerProfileProps> = ({
                     <Zap className={`w-3.5 h-3.5 ${prod.is_sponsored ? 'text-amber-600 fill-amber-500' : 'text-amber-400 fill-amber-400'}`} />
                     <span>{prod.is_sponsored ? '⚡ Boost Active' : '⚡ Boost (₹99)'}</span>
                   </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 2: REELS GRID */}
-      {activeTab === 'reels' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold text-neutral-600 uppercase tracking-wider">
-              Fashion Drops & Runway Shorts
-            </h4>
-            <button
-              onClick={() => onNavigateToTab && onNavigateToTab('reels')}
-              className="text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer"
-            >
-              <span>+ Upload New Reel →</span>
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {reels.map(reel => (
-              <div
-                key={reel.id}
-                className="group relative aspect-[9/16] rounded-2xl overflow-hidden bg-neutral-900 border border-neutral-200/90 shadow-xs"
-              >
-                <img
-                  src={reel.thumbnail_url}
-                  alt={reel.caption}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 p-3 flex flex-col justify-between">
-                  <div className="flex items-center justify-end">
-                    <span className="p-1.5 rounded-full bg-black/60 backdrop-blur-md text-white">
-                      <Play className="w-3 h-3 fill-current" />
-                    </span>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <p className="text-xs text-white font-medium line-clamp-2 drop-shadow">
-                      {reel.caption}
-                    </p>
-                    <div className="flex items-center justify-between text-[11px] text-neutral-300 font-semibold">
-                      <span className="flex items-center gap-1">
-                        <Eye className="w-3 h-3" />
-                        {reel.views_count}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Heart className="w-3 h-3 text-rose-400 fill-current" />
-                        {reel.likes_count}
-                      </span>
-                    </div>
-                  </div>
                 </div>
               </div>
             ))}

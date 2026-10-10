@@ -26,6 +26,17 @@ import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { ProductService } from '../../services/ProductService';
 import { ProductGridSkeleton } from '../../components/ProductGridSkeleton';
+import { WholesaleCategoryHub } from './components/WholesaleCategoryHub';
+import {
+  WHOLESALE_CATALOG_PRODUCTS,
+  detectWholesaleTaxonomy,
+  subscribeUserInterest,
+  recordCategoryDwellInterest,
+  recordProductViewInterest,
+  getTopUserInterestVertical,
+  buildSmartAllMixedFeed,
+  WholesaleCatalogItem,
+} from './data/wholesaleHubData';
 
 export interface BoutiqueProductItem {
   id: string;
@@ -427,12 +438,134 @@ export const HomeScreen = memo(() => {
 
   // Real-time synchronization when products are added, edited, deleted, or stock-toggled in Seller Studio
   const studioProducts = useSellerStore((s) => s.products);
+  const studioProfile = useSellerStore((s) => s.profile);
   useEffect(() => {
     fetchLiveProducts();
   }, [studioProducts, fetchLiveProducts]);
 
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
+
+  const handleSelectTopCategory = useCallback((catId: string) => {
+    setSelectedCategory(catId);
+    setSelectedSubcategory(null);
+  }, []);
+
+  const handleOpenSubcategoryScreen = useCallback(
+    (subId: string | null) => {
+      if (!subId) {
+        setSelectedSubcategory(null);
+        return;
+      }
+      navigation.navigate('CategoryProducts', {
+        subcategoryId: subId,
+        vertical: selectedCategory !== 'all' ? selectedCategory : undefined,
+      });
+    },
+    [navigation, selectedCategory]
+  );
+
+  // Merge Seller Studio products into WholesaleCatalogItem list
+  const mergedWholesaleProducts = useMemo<WholesaleCatalogItem[]>(() => {
+    const sellerMapped: WholesaleCatalogItem[] = studioProducts.map((sp) => {
+      const detected = detectWholesaleTaxonomy(`${sp.title} ${sp.category || ''}`);
+      const orig = sp.originalPrice > sp.price ? sp.originalPrice : Math.round(sp.price * 1.35);
+      const disc = Math.round(((orig - sp.price) / orig) * 100);
+      return {
+        id: sp.id,
+        shopId: studioProfile?.storeId || '',
+        vertical: sp.vertical || detected?.vertical || 'fashion',
+        subcategoryId: sp.subcategoryId || detected?.subcategoryId || 'sub_fashion_streetwear',
+        subTypeId: sp.subTypeId || detected?.subTypeId || 'all',
+        name: sp.title,
+        price: sp.price,
+        originalPrice: orig,
+        image: sp.imageUri,
+        boutiqueName: studioProfile?.name || 'Verified Wholesale Hub',
+        rating: studioProfile?.rating || 4.9,
+        discountBadge: `${disc > 0 ? disc : 25}% OFF`,
+        minOrder: sp.minOrder || 4,
+        inStock: sp.inStock,
+        unitSpec: sp.unitSpec || sp.setRatio || detected?.suggestedUnit || 'Wholesale Pack',
+      };
+    });
+    return [...sellerMapped, ...WHOLESALE_CATALOG_PRODUCTS];
+  }, [studioProducts, studioProfile]);
+
+  // Reactive listener for User Search & Dwell Interest updates
+  const [interestVersion, setInterestVersion] = useState(0);
+  useEffect(() => {
+    const unsub = subscribeUserInterest(() => {
+      setInterestVersion((v) => v + 1);
+    });
+    return unsub;
+  }, []);
+
+  // Auto-detect dwell time when user browses any specific category tab
+  useEffect(() => {
+    if (!selectedCategory || selectedCategory === 'all') return;
+    recordCategoryDwellInterest(selectedCategory, 3);
+    const dwellTimer = setInterval(() => {
+      recordCategoryDwellInterest(selectedCategory, 3);
+    }, 3500);
+    return () => clearInterval(dwellTimer);
+  }, [selectedCategory]);
+
+  const showcaseProducts = useMemo(() => {
+    if (
+      selectedCategory === 'electronics' ||
+      selectedCategory === 'pharmacy' ||
+      selectedCategory === 'ration' ||
+      selectedCategory === 'beauty' ||
+      selectedCategory === 'kids' ||
+      selectedCategory === 'cold_drinks' ||
+      selectedCategory === 'fashion' ||
+      selectedCategory === 'footwear' ||
+      selectedCategory === 'decor' ||
+      selectedCategory === 'imported'
+    ) {
+      return mergedWholesaleProducts.filter((p) => p.vertical === selectedCategory);
+    }
+    return mergedWholesaleProducts;
+  }, [selectedCategory, mergedWholesaleProducts]);
+
   const filteredProducts = useMemo(() => {
-    const list = shuffledProducts.filter((item) => {
+    let baseList: BoutiqueProductItem[] = [];
+
+    if (
+      selectedCategory === 'electronics' ||
+      selectedCategory === 'pharmacy' ||
+      selectedCategory === 'ration' ||
+      selectedCategory === 'beauty' ||
+      selectedCategory === 'kids' ||
+      selectedCategory === 'cold_drinks' ||
+      selectedCategory === 'footwear' ||
+      selectedCategory === 'decor' ||
+      selectedCategory === 'imported' ||
+      selectedCategory === 'others'
+    ) {
+      const verticalList = mergedWholesaleProducts.filter(
+        (p) =>
+          p.vertical === selectedCategory &&
+          (!selectedSubcategory || p.subcategoryId === selectedSubcategory)
+      );
+      baseList = verticalList;
+    } else if (selectedCategory === 'fashion') {
+      const fashionWholesale = mergedWholesaleProducts.filter(
+        (p) =>
+          p.vertical === 'fashion' &&
+          (!selectedSubcategory || p.subcategoryId === selectedSubcategory)
+      );
+      baseList = selectedSubcategory
+        ? fashionWholesale
+        : [...fashionWholesale, ...shuffledProducts];
+    } else {
+      // 'all' super-mandi feed:
+      // 1. Interleaves ALL 11 categories so it never shows only Electronics in a block
+      // 2. Auto-promotes products matching the user's recent search / dwell interest to the TOP!
+      baseList = buildSmartAllMixedFeed(mergedWholesaleProducts, shuffledProducts);
+    }
+
+    const list = baseList.filter((item) => {
       // Filter by Deal options
       if (selectedFilter === 'all') return true;
       if (selectedFilter === 'under_1999') return item.price <= 1999;
@@ -458,7 +591,15 @@ export const HomeScreen = memo(() => {
       return [...list].sort((a, b) => b.rating - a.rating);
     }
     return list;
-  }, [shuffledProducts, selectedFilter, selectedSort]);
+  }, [
+    selectedCategory,
+    selectedSubcategory,
+    mergedWholesaleProducts,
+    shuffledProducts,
+    selectedFilter,
+    selectedSort,
+    interestVersion,
+  ]);
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
@@ -489,6 +630,7 @@ export const HomeScreen = memo(() => {
       Alert.alert('Out of Stock', `"${product.name}" is currently out of stock and unavailable for bargaining.`);
       return;
     }
+    recordProductViewInterest(product as any);
     navigation.navigate('ChatConversation', {
       product,
       attachedProduct: product,
@@ -503,6 +645,7 @@ export const HomeScreen = memo(() => {
       Alert.alert('Out of Stock', `"${product.name}" is currently out of stock.`);
       return;
     }
+    recordProductViewInterest(product as any);
     const discount = product.originalPrice
       ? `${Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}% OFF`
       : 'WHOLESALE';
@@ -536,6 +679,7 @@ export const HomeScreen = memo(() => {
   }, [cartQuantities, removeItem, updateQuantity]);
 
   const handleProductPress = useCallback((item: BoutiqueProductItem) => {
+    recordProductViewInterest(item as any);
     FastImage.preload([{ uri: item.image, priority: FastImage.priority.high }]);
     navigation.navigate('ProductDetails', { product: item, productId: item.id });
   }, [navigation]);
@@ -565,17 +709,74 @@ export const HomeScreen = memo(() => {
 
   const refreshColors = useMemo(() => ['#3B111A', '#8B5E3C', '#155DFC'], []);
 
+  const feedTitleLabel = useMemo(() => {
+    if (selectedCategory === 'electronics') return 'WHOLESALE ELECTRONICS & APPLIANCES';
+    if (selectedCategory === 'pharmacy') return 'WHOLESALE PHARMACY & MEDICO STOCK';
+    if (selectedCategory === 'ration') return 'KIRANA & GRAIN MANDI WHOLESALE';
+    if (selectedCategory === 'beauty') return 'BEAUTY, COSMETICS & SALON WHOLESALE';
+    if (selectedCategory === 'kids') return 'KIDS, BABY CARE & TOYS WHOLESALE';
+    if (selectedCategory === 'cold_drinks') return 'COLD DRINKS, COFFEE & WATER WHOLESALE';
+    if (selectedCategory === 'fashion') return 'FASHION, SAREES, MENS & KIDS GARMENTS';
+    if (selectedCategory === 'footwear') return 'FOOTWEAR, CROCS, SHOES & CHAPPALS';
+    if (selectedCategory === 'decor') return 'HOME DECOR, BEDSHEETS & FURNISHINGS';
+    if (selectedCategory === 'imported') return 'IMPORTED GOURMET, CHOCOLATES & RAMEN';
+    if (selectedCategory === 'others') return 'OTHER WHOLESALE & GENERAL SUPPLIES';
+    const topInterest = getTopUserInterestVertical();
+    if (topInterest.vertical && topInterest.label) {
+      return `RECOMMENDED FOR YOU • ${topInterest.label.toUpperCase()} & ALL MIX`;
+    }
+    return 'EXPLORE ALL CATEGORIES • SMART MIXED FEED';
+  }, [selectedCategory, interestVersion]);
+
+  const isDedicatedHubCategory =
+    selectedCategory === 'electronics' ||
+    selectedCategory === 'pharmacy' ||
+    selectedCategory === 'ration' ||
+    selectedCategory === 'beauty' ||
+    selectedCategory === 'kids' ||
+    selectedCategory === 'cold_drinks' ||
+    selectedCategory === 'fashion' ||
+    selectedCategory === 'footwear' ||
+    selectedCategory === 'decor' ||
+    selectedCategory === 'imported' ||
+    selectedCategory === 'others';
+
   const listHeader = useMemo(() => (
     <>
-      <BannerCarousel />
+      {!isDedicatedHubCategory && <BannerCarousel />}
+      <WholesaleCategoryHub
+        activeCategory={selectedCategory}
+        activeSubcategoryId={selectedSubcategory}
+        onSelectCategory={handleSelectTopCategory}
+        onSelectSubcategory={handleOpenSubcategoryScreen}
+        showcaseProducts={showcaseProducts}
+        cartQuantities={cartQuantities}
+        onProductPress={handleProductPress}
+        onAdd={handleAddToCart}
+        onIncrement={handleIncrement}
+        onDecrement={handleDecrement}
+      />
       <View style={styles.feedHeaderRow}>
         <View style={styles.feedHeaderTitleRow}>
           <Icon name="star-four-points" size={15} color="#0F172A" style={styles.headerIcon} />
-          <Text style={styles.feedHeaderSub}>EXPLORE COLLECTIONS</Text>
+          <Text style={styles.feedHeaderSub}>{feedTitleLabel}</Text>
         </View>
       </View>
     </>
-  ), []);
+  ), [
+    isDedicatedHubCategory,
+    selectedCategory,
+    selectedSubcategory,
+    handleSelectTopCategory,
+    handleOpenSubcategoryScreen,
+    showcaseProducts,
+    cartQuantities,
+    handleProductPress,
+    handleAddToCart,
+    handleIncrement,
+    handleDecrement,
+    feedTitleLabel,
+  ]);
 
   return (
     <View style={styles.container}>
@@ -590,7 +791,7 @@ export const HomeScreen = memo(() => {
       {/* Visual Category Capsule Bar matching Screenshot 3 */}
       <VisualCategoryBar
         activeCategoryId={selectedCategory}
-        onSelectCategory={(catId) => setSelectedCategory(catId)}
+        onSelectCategory={handleSelectTopCategory}
       />
 
       {isInitialLoading ? (

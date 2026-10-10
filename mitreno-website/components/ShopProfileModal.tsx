@@ -698,93 +698,37 @@ export const ShopProfileModal: React.FC<ShopProfileModalProps> = ({
               }`}
             >
               <Grid className="w-4 h-4" /> Shop
-              {activeTab === 'shop' && (
-                <div className="absolute bottom-0 left-0 w-full h-[3px] bg-neutral-900 rounded-t-full"></div>
-              )}
-            </button>
-            <button 
-              onClick={() => setActiveTab('drops')}
-              className={`flex-1 py-3.5 flex items-center justify-center gap-2 text-sm font-bold transition-all relative cursor-pointer ${
-                activeTab === 'drops' ? 'text-neutral-900' : 'text-neutral-400 hover:text-neutral-600'
-              }`}
-            >
-              <Video className="w-4 h-4" /> Drops
-              {activeTab === 'drops' && (
-                <div className="absolute bottom-0 left-0 w-full h-[3px] bg-neutral-900 rounded-t-full"></div>
-              )}
+              <div className="absolute bottom-0 left-0 w-full h-[3px] bg-neutral-900 rounded-t-full"></div>
             </button>
           </div>
         </div>
 
         {/* Tab Content */}
         <div className="bg-white min-h-[50vh]">
-          {activeTab === 'shop' ? (
-            <div className="p-3">
-              {displayProducts.length > 0 ? (
-                <div className="grid grid-cols-2 gap-3">
-                  {displayProducts.map((p) => (
-                    <ProductCard 
-                      key={p.id} 
-                      product={p} 
-                      onOpenProduct={() => {
-                        onClose();
-                        onProductClick(p);
-                      }} 
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="py-16 px-4 flex flex-col items-center justify-center text-center">
-                  <div className="w-14 h-14 rounded-2xl bg-neutral-100 flex items-center justify-center text-neutral-400 mb-3">
-                    <ShoppingBag className="w-7 h-7" />
-                  </div>
-                  <h3 className="text-sm font-bold text-neutral-800">No Garments Listed</h3>
-                  <p className="text-xs text-neutral-500 max-w-xs mt-1">This boutique has no active products listed in their catalog right now.</p>
-                </div>
-              )}
-            </div>
-          ) : (
-            drops.length > 0 ? (
-              <div className="grid grid-cols-3 gap-0.5">
-                {drops.map((drop) => (
-                  <div 
-                    key={drop.id} 
-                    onClick={() => setActiveReel(drop.id)}
-                    className="relative aspect-[9/16] bg-neutral-200 group cursor-pointer overflow-hidden"
-                  >
-                    <Image 
-                      src={drop.url}
-                      alt="Drop reel"
-                      fill
-                      className="object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
-                    
-                    {/* Views count */}
-                    <div className="absolute bottom-2 left-2 flex items-center gap-1 text-white text-[10px] font-bold z-10">
-                      <Play className="w-3 h-3 fill-white" />
-                      {drop.views}
-                    </div>
-
-                    {/* Play Overlay */}
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 z-10">
-                      <div className="w-10 h-10 rounded-full bg-white/30 backdrop-blur-md flex items-center justify-center">
-                        <Play className="w-5 h-5 text-white fill-white ml-1" />
-                      </div>
-                    </div>
-                  </div>
+          <div className="p-3">
+            {displayProducts.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3">
+                {displayProducts.map((p) => (
+                  <ProductCard 
+                    key={p.id} 
+                    product={p} 
+                    onOpenProduct={() => {
+                      onClose();
+                      onProductClick(p);
+                    }} 
+                  />
                 ))}
               </div>
             ) : (
               <div className="py-16 px-4 flex flex-col items-center justify-center text-center">
                 <div className="w-14 h-14 rounded-2xl bg-neutral-100 flex items-center justify-center text-neutral-400 mb-3">
-                  <Play className="w-7 h-7" />
+                  <ShoppingBag className="w-7 h-7" />
                 </div>
-                <h3 className="text-sm font-bold text-neutral-800">No Runway Drops Yet</h3>
-                <p className="text-xs text-neutral-500 max-w-xs mt-1">This boutique has not published video reels or runway drops yet.</p>
+                <h3 className="text-sm font-bold text-neutral-800">No Products Listed</h3>
+                <p className="text-xs text-neutral-500 max-w-xs mt-1">This boutique has no active products listed in their catalog right now.</p>
               </div>
-            )
-          )}
+            )}
+          </div>
         </div>
       </div>
 

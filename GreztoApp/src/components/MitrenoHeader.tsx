@@ -114,7 +114,7 @@ export const MitrenoHeader: React.FC<MitrenoHeaderProps> = ({
       >
         <Icon name="magnify" size={19} color="#64748B" style={styles.searchIcon} />
         <Text style={styles.searchPlaceholder} numberOfLines={1}>
-          Search local stores, streetwear, jackets...
+          Search for atta, dal, electronics, medicines...
         </Text>
       </TouchableOpacity>
     </View>
